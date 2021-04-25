@@ -155,16 +155,20 @@ impl Command {
                 }
             }
             Command::Load(file) => {
-                let mut script = std::fs::read_to_string(file)?;
+                let old_base = helper.base_path.clone();
+                let path = old_base.join(file);
+                let mut script = std::fs::read_to_string(&path)?;
                 if script.starts_with("#!") {
                     let line_end = script.find('\n').unwrap_or(0);
                     script.drain(..line_end);
                 }
                 let cmds = script.parse::<Commands>()?;
+                helper.base_path = path.parent().unwrap().to_path_buf();
                 for cmd in cmds.0.iter() {
                     println!("> {:?}", cmd);
                     cmd.run(helper)?;
                 }
+                helper.base_path = old_base;
             }
         }
         Ok(())

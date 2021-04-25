@@ -66,6 +66,7 @@ pub struct MyHelper {
     pub config: Configs,
     pub env: Env,
     pub canister_env: NameEnv,
+    pub base_path: std::path::PathBuf,
     pub history: Vec<String>,
 }
 
@@ -81,6 +82,7 @@ impl MyHelper {
             config: Configs::from_dhall("{=}").unwrap(),
             env: Env::default(),
             canister_env: NameEnv::default(),
+            base_path: std::env::current_dir().unwrap(),
             history: Vec::new(),
             agent,
             agent_url,
