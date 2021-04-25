@@ -253,7 +253,7 @@ checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
 [[package]]
 name = "candid"
 version = "0.7.0-beta.1"
-source = "git+https://github.com/dfinity/candid.git?branch=fix-beta#1a8f146d8ba017c8d9849215bf803ecaf47a0907"
+source = "git+https://github.com/dfinity/candid.git?branch=fix-beta#c6ec76e3a1c1381ca95a2fe7731739205af990e3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -283,7 +283,7 @@ dependencies = [
 [[package]]
 name = "candid_derive"
 version = "0.4.4"
-source = "git+https://github.com/dfinity/candid.git?branch=fix-beta#1a8f146d8ba017c8d9849215bf803ecaf47a0907"
+source = "git+https://github.com/dfinity/candid.git?branch=fix-beta#c6ec76e3a1c1381ca95a2fe7731739205af990e3"
 dependencies = [
  "lazy_static",
  "proc-macro2",

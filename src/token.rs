@@ -72,6 +72,8 @@ pub enum Token {
     Load,
     #[token("==")]
     TestEqual,
+    #[token("~=")]
+    SubEqual,
     #[token("!=")]
     NotEqual,
     #[token("principal")]
