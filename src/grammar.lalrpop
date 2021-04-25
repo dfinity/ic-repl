@@ -1,4 +1,4 @@
-use candid::parser::value::{IDLField, IDLValue, IDLArgs};
+use candid::parser::value::{IDLField, IDLValue, IDLArgs, VariantValue};
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
 use super::token::{Token, error2, LexicalError, Span, Spanned};
@@ -130,7 +130,7 @@ Arg: IDLValue = {
         check_unique(fs.iter().map(|f| &f.id)).map_err(|e| error2(e, span))?;
         Ok(IDLValue::Record(fs))
     },
-    "variant" "{" <VariantField> "}" => IDLValue::Variant(Box::new(<>), 0),
+    "variant" "{" <VariantField> "}" => IDLValue::Variant(VariantValue(Box::new(<>), 0)),
     "principal" <Sp<Text>> =>? Ok(IDLValue::Principal(Principal::from_text(&<>.0).map_err(|e| error2(e, <>.1))?)),
     "service" <Sp<Text>> =>? Ok(IDLValue::Service(Principal::from_text(&<>.0).map_err(|e| error2(e, <>.1))?)),
     "func" <id:Sp<Text>> "." <meth:Name> =>? {
