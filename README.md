@@ -1,7 +1,7 @@
 # Canister REPL
 
 ```
-ic-repl --replica [local|ic|url]
+ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 ```
 
 ## Commands
@@ -15,9 +15,24 @@ ic-repl --replica [local|ic|url]
  | call <name> . <name> ( <val>,* )
  | let <id> = <val>
  | show <val>
- | assert <val> = <val>
+ | assert <val> <==|~=|!=> <val>
  | identity <id>
 
 <var> := <id> | _
 <val> := <candid val> | <var> (. <id>)*
+```
+
+## Example
+
+test.sh
+```
+#!/usr/bin/ic-repl -r ic
+
+import greet = "rrkah-fqaaa-aaaaa-aaaaq-cai";
+call greet.greet("test");
+let result = _;
+assert _ == "Hello, test!";
+identity alice;
+call "rrkah-fqaaa-aaaaa-aaaaq-cai".greet("test");
+assert _ == result;
 ```
