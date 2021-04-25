@@ -37,11 +37,17 @@ pub enum Command {
     Config(String),
     Show(Value),
     Let(String, Value),
-    Assert(Value, Value),
+    Assert(BinOp, Value, Value),
     Export(String),
     Import(String, Principal),
     Load(String),
     Identity(String),
+}
+#[derive(Debug, Clone)]
+pub enum BinOp {
+    Equal,
+    SubEqual,
+    NotEqual,
 }
 
 impl Command {
@@ -90,22 +96,24 @@ impl Command {
                 let v = val.get(&helper.env)?.clone();
                 helper.env.0.insert(id.to_string(), v);
             }
-            Command::Assert(left, right) => {
+            Command::Assert(op, left, right) => {
                 let left = left.get(&helper.env)?;
                 let right = right.get(&helper.env)?;
-                if left != right {
-                    let l_ty = left.value_ty();
-                    let r_ty = right.value_ty();
-                    //println!("{} {}", l_ty, r_ty);
-                    let env = TypeEnv::new();
-                    //left.annotate_type(false, &env, &r_ty)?;
-                    if let Ok(ref left) = left.annotate_type(false, &env, &r_ty) {
-                        assert_eq!(left, right);
-                    } else if let Ok(ref right) = right.annotate_type(false, &env, &l_ty) {
-                        assert_eq!(left, right);
-                    } else {
-                        assert_eq!(left, right);
+                match op {
+                    BinOp::Equal => assert_eq!(left, right),
+                    BinOp::SubEqual => {
+                        let l_ty = left.value_ty();
+                        let r_ty = right.value_ty();
+                        let env = TypeEnv::new();
+                        if let Ok(ref left) = left.annotate_type(false, &env, &r_ty) {
+                            assert_eq!(left, right);
+                        } else if let Ok(ref right) = right.annotate_type(false, &env, &l_ty) {
+                            assert_eq!(left, right);
+                        } else {
+                            assert_eq!(left, right);
+                        }
                     }
+                    BinOp::NotEqual => assert!(left != right),
                 }
             }
             Command::Config(conf) => helper.config = Configs::from_dhall(&conf)?,
