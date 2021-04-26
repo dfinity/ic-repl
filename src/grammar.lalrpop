@@ -37,6 +37,7 @@ extern {
         "show" => Token::Show,
         "assert" => Token::Assert,
         "let" => Token::Let,
+        "file" => Token::File,
         "identity" => Token::Identity,
         "sign" => Token::Sign(<char>),
         "=" => Token::Equals,
@@ -94,6 +95,7 @@ Value: Value = {
      res.append(&mut vs);
      Value::Path(res)
   },
+  "file" <Text> => Value::Blob(<>),
 }
 
 Var: String = {

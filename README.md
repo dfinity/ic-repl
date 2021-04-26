@@ -15,11 +15,12 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | call <name> . <name> ( <val>,* )
  | let <id> = <val>
  | show <val>
- | assert <val> <==|~=|!=> <val>
+ | assert <val> <binop> <val>
  | identity <id>
 
 <var> := <id> | _
-<val> := <candid val> | <var> (. <id>)*
+<val> := <candid val> | <var> (. <id>)* | file <text>
+<binop> := == | ~= | !=
 ```
 
 ## Example

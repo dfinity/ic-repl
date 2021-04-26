@@ -62,6 +62,8 @@ pub enum Token {
     Show,
     #[token("let")]
     Let,
+    #[token("file")]
+    File,
     #[token("assert")]
     Assert,
     #[token("identity")]

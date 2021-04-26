@@ -1,25 +1,37 @@
-use super::helper::{Env, MyHelper, NameEnv};
+use super::helper::{MyHelper, NameEnv};
 use super::token::{ParserError, Spanned, Tokenizer};
-use anyhow::anyhow;
-use candid::Principal;
+use anyhow::{anyhow, Context};
 use candid::{
-    parser::configs::Configs, parser::value::IDLValue, types::Function, IDLArgs, TypeEnv,
+    parser::configs::Configs, parser::value::IDLValue, types::Function, IDLArgs, Principal, TypeEnv,
 };
 use ic_agent::Agent;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub enum Value {
     Candid(IDLValue),
     Path(Vec<String>),
+    Blob(String),
 }
 impl Value {
-    fn get<'a>(&'a self, env: &'a Env) -> anyhow::Result<&'a IDLValue> {
+    fn get<'a>(&'a self, helper: &'a MyHelper) -> anyhow::Result<IDLValue> {
         Ok(match self {
-            Value::Candid(v) => v,
-            Value::Path(vs) => env
+            Value::Candid(v) => v.clone(),
+            Value::Path(vs) => helper
+                .env
                 .0
                 .get(&vs[0])
-                .ok_or_else(|| anyhow!("Undefined variable {}", vs[0]))?,
+                .ok_or_else(|| anyhow!("Undefined variable {}", vs[0]))?
+                .clone(),
+            Value::Blob(file) => {
+                let path = resolve_path(&helper.base_path, PathBuf::from(file));
+                let blob: Vec<IDLValue> = std::fs::read(&path)
+                    .with_context(|| format!("Cannot read {:?}", path))?
+                    .into_iter()
+                    .map(IDLValue::Nat8)
+                    .collect();
+                IDLValue::Vec(blob)
+            }
         })
     }
 }
@@ -76,7 +88,7 @@ impl Command {
                     .ok_or_else(|| anyhow!("no method {}", method))?;
                 let mut values = Vec::new();
                 for arg in args.iter() {
-                    values.push(arg.get(&helper.env)?.clone());
+                    values.push(arg.get(&helper)?);
                 }
                 let args = IDLArgs { args: values };
                 let res = call(&agent, canister_id, &method, &args, &info.env, &func)?;
@@ -93,21 +105,21 @@ impl Command {
                     .insert(id.to_string(), canister_id.clone());
             }
             Command::Let(id, val) => {
-                let v = val.get(&helper.env)?.clone();
+                let v = val.get(&helper)?;
                 helper.env.0.insert(id.to_string(), v);
             }
             Command::Assert(op, left, right) => {
-                let left = left.get(&helper.env)?;
-                let right = right.get(&helper.env)?;
+                let left = left.get(&helper)?;
+                let right = right.get(&helper)?;
                 match op {
                     BinOp::Equal => assert_eq!(left, right),
                     BinOp::SubEqual => {
                         let l_ty = left.value_ty();
                         let r_ty = right.value_ty();
                         let env = TypeEnv::new();
-                        if let Ok(ref left) = left.annotate_type(false, &env, &r_ty) {
+                        if let Ok(left) = left.annotate_type(false, &env, &r_ty) {
                             assert_eq!(left, right);
-                        } else if let Ok(ref right) = right.annotate_type(false, &env, &l_ty) {
+                        } else if let Ok(right) = right.annotate_type(false, &env, &l_ty) {
                             assert_eq!(left, right);
                         } else {
                             assert_eq!(left, right);
@@ -118,7 +130,7 @@ impl Command {
             }
             Command::Config(conf) => helper.config = Configs::from_dhall(&conf)?,
             Command::Show(val) => {
-                let v = val.get(&helper.env)?;
+                let v = val.get(&helper)?;
                 println!("{}", v);
             }
             Command::Identity(id) => {
@@ -155,9 +167,11 @@ impl Command {
                 }
             }
             Command::Load(file) => {
+                // TODO check for infinite loop
                 let old_base = helper.base_path.clone();
-                let path = old_base.join(file);
-                let mut script = std::fs::read_to_string(&path)?;
+                let path = resolve_path(&old_base, PathBuf::from(file));
+                let mut script = std::fs::read_to_string(&path)
+                    .with_context(|| format!("Cannot read {:?}", path))?;
                 if script.starts_with("#!") {
                     let line_end = script.find('\n').unwrap_or(0);
                     script.drain(..line_end);
@@ -253,5 +267,13 @@ pub fn extract_canister(
             Some((canister.span.end, canister_id, method, args))
         }
         _ => None,
+    }
+}
+
+fn resolve_path(base: &Path, file: PathBuf) -> PathBuf {
+    if file.is_absolute() {
+        file
+    } else {
+        base.join(file)
     }
 }
