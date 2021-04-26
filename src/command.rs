@@ -1,3 +1,4 @@
+use super::error::pretty_parse;
 use super::helper::{MyHelper, NameEnv};
 use super::token::{ParserError, Spanned, Tokenizer};
 use anyhow::{anyhow, Context};
@@ -176,7 +177,7 @@ impl Command {
                     let line_end = script.find('\n').unwrap_or(0);
                     script.drain(..line_end);
                 }
-                let cmds = script.parse::<Commands>()?;
+                let cmds = pretty_parse::<Commands>(&file, &script)?;
                 helper.base_path = path.parent().unwrap().to_path_buf();
                 for cmd in cmds.0.iter() {
                     println!("> {:?}", cmd);
