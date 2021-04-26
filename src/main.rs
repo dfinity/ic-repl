@@ -5,10 +5,12 @@ use rustyline::CompletionType;
 use tokio::runtime::Runtime;
 
 mod command;
+mod error;
 mod grammar;
 mod helper;
 mod token;
 use crate::command::Command;
+use crate::error::pretty_parse;
 use crate::helper::MyHelper;
 
 fn unwrap<T, E, F>(v: Result<T, E>, f: F)
@@ -69,7 +71,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         match input {
             Ok(line) => {
                 rl.add_history_entry(&line);
-                unwrap(line.parse::<Command>(), |cmd| {
+                unwrap(pretty_parse::<Command>("stdin", &line), |cmd| {
                     let mut helper = rl.helper_mut().unwrap();
                     helper.history.push(line.clone());
                     unwrap(cmd.run(&mut helper), |_| {});

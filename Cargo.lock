@@ -260,7 +260,7 @@ dependencies = [
  "binread",
  "byteorder",
  "candid_derive",
- "codespan-reporting",
+ "codespan-reporting 0.9.5",
  "fake",
  "hex",
  "ic-types",
@@ -333,6 +333,16 @@ name = "codespan-reporting"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e0762455306b1ed42bc651ef6a2197aabda5e1d4a43c34d5eab5c1a3634e81d"
+dependencies = [
+ "termcolor",
+ "unicode-width",
+]
+
+[[package]]
+name = "codespan-reporting"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
 dependencies = [
  "termcolor",
  "unicode-width",
@@ -891,11 +901,13 @@ dependencies = [
  "anyhow",
  "candid",
  "clap",
+ "codespan-reporting 0.11.1",
  "delay",
  "ic-agent",
  "lalrpop",
  "lalrpop-util",
  "logos",
+ "pretty 0.10.0",
  "rand 0.8.3",
  "ring",
  "rustyline",
