@@ -6,7 +6,10 @@ use candid::{
     parser::configs::Configs, parser::value::IDLValue, types::Function, IDLArgs, Principal, TypeEnv,
 };
 use ic_agent::Agent;
+use pretty_assertions::{assert_eq, assert_ne};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
+use terminal_size::{terminal_size, Width};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -92,8 +95,16 @@ impl Command {
                     values.push(arg.get(&helper)?);
                 }
                 let args = IDLArgs { args: values };
+                let time = Instant::now();
                 let res = call(&agent, canister_id, &method, &args, &info.env, &func)?;
+                let duration = time.elapsed();
                 println!("{}", res);
+                let width = if let Some((Width(w), _)) = terminal_size() {
+                    w as usize
+                } else {
+                    80
+                };
+                println!("{:>width$}", format!("({:.2?})", duration), width = width);
                 // TODO multiple values
                 for arg in res.args.into_iter() {
                     helper.env.0.insert("_".to_string(), arg);
@@ -126,7 +137,7 @@ impl Command {
                             assert_eq!(left, right);
                         }
                     }
-                    BinOp::NotEqual => assert!(left != right),
+                    BinOp::NotEqual => assert_ne!(left, right),
                 }
             }
             Command::Config(conf) => helper.config = Configs::from_dhall(&conf)?,

@@ -12,9 +12,11 @@ candid = { git = "https://github.com/dfinity/candid.git", branch = "fix-beta", f
 rustyline = "8.0"
 rustyline-derive = "0.4"
 ansi_term = "0.12"
+pretty_assertions = "0.7"
+terminal_size = "0.1"
 codespan-reporting = "0.11"
 pretty = "0.10.0"
-ic-agent = { git = "https://github.com/dfinity/agent-rs.git", branch = "yan/test" }
+ic-agent = { git = "https://github.com/dfinity/agent-rs.git", branch = "next" }
 tokio = { version = "1.5.0", features = ["full"] }
 delay = "0.3.1"
 anyhow = "1.0"
@@ -26,5 +28,5 @@ structopt = "0.3.16"
 ring = "0.16"
 
 [patch.crates-io]
-ic-types = { git = "https://github.com/dfinity/agent-rs.git", branch = "yan/test" }
+ic-types = { git = "https://github.com/dfinity/agent-rs.git", branch = "next" }
 
