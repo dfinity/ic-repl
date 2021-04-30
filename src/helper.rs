@@ -23,6 +23,8 @@ use std::collections::BTreeMap;
 #[derive(Default)]
 pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 #[derive(Default)]
+pub struct IdentityMap(pub BTreeMap<String, Vec<u8>>);
+#[derive(Default)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
 #[derive(Default)]
 pub struct NameEnv(pub BTreeMap<String, Principal>);
@@ -61,6 +63,8 @@ pub struct MyHelper {
     hinter: HistoryHinter,
     pub colored_prompt: String,
     pub canister_map: RefCell<CanisterMap>,
+    pub identity_map: IdentityMap,
+    pub current_identity: String,
     pub agent_url: String,
     pub agent: Agent,
     pub config: Configs,
@@ -79,6 +83,8 @@ impl MyHelper {
             colored_prompt: "".to_owned(),
             validator: MatchingBracketValidator::new(),
             canister_map: RefCell::new(CanisterMap::default()),
+            identity_map: IdentityMap::default(),
+            current_identity: "anon".to_owned(),
             config: Configs::from_dhall("{=}").unwrap(),
             env: Env::default(),
             canister_env: NameEnv::default(),

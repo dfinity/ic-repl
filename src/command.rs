@@ -157,11 +157,25 @@ impl Command {
                 println!("{}", v);
             }
             Command::Identity(id) => {
-                // TODO use existing identity
                 use ic_agent::Identity;
-                let identity = create_identity()?;
+                let keypair = if let Some(keypair) = helper.identity_map.0.get(id) {
+                    keypair.to_vec()
+                } else {
+                    let rng = ring::rand::SystemRandom::new();
+                    let keypair = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)?
+                        .as_ref()
+                        .to_vec();
+                    helper
+                        .identity_map
+                        .0
+                        .insert(id.to_string(), keypair.clone());
+                    keypair
+                };
+                let identity = ic_agent::identity::BasicIdentity::from_key_pair(
+                    ring::signature::Ed25519KeyPair::from_pkcs8(&keypair)?,
+                );
                 let sender = identity.sender().map_err(|e| anyhow!("{}", e))?;
-                println!("Create identity {}", sender);
+                println!("Current identity {}", sender);
                 let agent = Agent::builder()
                     .with_transport(
                         ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(
@@ -176,6 +190,7 @@ impl Command {
                     runtime.block_on(agent.fetch_root_key())?;
                 }
                 helper.agent = agent;
+                helper.current_identity = id.to_string();
                 helper
                     .env
                     .0
@@ -257,16 +272,6 @@ async fn call(
             .await?
     };
     Ok(IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?)
-}
-
-fn create_identity() -> anyhow::Result<impl ic_agent::Identity> {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8_bytes = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)?
-        .as_ref()
-        .to_vec();
-    Ok(ic_agent::identity::BasicIdentity::from_key_pair(
-        ring::signature::Ed25519KeyPair::from_pkcs8(&pkcs8_bytes)?,
-    ))
 }
 
 // Return position at the end of principal, principal, method, args

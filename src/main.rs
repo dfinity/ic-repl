@@ -65,7 +65,8 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
 
     let mut count = 1;
     loop {
-        let p = format!("{} {}> ", replica, count);
+        let identity = &rl.helper().unwrap().current_identity;
+        let p = format!("{}@{} {}> ", identity, replica, count);
         rl.helper_mut().unwrap().colored_prompt = format!("{}", Color::Green.bold().paint(&p));
         let input = rl.readline(&p);
         match input {

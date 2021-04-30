@@ -8,7 +8,7 @@ edition = "2018"
 lalrpop = "0.19"
 
 [dependencies]
-candid = { git = "https://github.com/dfinity/candid.git", branch = "fix-beta", features = ["random"] }
+candid = { git = "https://github.com/dfinity/candid.git", branch = "beta", features = ["random"] }
 rustyline = "8.0"
 rustyline-derive = "0.4"
 ansi_term = "0.12"
