@@ -80,9 +80,9 @@ pub Command: Command = {
     "let" <id:"id"> "=" <val:Value> => Command::Let(id, val),
     "export" <Text> => Command::Export(<>),
     "load" <Text> => Command::Load(<>),
-    "import" <id:"id"> "=" <uri:Sp<Text>> =>? {
+    "import" <id:"id"> "=" <uri:Sp<Text>> <did:(":" <Text>)?> =>? {
          let principal = Principal::from_text(&uri.0).map_err(|e| error2(e, uri.1))?;
-         Ok(Command::Import(id, principal))
+         Ok(Command::Import(id, principal, did))
     },
     "identity" <"id"> => Command::Identity(<>),
 }

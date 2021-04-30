@@ -1,5 +1,5 @@
 use super::error::pretty_parse;
-use super::helper::{MyHelper, NameEnv};
+use super::helper::{did_to_canister_info, MyHelper, NameEnv};
 use super::token::{ParserError, Spanned, Tokenizer};
 use anyhow::{anyhow, Context};
 use candid::{
@@ -55,7 +55,7 @@ pub enum Command {
     Let(String, Value),
     Assert(BinOp, Value, Value),
     Export(String),
-    Import(String, Principal),
+    Import(String, Principal, Option<String>),
     Load(String),
     Identity(String),
 }
@@ -110,7 +110,18 @@ impl Command {
                     helper.env.0.insert("_".to_string(), arg);
                 }
             }
-            Command::Import(id, canister_id) => {
+            Command::Import(id, canister_id, did) => {
+                if let Some(did) = did {
+                    let path = resolve_path(&helper.base_path, PathBuf::from(did));
+                    let src = std::fs::read_to_string(&path)
+                        .with_context(|| format!("Cannot read {:?}", path))?;
+                    let info = did_to_canister_info(did, &src)?;
+                    helper
+                        .canister_map
+                        .borrow_mut()
+                        .0
+                        .insert(canister_id.clone(), info);
+                }
                 helper
                     .canister_env
                     .0

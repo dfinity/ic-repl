@@ -21,7 +21,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 #[derive(Default)]
-pub struct CanisterMap(BTreeMap<Principal, CanisterInfo>);
+pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 #[derive(Default)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
 #[derive(Default)]
@@ -209,7 +209,11 @@ async fn fetch_actor(agent: &Agent, canister_id: &Principal) -> anyhow::Result<C
         .call()
         .await?;
     let response = Decode!(&response, String)?;
-    let ast = pretty_parse::<IDLProg>("fetched candid", &response)?;
+    did_to_canister_info(&format!("did file for {}", canister_id), &response)
+}
+
+pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInfo> {
+    let ast = pretty_parse::<IDLProg>(name, did)?;
     let mut env = TypeEnv::new();
     let actor = check_prog(&mut env, &ast)?.unwrap();
     let methods = env
