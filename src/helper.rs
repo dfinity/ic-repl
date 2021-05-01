@@ -76,13 +76,19 @@ pub struct MyHelper {
 
 impl MyHelper {
     pub fn new(agent: Agent, agent_url: String) -> Self {
+        let ic_did = include_str!("ic.did");
+        let info = did_to_canister_info("ic.did", ic_did).unwrap();
+        let mut canister_map = CanisterMap::default();
+        canister_map
+            .0
+            .insert(Principal::from_text("aaaaa-aa").unwrap(), info);
         MyHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
             hinter: HistoryHinter {},
             colored_prompt: "".to_owned(),
             validator: MatchingBracketValidator::new(),
-            canister_map: RefCell::new(CanisterMap::default()),
+            canister_map: RefCell::new(canister_map),
             identity_map: IdentityMap::default(),
             current_identity: "anon".to_owned(),
             config: Configs::from_dhall("{=}").unwrap(),
