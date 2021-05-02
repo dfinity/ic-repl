@@ -20,7 +20,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | identity <id>                        // switch to identity <id> (create a new one if doesn't exist)
 
 <var> := <id> | _
-<val> := <candid val> | <var> (. <id>)* | file <text>
+<val> := <candid val> | <var> (. <id>)* | file <text> | encode ( <val),* )
 <binop> := == | ~= | !=
 ```
 
@@ -46,7 +46,7 @@ call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings: null;
 let id = _;
 call "aaaaa-aa".install_code(
   record {
-    arg = blob "";
+    arg = encode ();
     wasm_module = file "your_wasm_file.wasm";
     mode = variant { install };
     canister_id = id.canister_id; // TODO

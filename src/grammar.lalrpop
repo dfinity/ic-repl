@@ -109,14 +109,15 @@ Value: Value = {
      Value::Path(res)
   },
   "file" <Text> => Value::Blob(<>),
+  "encode" <Values> => Value::Args(<>),
 }
 
 Var: String = {
      "id" => <>,
 }
 
-// Value
-//Args: IDLArgs = "(" <SepBy<AnnVal, ",">> ")" => IDLArgs { args: <> };
+// Candid Value
+Values: Vec<Value> = "(" <SepBy<Value, ",">> ")" => <>;
 
 Arg: Value = {
     "bool" => Value::Bool(<>),

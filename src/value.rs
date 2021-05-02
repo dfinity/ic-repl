@@ -2,7 +2,7 @@ use super::command::resolve_path;
 use super::helper::MyHelper;
 use anyhow::{anyhow, Context};
 use candid::{
-    parser::value::{IDLField, IDLValue, VariantValue},
+    parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
     types::{Label, Type},
     Principal, TypeEnv,
 };
@@ -13,6 +13,7 @@ pub enum Value {
     Path(Vec<String>),
     Blob(String),
     AnnVal(Box<Value>, Type),
+    Args(Vec<Value>),
     // from IDLValue without the infered types + Nat8
     Bool(bool),
     Null,
@@ -55,6 +56,15 @@ impl Value {
                 let arg = v.eval(helper)?;
                 let env = TypeEnv::new();
                 arg.annotate_type(true, &env, &ty)?
+            }
+            Value::Args(args) => {
+                let mut res = Vec::with_capacity(args.len());
+                for arg in args.into_iter() {
+                    res.push(arg.eval(helper)?);
+                }
+                let args = IDLArgs { args: res };
+                let bytes = args.to_bytes()?;
+                IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect())
             }
             Value::Bool(b) => IDLValue::Bool(b),
             Value::Null => IDLValue::Null,
