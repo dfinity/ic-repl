@@ -19,9 +19,15 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | assert <val> <binop> <val>           // assertion
  | identity <id>                        // switch to identity <id> (create a new one if doesn't exist)
 
-<var> := <id> | _
-<val> := <candid val> | <var> (. <id>)* | file <text> | encode ( <val),* )
-<binop> := == | ~= | !=
+<var> := <id> | _   (previous call result is bind to `_`)
+<val> := 
+ | <candid val> | <var> (. <id>)* 
+ | file <text>         // load external file as a blob value
+ | encode ( <val),* )  // encode candid arguments as a blob value
+<binop> := 
+ | ==    // structural equality
+ | ~=    // equal under candid subtyping
+ | !=    // not equal
 ```
 
 ## Example
@@ -76,6 +82,8 @@ If you are writing your own `.did` file, you can also supply the did file via th
 
 ## Issues
 
+* Acess to service init type
+* `IDLValue::Blob` for efficient blob serialization
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
 * Value projection
