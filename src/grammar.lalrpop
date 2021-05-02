@@ -1,4 +1,3 @@
-//use candid::parser::value::{IDLField, IDLValue, IDLArgs, VariantValue};
 use super::value::{Field, Value};
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
@@ -111,11 +110,11 @@ Arg: Value = {
     NumLiteral => <>,
     Text => Value::Text(<>),
     Bytes => {
-        let values: Vec<_> = <>.into_iter().map(|v| Value::Nat8(v)).collect();
+        let values: Vec<_> = <>.into_iter().map(Value::Nat8).collect();
         Value::Vec(values)
     },
     "null" => Value::Null,
-    "opt" <Arg> => Value::Opt(Box::new(<>)),
+    "opt" <Value> => Value::Opt(Box::new(<>)),
     "vec" "{" <SepBy<AnnVal, ";">> "}" => Value::Vec(<>),
     "record" "{" <Sp<SepBy<RecordField, ";">>> "}" =>? {
         let mut id: u32 = 0;
@@ -166,12 +165,12 @@ Number: String = {
 }
 
 AnnVal: Value = {
-    <Arg> => <>,
-    //<arg:Sp<Arg>> ":" <typ:Sp<Typ>> =>? {
-    //    let env = TypeEnv::new();
-    //    let typ = env.ast_to_type(&typ.0).map_err(|e| error2(e, typ.1))?;
-    //    arg.0.annotate_type(true, &env, &typ).map_err(|e| error2(e, arg.1))
-    //}
+    <Value> => <>,
+    <arg:Value> ":" <typ:Sp<Typ>> =>? {
+        let env = TypeEnv::new();
+        let typ = env.ast_to_type(&typ.0).map_err(|e| error2(e, typ.1))?;
+        Ok(Value::AnnVal(Box::new(arg), typ))
+    }
 }
 
 NumLiteral: Value = {

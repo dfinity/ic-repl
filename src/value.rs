@@ -3,8 +3,8 @@ use super::helper::MyHelper;
 use anyhow::{anyhow, Context};
 use candid::{
     parser::value::{IDLField, IDLValue, VariantValue},
-    types::Label,
-    Principal,
+    types::{Label, Type},
+    Principal, TypeEnv,
 };
 use std::path::PathBuf;
 
@@ -12,6 +12,7 @@ use std::path::PathBuf;
 pub enum Value {
     Path(Vec<String>),
     Blob(String),
+    AnnVal(Box<Value>, Type),
     // from IDLValue without the infered types + Nat8
     Bool(bool),
     Null,
@@ -49,6 +50,11 @@ impl Value {
                     .map(IDLValue::Nat8)
                     .collect();
                 IDLValue::Vec(blob)
+            }
+            Value::AnnVal(v, ty) => {
+                let arg = v.eval(helper)?;
+                let env = TypeEnv::new();
+                arg.annotate_type(true, &env, &ty)?
             }
             Value::Bool(b) => IDLValue::Bool(b),
             Value::Null => IDLValue::Null,
