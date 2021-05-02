@@ -1,6 +1,7 @@
 use super::error::pretty_parse;
 use super::helper::{did_to_canister_info, MyHelper, NameEnv};
 use super::token::{ParserError, Spanned, Tokenizer};
+use super::value::Value;
 use anyhow::{anyhow, Context};
 use candid::{
     parser::configs::Configs, parser::value::IDLValue, types::Function, IDLArgs, Principal, TypeEnv,
@@ -12,43 +13,14 @@ use std::time::Instant;
 use terminal_size::{terminal_size, Width};
 
 #[derive(Debug, Clone)]
-pub enum Value {
-    Candid(IDLValue),
-    Path(Vec<String>),
-    Blob(String),
-}
-impl Value {
-    fn get<'a>(&'a self, helper: &'a MyHelper) -> anyhow::Result<IDLValue> {
-        Ok(match self {
-            Value::Candid(v) => v.clone(),
-            Value::Path(vs) => helper
-                .env
-                .0
-                .get(&vs[0])
-                .ok_or_else(|| anyhow!("Undefined variable {}", vs[0]))?
-                .clone(),
-            Value::Blob(file) => {
-                let path = resolve_path(&helper.base_path, PathBuf::from(file));
-                let blob: Vec<IDLValue> = std::fs::read(&path)
-                    .with_context(|| format!("Cannot read {:?}", path))?
-                    .into_iter()
-                    .map(IDLValue::Nat8)
-                    .collect();
-                IDLValue::Vec(blob)
-            }
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct Commands(pub Vec<Command>);
-
 #[derive(Debug, Clone)]
 pub enum Command {
     Call {
         canister: Spanned<String>,
         method: String,
         args: Vec<Value>,
+        encode_only: bool,
     },
     Config(String),
     Show(Value),
@@ -67,12 +39,13 @@ pub enum BinOp {
 }
 
 impl Command {
-    pub fn run(&self, helper: &mut MyHelper) -> anyhow::Result<()> {
+    pub fn run(self, helper: &mut MyHelper) -> anyhow::Result<()> {
         match self {
             Command::Call {
                 canister,
                 method,
                 args,
+                encode_only,
             } => {
                 let try_id = Principal::from_text(&canister.value);
                 let canister_id = match try_id {
@@ -88,13 +61,20 @@ impl Command {
                 let info = map.get(&agent, canister_id)?;
                 let func = info
                     .methods
-                    .get(method)
+                    .get(&method)
                     .ok_or_else(|| anyhow!("no method {}", method))?;
                 let mut values = Vec::new();
-                for arg in args.iter() {
-                    values.push(arg.get(&helper)?);
+                for arg in args.into_iter() {
+                    values.push(arg.eval(&helper)?);
                 }
                 let args = IDLArgs { args: values };
+                if encode_only {
+                    let bytes = args.to_bytes_with_types(&info.env, &func.args)?;
+                    let res = IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect());
+                    println!("{}", res);
+                    helper.env.0.insert("_".to_string(), res);
+                    return Ok(());
+                }
                 let time = Instant::now();
                 let res = call(&agent, canister_id, &method, &args, &info.env, &func)?;
                 let duration = time.elapsed();
@@ -111,29 +91,26 @@ impl Command {
                 }
             }
             Command::Import(id, canister_id, did) => {
-                if let Some(did) = did {
+                if let Some(did) = &did {
                     let path = resolve_path(&helper.base_path, PathBuf::from(did));
                     let src = std::fs::read_to_string(&path)
                         .with_context(|| format!("Cannot read {:?}", path))?;
-                    let info = did_to_canister_info(did, &src)?;
+                    let info = did_to_canister_info(&did, &src)?;
                     helper
                         .canister_map
                         .borrow_mut()
                         .0
                         .insert(canister_id.clone(), info);
                 }
-                helper
-                    .canister_env
-                    .0
-                    .insert(id.to_string(), canister_id.clone());
+                helper.canister_env.0.insert(id, canister_id);
             }
             Command::Let(id, val) => {
-                let v = val.get(&helper)?;
-                helper.env.0.insert(id.to_string(), v);
+                let v = val.eval(&helper)?;
+                helper.env.0.insert(id, v);
             }
             Command::Assert(op, left, right) => {
-                let left = left.get(&helper)?;
-                let right = right.get(&helper)?;
+                let left = left.eval(&helper)?;
+                let right = right.eval(&helper)?;
                 match op {
                     BinOp::Equal => assert_eq!(left, right),
                     BinOp::SubEqual => {
@@ -153,12 +130,12 @@ impl Command {
             }
             Command::Config(conf) => helper.config = Configs::from_dhall(&conf)?,
             Command::Show(val) => {
-                let v = val.get(&helper)?;
+                let v = val.eval(&helper)?;
                 println!("{}", v);
             }
             Command::Identity(id) => {
                 use ic_agent::Identity;
-                let keypair = if let Some(keypair) = helper.identity_map.0.get(id) {
+                let keypair = if let Some(keypair) = helper.identity_map.0.get(&id) {
                     keypair.to_vec()
                 } else {
                     let rng = ring::rand::SystemRandom::new();
@@ -191,10 +168,7 @@ impl Command {
                 }
                 helper.agent = agent;
                 helper.current_identity = id.to_string();
-                helper
-                    .env
-                    .0
-                    .insert(id.to_string(), IDLValue::Principal(sender));
+                helper.env.0.insert(id, IDLValue::Principal(sender));
             }
             Command::Export(file) => {
                 use std::io::{BufWriter, Write};
@@ -207,7 +181,7 @@ impl Command {
             Command::Load(file) => {
                 // TODO check for infinite loop
                 let old_base = helper.base_path.clone();
-                let path = resolve_path(&old_base, PathBuf::from(file));
+                let path = resolve_path(&old_base, PathBuf::from(&file));
                 let mut script = std::fs::read_to_string(&path)
                     .with_context(|| format!("Cannot read {:?}", path))?;
                 if script.starts_with("#!") {
@@ -216,7 +190,7 @@ impl Command {
                 }
                 let cmds = pretty_parse::<Commands>(&file, &script)?;
                 helper.base_path = path.parent().unwrap().to_path_buf();
-                for cmd in cmds.0.iter() {
+                for cmd in cmds.0.into_iter() {
                     println!("> {:?}", cmd);
                     cmd.run(helper)?;
                 }
@@ -286,6 +260,7 @@ pub fn extract_canister(
             canister,
             method,
             args,
+            ..
         } => {
             let try_id = Principal::from_text(&canister.value);
             let canister_id = match try_id {
@@ -298,7 +273,7 @@ pub fn extract_canister(
     }
 }
 
-fn resolve_path(base: &Path, file: PathBuf) -> PathBuf {
+pub fn resolve_path(base: &Path, file: PathBuf) -> PathBuf {
     if file.is_absolute() {
         file
     } else {
