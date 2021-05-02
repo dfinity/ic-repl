@@ -20,6 +20,7 @@ pub enum Command {
         canister: Spanned<String>,
         method: String,
         args: Vec<Value>,
+        encode_only: bool,
     },
     Config(String),
     Show(Value),
@@ -44,6 +45,7 @@ impl Command {
                 canister,
                 method,
                 args,
+                encode_only,
             } => {
                 let try_id = Principal::from_text(&canister.value);
                 let canister_id = match try_id {
@@ -66,6 +68,13 @@ impl Command {
                     values.push(arg.eval(&helper)?);
                 }
                 let args = IDLArgs { args: values };
+                if encode_only {
+                    let bytes = args.to_bytes_with_types(&info.env, &func.args)?;
+                    let res = IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect());
+                    println!("{}", res);
+                    helper.env.0.insert("_".to_string(), res);
+                    return Ok(());
+                }
                 let time = Instant::now();
                 let res = call(&agent, canister_id, &method, &args, &info.env, &func)?;
                 let duration = time.elapsed();
@@ -251,6 +260,7 @@ pub fn extract_canister(
             canister,
             method,
             args,
+            ..
         } => {
             let try_id = Principal::from_text(&canister.value);
             let canister_id = match try_id {

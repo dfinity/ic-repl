@@ -8,15 +8,16 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 
 ```
 <command> := 
- | import <id> = <text> [ : <text> ]   (canister URI with optional did file)
- | export <text>  (filename)
- | load <text>    (filename)
- | config <text>  (dhall config)
- | call <name> . <name> ( <val>,* )
- | let <id> = <val>
- | show <val>
- | assert <val> <binop> <val>
- | identity <id>
+ | import <id> = <text> [ : <text> ]    // bind canister URI to <id>, with optional did file
+ | call <name> . <name> ( <val>,* )     // call a canister method with candid arguments
+ | encode <name> . <name> ( <val>,* )   // encode candid arguments with respect to a canister method signature
+ | export <text>                        // export command history to a file that can be run in ic-repl as a script
+ | load <text>                          // load and run a script file
+ | config <text>                        // set config for random value generator in dhall format
+ | let <id> = <val>                     // bind <val> to a variable <id>
+ | show <val>                           // show the value of <val>
+ | assert <val> <binop> <val>           // assertion
+ | identity <id>                        // switch to identity <id> (create a new one if doesn't exist)
 
 <var> := <id> | _
 <val> := <candid val> | <var> (. <id>)* | file <text>
@@ -36,6 +37,23 @@ assert _ == "Hello, test!";
 identity alice;
 call "rrkah-fqaaa-aaaaa-aaaaq-cai".greet("test");
 assert _ == result;
+```
+
+install.sh
+```
+#!/usr/bin/ic-repl -r ic
+call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings: null; amount: null });
+let id = _;
+call "aaaaa-aa".install_code(
+  record {
+    arg = blob "";
+    wasm_module = file "your_wasm_file.wasm";
+    mode = variant { install };
+    canister_id = id.canister_id; // TODO
+  },
+);
+call "aaaaa-aa".canister_status(id);
+call id.canister_id.greet("test");
 ```
 
 ## Notes for Rust canisters

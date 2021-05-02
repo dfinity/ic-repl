@@ -56,6 +56,8 @@ pub enum Token {
     Opt,
     #[token("call")]
     Call,
+    #[token("encode")]
+    Encode,
     #[token("config")]
     Config,
     #[token("show")]

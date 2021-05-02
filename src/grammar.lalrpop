@@ -33,6 +33,7 @@ extern {
         "load" => Token::Load,
         "principal" => Token::Principal,
         "call" => Token::Call,
+        "encode" => Token::Encode,
         "config" => Token::Config,
         "show" => Token::Show,
         "assert" => Token::Assert,
@@ -62,16 +63,28 @@ pub Commands: Commands = SepBy<Command, ";"> => Commands(<>);
 pub Command: Command = {
     "call" <canister:Sp<Name>> "."? => {
          let canister = Spanned { span: canister.1.clone(), value: canister.0 };
-         Command::Call{canister, method: "".to_string(), args: Vec::new()}
+         Command::Call{canister, method: "".to_string(), args: Vec::new(), encode_only: false}
     },
     "call" <canister:Sp<Name>> "." <method:Name> => {
          let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
-         Command::Call{canister, method, args: Vec::new()}
+         Command::Call{canister, method, args: Vec::new(), encode_only: false}
     },
     "call" <canister:Sp<Name>> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
          let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
-         Command::Call{canister, method, args}
+         Command::Call{canister, method, args, encode_only: false}
     },
+    "encode" <canister:Sp<Name>> "."? => {
+         let canister = Spanned { span: canister.1.clone(), value: canister.0 };
+         Command::Call{canister, method: "".to_string(), args: Vec::new(), encode_only: true}
+    },
+    "encode" <canister:Sp<Name>> "." <method:Name> => {
+         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
+         Command::Call{canister, method, args: Vec::new(), encode_only: true}
+    },
+    "encode" <canister:Sp<Name>> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
+         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
+         Command::Call{canister, method, args, encode_only: true}
+    },    
     "config" <Text> => Command::Config(<>),
     "show" <Value> => Command::Show(<>),
     "assert" <left:Value> "==" <right:Value> => Command::Assert(BinOp::Equal, left, right),
