@@ -1,4 +1,5 @@
-use crate::command::{extract_canister, Value};
+use crate::command::extract_canister;
+use crate::value::Value;
 use ansi_term::Color;
 use candid::{
     check_prog,
