@@ -47,7 +47,7 @@ assert _ == result;
 
 install.sh
 ```
-#!/usr/bin/ic-repl -r ic
+#!/usr/bin/ic-repl
 call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings: null; amount: null });
 let id = _;
 call "aaaaa-aa".install_code(
@@ -59,6 +59,42 @@ call "aaaaa-aa".install_code(
   },
 );
 call "aaaaa-aa".canister_status(id);
+call id.canister_id.greet("test");
+```
+
+wallet.sh
+```
+#!/usr/bin/ic-repl
+import wallet = "rwlgt-iiaaa-aaaaa-aaaaa-cai" : "wallet.did";
+call wallet.wallet_create_canister(
+  record {
+    cycles = 824_567_85 : nat64;
+    settings = record {
+      controller = null;
+      freezing_threshold = null;
+      memory_allocation = null;
+      compute_allocation = null;
+    };
+  },
+)
+let id = _;
+encode "aaaaa-aa".install_code(
+  record {
+    arg = encode ();
+    wasm_module = file "your_wasm_file.wasm";
+    mode = variant { install };
+    canister_id = id.canister_id; // TODO
+  },
+);
+let msg = _;
+call wallet.wallet_call(
+  record {
+    args = msg;
+    cycles = 0;
+    method_name = "install_code";
+    canister = principal "aaaaa-aa";
+  },
+);
 call id.canister_id.greet("test");
 ```
 
