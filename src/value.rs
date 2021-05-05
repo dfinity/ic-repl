@@ -1,6 +1,6 @@
 use super::command::resolve_path;
 use super::helper::MyHelper;
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Context, Result};
 use candid::{
     parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
     types::{Label, Type},
@@ -34,14 +34,16 @@ pub struct Field {
     pub val: Value,
 }
 impl Value {
-    pub fn eval(self, helper: &MyHelper) -> anyhow::Result<IDLValue> {
+    pub fn eval(self, helper: &MyHelper) -> Result<IDLValue> {
         Ok(match self {
-            Value::Path(vs) => helper
-                .env
-                .0
-                .get(&vs[0]) // TODO handle path
-                .ok_or_else(|| anyhow!("Undefined variable {}", vs[0]))?
-                .clone(),
+            Value::Path(vs) => {
+                let v = helper
+                    .env
+                    .0
+                    .get(&vs[0])
+                    .ok_or_else(|| anyhow!("Undefined variable {}", vs[0]))?;
+                project(&v, &vs[1..])?.clone()
+            }
             Value::Blob(file) => {
                 let path = resolve_path(&helper.base_path, &file);
                 let blob: Vec<IDLValue> = std::fs::read(&path)
@@ -100,5 +102,24 @@ impl Value {
                 IDLValue::Variant(VariantValue(Box::new(f), idx))
             }
         })
+    }
+}
+
+pub fn project<'a>(value: &'a IDLValue, path: &[String]) -> Result<&'a IDLValue> {
+    if path.is_empty() {
+        return Ok(value);
+    }
+    let (head, tail) = (&path[0], &path[1..]);
+    match (value, head.as_str()) {
+        (IDLValue::Opt(opt), "opt") => project(&*opt, tail),
+        (IDLValue::Record(fs), field) => {
+            let id = Label::Named(field.to_string());
+            if let Some(v) = fs.iter().find(|f| f.id == id) {
+                project(&v.val, tail)
+            } else {
+                return Err(anyhow!("{} not found in {}", field, value));
+            }
+        }
+        _ => return Err(anyhow!("{} cannot be applied to {}", head, value)),
     }
 }
