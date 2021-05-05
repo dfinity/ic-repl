@@ -8,7 +8,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 
 ```
 <command> := 
- | import <id> = <text> ( : <text> )?    // bind canister URI to <id>, with optional did file
+ | import <id> = <text> ( : <text> )?   // bind canister URI to <id>, with optional did file
  | call <name> . <name> ( <val>,* )     // call a canister method with candid arguments
  | encode <name> . <name> ( <val>,* )   // encode candid arguments with respect to a canister method signature
  | export <text>                        // export command history to a file that can be run in ic-repl as a script
@@ -19,15 +19,22 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | assert <val> <binop> <val>           // assertion
  | identity <id> <text>?                // switch to identity <id>, with optional Ed25519 pem file
 
-<var> := <id> | _   (previous call result is bind to `_`)
+<var> := 
+ | <id>                  // variable name 
+ | _                     // previous call result is bind to `_`
 <val> := 
- | <candid val> | <var> (. <id>)* 
- | file <text>         // load external file as a blob value
- | encode ( <val),* )  // encode candid arguments as a blob value
+ | <candid val>          // any candid value
+ | <var> (<selector>)*   // variable with optional selectors
+ | file <text>           // load external file as a blob value
+ | encode ( <val),* )    // encode candid arguments as a blob value
+<selector> :=
+ | ?           // unwrap opt value
+ | . <name>    // select field name from record or variant value
+ | [ <nat> ]   // select index from vec, record, or variant value
 <binop> := 
- | ==    // structural equality
- | ~=    // equal under candid subtyping
- | !=    // not equal
+ | ==          // structural equality
+ | ~=          // equal under candid subtyping
+ | !=          // not equal
 ```
 
 ## Example
@@ -55,7 +62,7 @@ call "aaaaa-aa".install_code(
     arg = encode ();
     wasm_module = file "your_wasm_file.wasm";
     mode = variant { install };
-    canister_id = id.canister_id; // TODO
+    canister_id = id.canister_id;
   },
 );
 call "aaaaa-aa".canister_status(id);
@@ -84,7 +91,7 @@ encode "aaaaa-aa".install_code(
     arg = encode ();
     wasm_module = file "your_wasm_file.wasm";
     mode = variant { install };
-    canister_id = id.canister_id; // TODO
+    canister_id = id.canister_id;
   },
 );
 let msg = _;
@@ -124,7 +131,6 @@ If you are writing your own `.did` file, you can also supply the did file via th
 * `IDLValue::Blob` for efficient blob serialization
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
-* Value projection
 * Bind multiple return values to `_`
 * Loop detection for `load`
 * Import external identity

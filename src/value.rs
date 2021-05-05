@@ -9,7 +9,7 @@ use candid::{
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Path(Vec<String>),
+    Path(String, Vec<Selector>),
     Blob(String),
     AnnVal(Box<Value>, Type),
     Args(Vec<Value>),
@@ -33,16 +33,29 @@ pub struct Field {
     pub id: Label,
     pub val: Value,
 }
+#[derive(Debug, Clone)]
+pub enum Selector {
+    Index(u64),
+    Field(String),
+}
+impl Selector {
+    fn to_label(&self) -> Label {
+        match self {
+            Selector::Index(idx) => Label::Id(*idx as u32),
+            Selector::Field(name) => Label::Named(name.to_string()),
+        }
+    }
+}
 impl Value {
     pub fn eval(self, helper: &MyHelper) -> Result<IDLValue> {
         Ok(match self {
-            Value::Path(vs) => {
+            Value::Path(id, path) => {
                 let v = helper
                     .env
                     .0
-                    .get(&vs[0])
-                    .ok_or_else(|| anyhow!("Undefined variable {}", vs[0]))?;
-                project(&v, &vs[1..])?.clone()
+                    .get(&id)
+                    .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
+                project(&v, &path)?.clone()
             }
             Value::Blob(file) => {
                 let path = resolve_path(&helper.base_path, &file);
@@ -105,21 +118,31 @@ impl Value {
     }
 }
 
-pub fn project<'a>(value: &'a IDLValue, path: &[String]) -> Result<&'a IDLValue> {
+pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValue> {
     if path.is_empty() {
         return Ok(value);
     }
     let (head, tail) = (&path[0], &path[1..]);
-    match (value, head.as_str()) {
-        (IDLValue::Opt(opt), "opt") => project(&*opt, tail),
-        (IDLValue::Record(fs), field) => {
-            let id = Label::Named(field.to_string());
-            if let Some(v) = fs.iter().find(|f| f.id == id) {
-                project(&v.val, tail)
-            } else {
-                return Err(anyhow!("{} not found in {}", field, value));
+    match (value, head) {
+        (IDLValue::Opt(opt), Selector::Field(f)) if f == "?" => return project(&*opt, tail),
+        (IDLValue::Vec(vs), Selector::Index(idx)) => {
+            let idx = *idx as usize;
+            if idx < vs.len() {
+                return project(&vs[idx], tail);
             }
         }
-        _ => return Err(anyhow!("{} cannot be applied to {}", head, value)),
+        (IDLValue::Record(fs), field) => {
+            let id = field.to_label();
+            if let Some(v) = fs.iter().find(|f| f.id == id) {
+                return project(&v.val, tail);
+            }
+        }
+        (IDLValue::Variant(VariantValue(f, _)), field) => {
+            if field.to_label() == f.id {
+                return project(&f.val, tail);
+            }
+        }
+        _ => (),
     }
+    return Err(anyhow!("{:?} cannot be applied to {}", head, value));
 }

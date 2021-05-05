@@ -16,6 +16,12 @@ pub enum Token {
     LParen,
     #[token(")")]
     RParen,
+    #[token("[")]
+    LSquare,
+    #[token("]")]
+    RSquare,
+    #[token("?")]
+    Question,
     #[token("{")]
     LBrace,
     #[token("}")]
