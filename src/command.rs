@@ -29,7 +29,7 @@ pub enum Command {
     Export(String),
     Import(String, Principal, Option<String>),
     Load(String),
-    Identity(String),
+    Identity(String, Option<String>),
 }
 #[derive(Debug, Clone)]
 pub enum BinOp {
@@ -92,7 +92,7 @@ impl Command {
             }
             Command::Import(id, canister_id, did) => {
                 if let Some(did) = &did {
-                    let path = resolve_path(&helper.base_path, PathBuf::from(did));
+                    let path = resolve_path(&helper.base_path, did);
                     let src = std::fs::read_to_string(&path)
                         .with_context(|| format!("Cannot read {:?}", path))?;
                     let info = did_to_canister_info(&did, &src)?;
@@ -133,24 +133,24 @@ impl Command {
                 let v = val.eval(&helper)?;
                 println!("{}", v);
             }
-            Command::Identity(id) => {
+            Command::Identity(id, opt_pem) => {
                 use ic_agent::Identity;
-                let keypair = if let Some(keypair) = helper.identity_map.0.get(&id) {
+                use ring::signature::Ed25519KeyPair;
+                let keypair = if let Some(pem_path) = opt_pem {
+                    let path = resolve_path(&helper.base_path, &pem_path);
+                    let bytes =
+                        std::fs::read(&path).with_context(|| format!("Cannot read {:?}", path))?;
+                    pem::parse(&bytes)?.contents
+                } else if let Some(keypair) = helper.identity_map.0.get(&id) {
                     keypair.to_vec()
                 } else {
                     let rng = ring::rand::SystemRandom::new();
-                    let keypair = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)?
-                        .as_ref()
-                        .to_vec();
-                    helper
-                        .identity_map
-                        .0
-                        .insert(id.to_string(), keypair.clone());
-                    keypair
+                    Ed25519KeyPair::generate_pkcs8(&rng)?.as_ref().to_vec()
                 };
                 let identity = ic_agent::identity::BasicIdentity::from_key_pair(
-                    ring::signature::Ed25519KeyPair::from_pkcs8(&keypair)?,
+                    Ed25519KeyPair::from_pkcs8(&keypair)?,
                 );
+                helper.identity_map.0.insert(id.to_string(), keypair);
                 let sender = identity.sender().map_err(|e| anyhow!("{}", e))?;
                 println!("Current identity {}", sender);
                 let agent = Agent::builder()
@@ -181,7 +181,7 @@ impl Command {
             Command::Load(file) => {
                 // TODO check for infinite loop
                 let old_base = helper.base_path.clone();
-                let path = resolve_path(&old_base, PathBuf::from(&file));
+                let path = resolve_path(&old_base, &file);
                 let mut script = std::fs::read_to_string(&path)
                     .with_context(|| format!("Cannot read {:?}", path))?;
                 if script.starts_with("#!") {
@@ -273,7 +273,8 @@ pub fn extract_canister(
     }
 }
 
-pub fn resolve_path(base: &Path, file: PathBuf) -> PathBuf {
+pub fn resolve_path(base: &Path, file: &str) -> PathBuf {
+    let file = PathBuf::from(shellexpand::tilde(file).into_owned());
     if file.is_absolute() {
         file
     } else {

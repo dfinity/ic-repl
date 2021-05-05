@@ -8,7 +8,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 
 ```
 <command> := 
- | import <id> = <text> [ : <text> ]    // bind canister URI to <id>, with optional did file
+ | import <id> = <text> ( : <text> )?    // bind canister URI to <id>, with optional did file
  | call <name> . <name> ( <val>,* )     // call a canister method with candid arguments
  | encode <name> . <name> ( <val>,* )   // encode candid arguments with respect to a canister method signature
  | export <text>                        // export command history to a file that can be run in ic-repl as a script
@@ -17,7 +17,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | let <id> = <val>                     // bind <val> to a variable <id>
  | show <val>                           // show the value of <val>
  | assert <val> <binop> <val>           // assertion
- | identity <id>                        // switch to identity <id> (create a new one if doesn't exist)
+ | identity <id> <text>?                // switch to identity <id>, with optional Ed25519 pem file
 
 <var> := <id> | _   (previous call result is bind to `_`)
 <val> := 
@@ -66,6 +66,7 @@ wallet.sh
 ```
 #!/usr/bin/ic-repl
 import wallet = "rwlgt-iiaaa-aaaaa-aaaaa-cai" : "wallet.did";
+identity default "~/.config/dfx/identity/default/identity.pem";
 call wallet.wallet_create_canister(
   record {
     cycles = 824_567_85 : nat64;
@@ -119,6 +120,7 @@ If you are writing your own `.did` file, you can also supply the did file via th
 ## Issues
 
 * Acess to service init type
+* Hardcode root key
 * `IDLValue::Blob` for efficient blob serialization
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types

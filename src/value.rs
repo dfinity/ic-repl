@@ -6,7 +6,6 @@ use candid::{
     types::{Label, Type},
     Principal, TypeEnv,
 };
-use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -44,7 +43,7 @@ impl Value {
                 .ok_or_else(|| anyhow!("Undefined variable {}", vs[0]))?
                 .clone(),
             Value::Blob(file) => {
-                let path = resolve_path(&helper.base_path, PathBuf::from(file));
+                let path = resolve_path(&helper.base_path, &file);
                 let blob: Vec<IDLValue> = std::fs::read(&path)
                     .with_context(|| format!("Cannot read {:?}", path))?
                     .into_iter()

@@ -917,12 +917,14 @@ dependencies = [
  "lalrpop",
  "lalrpop-util",
  "logos",
+ "pem",
  "pretty 0.10.0",
  "pretty_assertions",
  "rand 0.8.3",
  "ring",
  "rustyline",
  "rustyline-derive",
+ "shellexpand",
  "structopt",
  "terminal_size",
  "tokio",
@@ -2060,6 +2062,15 @@ dependencies = [
  "cpuid-bool",
  "digest 0.9.0",
  "opaque-debug 0.3.0",
+]
+
+[[package]]
+name = "shellexpand"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83bdb7831b2d85ddf4a7b148aa19d0587eddbe8671a436b7bd1182eaad0f2829"
+dependencies = [
+ "dirs-next",
 ]
 
 [[package]]

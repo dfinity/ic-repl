@@ -97,7 +97,7 @@ pub Command: Command = {
          let principal = Principal::from_text(&uri.0).map_err(|e| error2(e, uri.1))?;
          Ok(Command::Import(id, principal, did))
     },
-    "identity" <"id"> => Command::Identity(<>),
+    "identity" <id:"id"> <path:Text?> => Command::Identity(id, path),
 }
 
 Value: Value = {
