@@ -1,4 +1,4 @@
-use super::value::{Field, Value};
+use super::value::{Field, Value, Selector};
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
 use super::token::{Token, error2, LexicalError, Span, Spanned};
@@ -47,12 +47,15 @@ extern {
         "!=" => Token::NotEqual,
         "(" => Token::LParen,
         ")" => Token::RParen,
+        "[" => Token::LSquare,
+        "]" => Token::RSquare,
         "{" => Token::LBrace,
         "}" => Token::RBrace,
         "," => Token::Comma,
         "." => Token::Dot,
         ";" => Token::Semi,
         ":" => Token::Colon,
+        "?" => Token::Question,
         "->" => Token::Arrow,
     }
 }
@@ -102,18 +105,18 @@ pub Command: Command = {
 
 Value: Value = {
   Arg => <>,
-  <v:Var> <mut vs:("." <Var>)*> => {
-     let mut res = Vec::with_capacity(vs.len() + 1);
-     res.push(v);
-     res.append(&mut vs);
-     Value::Path(res)
-  },
+  <v:"id"> <path:(<Selector>)*> => Value::Path(v, path),
   "file" <Text> => Value::Blob(<>),
   "encode" <Values> => Value::Args(<>),
 }
 
-Var: String = {
-     "id" => <>,
+Selector: Selector = {
+     "?" => Selector::Field("?".to_string()),
+     "." <Name> => Selector::Field(<>),
+     "[" <Sp<"decimal">> "]" =>? {
+       let idx = <>.0.parse::<u64>().map_err(|_| error2("index out of u64 range", <>.1))?;
+       Ok(Selector::Index(idx))
+     }
 }
 
 // Candid Value

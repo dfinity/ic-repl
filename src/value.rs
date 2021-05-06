@@ -1,6 +1,6 @@
 use super::command::resolve_path;
 use super::helper::MyHelper;
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Context, Result};
 use candid::{
     parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
     types::{Label, Type},
@@ -9,7 +9,7 @@ use candid::{
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Path(Vec<String>),
+    Path(String, Vec<Selector>),
     Blob(String),
     AnnVal(Box<Value>, Type),
     Args(Vec<Value>),
@@ -33,15 +33,30 @@ pub struct Field {
     pub id: Label,
     pub val: Value,
 }
+#[derive(Debug, Clone)]
+pub enum Selector {
+    Index(u64),
+    Field(String),
+}
+impl Selector {
+    fn to_label(&self) -> Label {
+        match self {
+            Selector::Index(idx) => Label::Id(*idx as u32),
+            Selector::Field(name) => Label::Named(name.to_string()),
+        }
+    }
+}
 impl Value {
-    pub fn eval(self, helper: &MyHelper) -> anyhow::Result<IDLValue> {
+    pub fn eval(self, helper: &MyHelper) -> Result<IDLValue> {
         Ok(match self {
-            Value::Path(vs) => helper
-                .env
-                .0
-                .get(&vs[0]) // TODO handle path
-                .ok_or_else(|| anyhow!("Undefined variable {}", vs[0]))?
-                .clone(),
+            Value::Path(id, path) => {
+                let v = helper
+                    .env
+                    .0
+                    .get(&id)
+                    .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
+                project(&v, &path)?.clone()
+            }
             Value::Blob(file) => {
                 let path = resolve_path(&helper.base_path, &file);
                 let blob: Vec<IDLValue> = std::fs::read(&path)
@@ -101,4 +116,33 @@ impl Value {
             }
         })
     }
+}
+
+pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValue> {
+    if path.is_empty() {
+        return Ok(value);
+    }
+    let (head, tail) = (&path[0], &path[1..]);
+    match (value, head) {
+        (IDLValue::Opt(opt), Selector::Field(f)) if f == "?" => return project(&*opt, tail),
+        (IDLValue::Vec(vs), Selector::Index(idx)) => {
+            let idx = *idx as usize;
+            if idx < vs.len() {
+                return project(&vs[idx], tail);
+            }
+        }
+        (IDLValue::Record(fs), field) => {
+            let id = field.to_label();
+            if let Some(v) = fs.iter().find(|f| f.id == id) {
+                return project(&v.val, tail);
+            }
+        }
+        (IDLValue::Variant(VariantValue(f, _)), field) => {
+            if field.to_label() == f.id {
+                return project(&f.val, tail);
+            }
+        }
+        _ => (),
+    }
+    return Err(anyhow!("{:?} cannot be applied to {}", head, value));
 }
