@@ -19,16 +19,16 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | assert <val> <binop> <val>           // assertion
  | identity <id> <text>?                // switch to identity <id>, with optional Ed25519 pem file
 
-<var> := 
- | <id>                  // variable name 
- | _                     // previous call result is bind to `_`
 <val> := 
  | <candid val>          // any candid value
  | <var> (<selector>)*   // variable with optional selectors
  | file <text>           // load external file as a blob value
  | encode ( <val),* )    // encode candid arguments as a blob value
+<var> := 
+ | <id>                  // variable name 
+ | _                     // previous call result is bind to `_` 
 <selector> :=
- | ?           // unwrap opt value
+ | ?           // select opt value
  | . <name>    // select field name from record or variant value
  | [ <nat> ]   // select index from vec, record, or variant value
 <binop> := 
