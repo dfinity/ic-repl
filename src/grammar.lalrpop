@@ -90,9 +90,7 @@ pub Command: Command = {
     },    
     "config" <Text> => Command::Config(<>),
     "show" <Value> => Command::Show(<>),
-    "assert" <left:Value> "==" <right:Value> => Command::Assert(BinOp::Equal, left, right),
-    "assert" <left:Value> "~=" <right:Value> => Command::Assert(BinOp::SubEqual, left, right),
-    "assert" <left:Value> "!=" <right:Value> => Command::Assert(BinOp::NotEqual, left, right),
+    "assert" <left:Value> <op:BinOp> <right:Value> => Command::Assert(op, left, right),
     "let" <id:"id"> "=" <val:Value> => Command::Let(id, val),
     "export" <Text> => Command::Export(<>),
     "load" <Text> => Command::Load(<>),
@@ -105,11 +103,12 @@ pub Command: Command = {
 
 Value: Value = {
   Arg => <>,
-  <v:"id"> <path:(<Selector>)*> => Value::Path(v, path),
+  Var => Value::Path(<>.0, <>.1),
   "file" <Text> => Value::Blob(<>),
   "encode" <Values> => Value::Args(<>),
 }
 
+Var: (String, Vec<Selector>) = <v:"id"> <path:(<Selector>)*> => (v, path);
 Selector: Selector = {
      "?" => Selector::Field("?".to_string()),
      "." <Name> => Selector::Field(<>),
@@ -117,6 +116,12 @@ Selector: Selector = {
        let idx = <>.0.parse::<u64>().map_err(|_| error2("index out of u64 range", <>.1))?;
        Ok(Selector::Index(idx))
      }
+}
+
+BinOp: BinOp = {
+  "==" => BinOp::Equal,
+  "~=" => BinOp::SubEqual,
+  "!=" => BinOp::NotEqual,
 }
 
 // Candid Value
