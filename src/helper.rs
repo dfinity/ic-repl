@@ -6,7 +6,7 @@ use candid::{
     parser::configs::Configs,
     parser::value::IDLValue,
     pretty_parse,
-    types::{Function, Type},
+    types::{Function, Label, Type},
     Decode, Encode, IDLArgs, IDLProg, Principal, TypeEnv,
 };
 use ic_agent::Agent;
@@ -27,8 +27,6 @@ pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 pub struct IdentityMap(pub BTreeMap<String, Vec<u8>>);
 #[derive(Default)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
-#[derive(Default)]
-pub struct NameEnv(pub BTreeMap<String, Principal>);
 #[derive(Clone)]
 pub struct CanisterInfo {
     pub env: TypeEnv,
@@ -70,7 +68,6 @@ pub struct MyHelper {
     pub agent: Agent,
     pub config: Configs,
     pub env: Env,
-    pub canister_env: NameEnv,
     pub base_path: std::path::PathBuf,
     pub history: Vec<String>,
 }
@@ -94,7 +91,6 @@ impl MyHelper {
             current_identity: "anon".to_owned(),
             config: Configs::from_dhall("{=}").unwrap(),
             env: Env::default(),
-            canister_env: NameEnv::default(),
             base_path: std::env::current_dir().unwrap(),
             history: Vec::new(),
             agent,
@@ -106,32 +102,71 @@ impl MyHelper {
 #[derive(Debug)]
 enum Partial {
     Call(Principal, String),
-    Val(IDLValue),
+    Val(IDLValue, String),
 }
 
 fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
-    let tail = line[..pos].rfind('.').unwrap_or(pos);
-    let (start, word) = extract_word(line, tail, None, b" ");
+    //let pos_tail = line[..pos].rfind('.').unwrap_or(pos);
+    let (start, _) = extract_word(line, pos, None, b" ");
     let prev = &line[..start].trim_end();
     let (_, prev) = extract_word(prev, prev.len(), None, b" ");
+    //let tail = if pos_tail < pos { line[pos_tail+1..pos].to_string() } else { String::new() };
     let is_call = matches!(prev, "call" | "encode");
-    match word.parse::<Value>() {
-        Ok(Value::Text(id)) if is_call => match Principal::from_text(id) {
-            Ok(id) => {
-                let meth = if tail < pos {
-                    line[tail + 1..].to_string()
-                } else {
-                    "".to_string()
-                };
-                Some((tail, Partial::Call(id, meth)))
-            }
-            _ => None,
-        },
-        Ok(v @ Value::Path(_, _)) => {
-            let v = v.eval(helper).ok()?;
-            Some((tail, Partial::Val(v)))
+    if is_call {
+        let pos_tail = line[..pos].rfind('.').unwrap_or(pos);
+        let tail = if pos_tail < pos {
+            line[pos_tail + 1..pos].to_string()
+        } else {
+            String::new()
+        };
+        let id = &line[start..pos_tail];
+        match Principal::from_text(id) {
+            Ok(id) => Some((pos_tail, Partial::Call(id, tail))),
+            Err(_) => match helper.env.0.get(id)? {
+                IDLValue::Principal(id) => Some((pos_tail, Partial::Call(id.clone(), tail))),
+                _ => None,
+            },
         }
-        _ => None,
+    } else {
+        let pos_tail = line[..pos].rfind(|c| c == '.' || c == '[').unwrap_or(pos);
+        let v = line[..pos_tail].parse::<Value>().ok()?;
+        let v = v.eval(helper).ok()?;
+        let tail = if pos_tail < pos {
+            line[pos_tail..pos].to_string()
+        } else {
+            String::new()
+        };
+        Some((pos_tail, Partial::Val(v, tail)))
+    }
+}
+fn match_selector(v: &IDLValue, prefix: &str) -> Vec<Pair> {
+    println!(" tail:{}", prefix);
+    match v {
+        IDLValue::Opt(_) => vec![Pair {
+            display: "?".to_string(),
+            replacement: "?".to_string(),
+        }],
+        IDLValue::Record(fs) => fs
+            .iter()
+            .filter_map(|f| match &f.id {
+                Label::Named(name) if prefix.is_empty() || name.starts_with(&prefix[1..]) => {
+                    Some(Pair {
+                        display: format!(".{}", name),
+                        replacement: format!(".{}", name),
+                    })
+                }
+                Label::Id(id) | Label::Unnamed(id)
+                    if prefix.is_empty() || prefix.starts_with('[') =>
+                {
+                    Some(Pair {
+                        display: format!("[{}]", id),
+                        replacement: format!("[{}]", id),
+                    })
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -151,6 +186,7 @@ impl Completer for MyHelper {
                     Err(_) => (pos, Vec::new()),
                 })
             }
+            Some((pos, Partial::Val(v, rest))) => Ok((pos, match_selector(&v, &rest))),
             _ => self.completer.complete(line, pos, ctx),
         }
     }
@@ -162,7 +198,7 @@ impl Hinter for MyHelper {
         if pos < line.len() {
             return None;
         }
-        match extract_canister(line, pos, &self.canister_env) {
+        match extract_canister(line, pos, &self.env) {
             Some((_, canister_id, method, args)) => {
                 let mut map = self.canister_map.borrow_mut();
                 match map.get(&self.agent, &canister_id) {

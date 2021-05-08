@@ -1,6 +1,6 @@
 use super::error::pretty_parse;
-use super::helper::{did_to_canister_info, MyHelper, NameEnv};
-use super::token::{ParserError, Spanned, Tokenizer};
+use super::helper::{did_to_canister_info, Env, MyHelper};
+use super::token::{ParserError, Tokenizer};
 use super::value::Value;
 use anyhow::{anyhow, Context};
 use candid::{
@@ -17,7 +17,7 @@ pub struct Commands(pub Vec<Command>);
 #[derive(Debug, Clone)]
 pub enum Command {
     Call {
-        canister: Spanned<String>,
+        canister: String,
         method: String,
         args: Vec<Value>,
         encode_only: bool,
@@ -40,6 +40,7 @@ pub enum BinOp {
 
 impl Command {
     pub fn run(self, helper: &mut MyHelper) -> anyhow::Result<()> {
+        println!("{:?}", &self);
         match self {
             Command::Call {
                 canister,
@@ -47,18 +48,17 @@ impl Command {
                 args,
                 encode_only,
             } => {
-                let try_id = Principal::from_text(&canister.value);
+                let try_id = Principal::from_text(&canister);
                 let canister_id = match try_id {
                     Ok(ref id) => id,
-                    Err(_) => helper
-                        .canister_env
-                        .0
-                        .get(&canister.value)
-                        .ok_or_else(|| anyhow!("Unknown canister {}", canister.value))?,
+                    Err(_) => match helper.env.0.get(&canister) {
+                        Some(IDLValue::Principal(id)) => id,
+                        _ => return Err(anyhow!("{} is not a canister id", canister)),
+                    },
                 };
                 let agent = &helper.agent;
                 let mut map = helper.canister_map.borrow_mut();
-                let info = map.get(&agent, canister_id)?;
+                let info = map.get(&agent, &canister_id)?;
                 let func = info
                     .methods
                     .get(&method)
@@ -76,7 +76,7 @@ impl Command {
                     return Ok(());
                 }
                 let time = Instant::now();
-                let res = call(&agent, canister_id, &method, &args, &info.env, &func)?;
+                let res = call(&agent, &canister_id, &method, &args, &info.env, &func)?;
                 let duration = time.elapsed();
                 println!("{}", res);
                 let width = if let Some((Width(w), _)) = terminal_size() {
@@ -102,7 +102,8 @@ impl Command {
                         .0
                         .insert(canister_id.clone(), info);
                 }
-                helper.canister_env.0.insert(id, canister_id);
+                // TODO decide if it's a Service instead
+                helper.env.0.insert(id, IDLValue::Principal(canister_id));
             }
             Command::Let(id, val) => {
                 let v = val.eval(&helper)?;
@@ -252,11 +253,11 @@ async fn call(
 pub fn extract_canister(
     line: &str,
     pos: usize,
-    env: &NameEnv,
+    _env: &Env,
 ) -> Option<(usize, Principal, String, Vec<Value>)> {
     let command = line[..pos].parse::<Command>().ok()?;
     match command {
-        Command::Call {
+        /*Command::Call {
             canister,
             method,
             args,
@@ -265,10 +266,13 @@ pub fn extract_canister(
             let try_id = Principal::from_text(&canister.value);
             let canister_id = match try_id {
                 Ok(id) => id,
-                Err(_) => env.0.get(&canister.value)?.clone(),
+                Err(_) => match env.0.get(&canister.value)? {
+                    IDLValue::Principal(id) => id,
+                    _ => return None,
+                }
             };
             Some((canister.span.end, canister_id, method, args))
-        }
+        }*/
         _ => None,
     }
 }

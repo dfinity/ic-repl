@@ -1,7 +1,7 @@
 use super::value::{Field, Value, Selector};
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
-use super::token::{Token, error2, LexicalError, Span, Spanned};
+use super::token::{Token, error2, LexicalError, Span};
 use candid::{Principal, types::Label};
 use super::command::{Command, Commands, BinOp};
 
@@ -64,30 +64,13 @@ pub Commands: Commands = SepBy<Command, ";"> => Commands(<>);
 
 // Command
 pub Command: Command = {
-    "call" <canister:Sp<Name>> "."? => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };
-         Command::Call{canister, method: "".to_string(), args: Vec::new(), encode_only: false}
-    },
-    "call" <canister:Sp<Name>> "." <method:Name> => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
-         Command::Call{canister, method, args: Vec::new(), encode_only: false}
-    },
-    "call" <canister:Sp<Name>> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
+    "call" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
          Command::Call{canister, method, args, encode_only: false}
     },
-    "encode" <canister:Sp<Name>> "."? => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };
-         Command::Call{canister, method: "".to_string(), args: Vec::new(), encode_only: true}
-    },
-    "encode" <canister:Sp<Name>> "." <method:Name> => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
-         Command::Call{canister, method, args: Vec::new(), encode_only: true}
-    },
-    "encode" <canister:Sp<Name>> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
-         Command::Call{canister, method, args, encode_only: true}
-    },    
+    //"encode" <canister:Sp<Name>> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
+    //     let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
+    //     Command::Call{canister, method, args, encode_only: true}
+    //},
     "config" <Text> => Command::Config(<>),
     "show" <Value> => Command::Show(<>),
     "assert" <left:Value> <op:BinOp> <right:Value> => Command::Assert(op, left, right),
