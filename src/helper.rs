@@ -10,7 +10,7 @@ use candid::{
     Decode, Encode, IDLArgs, IDLProg, Principal, TypeEnv,
 };
 use ic_agent::Agent;
-use rustyline::completion::{Completer, FilenameCompleter, Pair};
+use rustyline::completion::{extract_word, Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
@@ -103,6 +103,38 @@ impl MyHelper {
     }
 }
 
+#[derive(Debug)]
+enum Partial {
+    Call(Principal, String),
+    Val(IDLValue),
+}
+
+fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
+    let tail = line[..pos].rfind('.').unwrap_or(pos);
+    let (start, word) = extract_word(line, tail, None, b" ");
+    let prev = &line[..start].trim_end();
+    let (_, prev) = extract_word(prev, prev.len(), None, b" ");
+    let is_call = matches!(prev, "call" | "encode");
+    match word.parse::<Value>() {
+        Ok(Value::Text(id)) if is_call => match Principal::from_text(id) {
+            Ok(id) => {
+                let meth = if tail < pos {
+                    line[tail + 1..].to_string()
+                } else {
+                    "".to_string()
+                };
+                Some((tail, Partial::Call(id, meth)))
+            }
+            _ => None,
+        },
+        Ok(v @ Value::Path(_, _)) => {
+            let v = v.eval(helper).ok()?;
+            Some((tail, Partial::Val(v)))
+        }
+        _ => None,
+    }
+}
+
 impl Completer for MyHelper {
     type Candidate = Pair;
     fn complete(
@@ -111,15 +143,15 @@ impl Completer for MyHelper {
         pos: usize,
         ctx: &Context<'_>,
     ) -> Result<(usize, Vec<Pair>), ReadlineError> {
-        match extract_canister(line, pos, &self.canister_env) {
-            Some((pos, canister_id, meth, _)) => {
+        match extract_words(line, pos, &self) {
+            Some((pos, Partial::Call(canister_id, meth))) => {
                 let mut map = self.canister_map.borrow_mut();
                 Ok(match map.get(&self.agent, &canister_id) {
                     Ok(info) => (pos, info.match_method(&meth)),
                     Err(_) => (pos, Vec::new()),
                 })
             }
-            None => self.completer.complete(line, pos, ctx),
+            _ => self.completer.complete(line, pos, ctx),
         }
     }
 }

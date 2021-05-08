@@ -101,14 +101,12 @@ pub Command: Command = {
     "identity" <id:"id"> <path:Text?> => Command::Identity(id, path),
 }
 
-Value: Value = {
+pub Value: Value = {
   Arg => <>,
-  Var => Value::Path(<>.0, <>.1),
+  <v:"id"> <path:(<Selector>)*> => Value::Path(v, path),
   "file" <Text> => Value::Blob(<>),
   "encode" <Values> => Value::Args(<>),
 }
-
-Var: (String, Vec<Selector>) = <v:"id"> <path:(<Selector>)*> => (v, path);
 Selector: Selector = {
      "?" => Selector::Field("?".to_string()),
      "." <Name> => Selector::Field(<>),
