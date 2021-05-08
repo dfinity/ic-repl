@@ -35,7 +35,6 @@ extern {
         "call" => Token::Call,
         "encode" => Token::Encode,
         "config" => Token::Config,
-        "show" => Token::Show,
         "assert" => Token::Assert,
         "let" => Token::Let,
         "file" => Token::File,
@@ -67,12 +66,11 @@ pub Command: Command = {
     "call" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
          Command::Call{canister, method, args, encode_only: false}
     },
-    //"encode" <canister:Sp<Name>> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
-    //     let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
-    //     Command::Call{canister, method, args, encode_only: true}
-    //},
+    "encode" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
+         Command::Call{canister, method, args, encode_only: true}
+    },
     "config" <Text> => Command::Config(<>),
-    "show" <Value> => Command::Show(<>),
+    <Value> => Command::Show(<>),
     "assert" <left:Value> <op:BinOp> <right:Value> => Command::Assert(op, left, right),
     "let" <id:"id"> "=" <val:Value> => Command::Let(id, val),
     "export" <Text> => Command::Export(<>),

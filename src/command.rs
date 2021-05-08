@@ -40,7 +40,6 @@ pub enum BinOp {
 
 impl Command {
     pub fn run(self, helper: &mut MyHelper) -> anyhow::Result<()> {
-        println!("{:?}", &self);
         match self {
             Command::Call {
                 canister,

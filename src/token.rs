@@ -66,8 +66,6 @@ pub enum Token {
     Encode,
     #[token("config")]
     Config,
-    #[token("show")]
-    Show,
     #[token("let")]
     Let,
     #[token("file")]

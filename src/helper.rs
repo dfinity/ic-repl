@@ -106,11 +106,9 @@ enum Partial {
 }
 
 fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
-    //let pos_tail = line[..pos].rfind('.').unwrap_or(pos);
     let (start, _) = extract_word(line, pos, None, b" ");
     let prev = &line[..start].trim_end();
     let (_, prev) = extract_word(prev, prev.len(), None, b" ");
-    //let tail = if pos_tail < pos { line[pos_tail+1..pos].to_string() } else { String::new() };
     let is_call = matches!(prev, "call" | "encode");
     if is_call {
         let pos_tail = line[..pos].rfind('.').unwrap_or(pos);
@@ -140,7 +138,6 @@ fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
     }
 }
 fn match_selector(v: &IDLValue, prefix: &str) -> Vec<Pair> {
-    println!(" tail:{}", prefix);
     match v {
         IDLValue::Opt(_) => vec![Pair {
             display: "?".to_string(),
@@ -149,17 +146,21 @@ fn match_selector(v: &IDLValue, prefix: &str) -> Vec<Pair> {
         IDLValue::Record(fs) => fs
             .iter()
             .filter_map(|f| match &f.id {
-                Label::Named(name) if prefix.is_empty() || name.starts_with(&prefix[1..]) => {
+                Label::Named(name)
+                    if prefix.is_empty()
+                        || prefix.starts_with('.') && name.starts_with(&prefix[1..]) =>
+                {
                     Some(Pair {
-                        display: format!(".{}", name),
+                        display: format!(".{} = {}", name, f.val),
                         replacement: format!(".{}", name),
                     })
                 }
                 Label::Id(id) | Label::Unnamed(id)
-                    if prefix.is_empty() || prefix.starts_with('[') =>
+                    if prefix.is_empty()
+                        || prefix.starts_with('[') && id.to_string().starts_with(&prefix[1..]) =>
                 {
                     Some(Pair {
-                        display: format!("[{}]", id),
+                        display: format!("[{}] = {}", id, f.val),
                         replacement: format!("[{}]", id),
                     })
                 }
