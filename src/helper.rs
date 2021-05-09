@@ -99,7 +99,7 @@ impl MyHelper {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 enum Partial {
     Call(Principal, String),
     Val(IDLValue, String),
@@ -331,4 +331,122 @@ pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInf
         })
         .collect();
     Ok(CanisterInfo { env, methods })
+}
+
+#[test]
+fn test_partial_parse() -> anyhow::Result<()> {
+    let url = "http://localhost".to_string();
+    let agent = Agent::builder()
+        .with_transport(
+            ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
+        )
+        .build()?;
+    let mut helper = MyHelper::new(agent, url);
+    helper.env.0.insert(
+        "a".to_string(),
+        "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+    );
+    let ic0 = Principal::from_text("aaaaa-aa")?;
+    helper
+        .env
+        .0
+        .insert("ic0".to_string(), IDLValue::Principal(ic0.clone()));
+    assert_eq!(partial_parse("call a", 6, &helper), None);
+    assert_eq!(
+        partial_parse("let id = call \"aaaaa-aa\"", 24, &helper).unwrap(),
+        (24, Partial::Call(ic0.clone(), "".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = call \"aaaaa-aa\".", 25, &helper).unwrap(),
+        (24, Partial::Call(ic0.clone(), "".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = call \"aaaaa-aa\".t", 26, &helper).unwrap(),
+        (24, Partial::Call(ic0.clone(), "t".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = encode ic0", 19, &helper).unwrap(),
+        (19, Partial::Call(ic0.clone(), "".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = encode ic0.", 20, &helper).unwrap(),
+        (19, Partial::Call(ic0.clone(), "".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = encode ic0.t", 21, &helper).unwrap(),
+        (19, Partial::Call(ic0.clone(), "t".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = a", 10, &helper).unwrap(),
+        (
+            10,
+            Partial::Val(
+                "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}"
+                    .parse::<IDLValue>()?,
+                "".to_string()
+            )
+        )
+    );
+    assert_eq!(partial_parse("let id = a.f1.", 14, &helper), None);
+    assert_eq!(
+        partial_parse("let id = a?", 11, &helper).unwrap(),
+        (
+            11,
+            Partial::Val(
+                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                "".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?.", 12, &helper).unwrap(),
+        (
+            11,
+            Partial::Val(
+                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                ".".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?.f1", 14, &helper).unwrap(),
+        (
+            11,
+            Partial::Val(
+                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                ".f1".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?[0", 13, &helper).unwrap(),
+        (
+            11,
+            Partial::Val(
+                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                "[0".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?[0]", 14, &helper).unwrap(),
+        (
+            14,
+            Partial::Val(
+                "variant {b=vec{1;2;3}}".parse::<IDLValue>()?,
+                "".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?[0].", 15, &helper).unwrap(),
+        (
+            14,
+            Partial::Val(
+                "variant {b=vec{1;2;3}}".parse::<IDLValue>()?,
+                ".".to_string()
+            )
+        )
+    );
+    Ok(())
 }
