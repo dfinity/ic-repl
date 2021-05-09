@@ -105,7 +105,7 @@ enum Partial {
     Val(IDLValue, String),
 }
 
-fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
+fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
     let (start, _) = extract_word(line, pos, None, b" ");
     let prev = &line[..start].trim_end();
     let (_, prev) = extract_word(prev, prev.len(), None, b" ");
@@ -128,9 +128,13 @@ fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
             }
         }
     } else {
-        let pos_tail = line[..pos]
-            .rfind(|c| c == '.' || c == '[' || c == ']')
-            .unwrap_or(pos);
+        let pos_tail = if line[..pos].ends_with(']') {
+            pos
+        } else {
+            line[..pos]
+                .rfind(|c| c == '.' || c == '[' || c == ']')
+                .unwrap_or(pos)
+        };
         let v = line[start..pos_tail].parse::<Value>().ok()?;
         let v = v.eval(helper).ok()?;
         let tail = if pos_tail < pos {
@@ -142,7 +146,6 @@ fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
     }
 }
 fn match_selector(v: &IDLValue, prefix: &str) -> Vec<Pair> {
-    println!(" {} {}", v, prefix);
     match v {
         IDLValue::Opt(_) => vec![Pair {
             display: "?".to_string(),
@@ -200,7 +203,7 @@ impl Completer for MyHelper {
         pos: usize,
         ctx: &Context<'_>,
     ) -> Result<(usize, Vec<Pair>), ReadlineError> {
-        match extract_words(line, pos, &self) {
+        match partial_parse(line, pos, &self) {
             Some((pos, Partial::Call(canister_id, meth))) => {
                 let mut map = self.canister_map.borrow_mut();
                 Ok(match map.get(&self.agent, &canister_id) {
