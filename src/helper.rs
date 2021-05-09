@@ -4,7 +4,7 @@ use ansi_term::Color;
 use candid::{
     check_prog,
     parser::configs::Configs,
-    parser::value::IDLValue,
+    parser::value::{IDLField, IDLValue, VariantValue},
     pretty_parse,
     types::{Function, Label, Type},
     Decode, Encode, IDLArgs, IDLProg, Principal, TypeEnv,
@@ -128,7 +128,9 @@ fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
             }
         }
     } else {
-        let pos_tail = line[..pos].rfind(|c| c == '.' || c == '[').unwrap_or(pos);
+        let pos_tail = line[..pos]
+            .rfind(|c| c == '.' || c == '[' || c == ']')
+            .unwrap_or(pos);
         let v = line[start..pos_tail].parse::<Value>().ok()?;
         let v = v.eval(helper).ok()?;
         let tail = if pos_tail < pos {
@@ -140,36 +142,53 @@ fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
     }
 }
 fn match_selector(v: &IDLValue, prefix: &str) -> Vec<Pair> {
+    println!(" {} {}", v, prefix);
     match v {
         IDLValue::Opt(_) => vec![Pair {
             display: "?".to_string(),
             replacement: "?".to_string(),
         }],
-        IDLValue::Record(fs) => fs
-            .iter()
-            .filter_map(|f| match &f.id {
-                Label::Named(name)
-                    if prefix.is_empty()
-                        || prefix.starts_with('.') && name.starts_with(&prefix[1..]) =>
-                {
-                    Some(Pair {
-                        display: format!(".{} = {}", name, f.val),
-                        replacement: format!(".{}", name),
-                    })
-                }
-                Label::Id(id) | Label::Unnamed(id)
-                    if prefix.is_empty()
-                        || prefix.starts_with('[') && id.to_string().starts_with(&prefix[1..]) =>
-                {
-                    Some(Pair {
-                        display: format!("[{}] = {}", id, f.val),
-                        replacement: format!("[{}]", id),
-                    })
-                }
-                _ => None,
-            })
-            .collect(),
+        IDLValue::Vec(vs) => vec![
+            Pair {
+                display: "vec".to_string(),
+                replacement: "".to_string(),
+            },
+            Pair {
+                display: format!("index should be less than {}", vs.len()),
+                replacement: "".to_string(),
+            },
+        ],
+        IDLValue::Record(fs) => fs.iter().filter_map(|f| match_field(f, prefix)).collect(),
+        IDLValue::Variant(VariantValue(f, _)) => {
+            if let Some(pair) = match_field(f, prefix) {
+                vec![pair]
+            } else {
+                Vec::new()
+            }
+        }
         _ => Vec::new(),
+    }
+}
+fn match_field(f: &IDLField, prefix: &str) -> Option<Pair> {
+    match &f.id {
+        Label::Named(name)
+            if prefix.is_empty() || prefix.starts_with('.') && name.starts_with(&prefix[1..]) =>
+        {
+            Some(Pair {
+                display: format!(".{} = {}", name, f.val),
+                replacement: format!(".{}", name),
+            })
+        }
+        Label::Id(id) | Label::Unnamed(id)
+            if prefix.is_empty()
+                || prefix.starts_with('[') && id.to_string().starts_with(&prefix[1..]) =>
+        {
+            Some(Pair {
+                display: format!("[{}] = {}", id, f.val),
+                replacement: format!("[{}]", id),
+            })
+        }
+        _ => None,
     }
 }
 
