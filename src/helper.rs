@@ -1,4 +1,3 @@
-use crate::command::extract_canister;
 use crate::value::Value;
 use ansi_term::Color;
 use candid::{
@@ -217,27 +216,29 @@ impl Completer for MyHelper {
     }
 }
 
+fn hint_method(line: &str, pos: usize, helper: &MyHelper) -> Option<String> {
+    let start = line.rfind("encode").or_else(|| line.rfind("call"))?;
+    let arg_pos = line[start..].find('(').unwrap_or(pos);
+    match partial_parse(line, arg_pos, helper) {
+        Some((_, Partial::Call(canister_id, method))) => {
+            let mut map = helper.canister_map.borrow_mut();
+            let info = map.get(&helper.agent, &canister_id).ok()?;
+            let func = info.methods.get(&method)?;
+            let given_args = line[arg_pos..].matches(',').count();
+            let value = random_value(&info.env, &func.args, given_args, &helper.config).ok()?;
+            Some(value)
+        }
+        _ => None,
+    }
+}
+
 impl Hinter for MyHelper {
     type Hint = String;
     fn hint(&self, line: &str, pos: usize, ctx: &Context<'_>) -> Option<String> {
         if pos < line.len() {
             return None;
         }
-        match extract_canister(line, pos, &self.env) {
-            Some((_, canister_id, method, args)) => {
-                let mut map = self.canister_map.borrow_mut();
-                match map.get(&self.agent, &canister_id) {
-                    Ok(info) => {
-                        let func = info.methods.get(&method)?;
-                        let value =
-                            random_value(&info.env, &func.args, &args, &self.config).ok()?;
-                        Some(value)
-                    }
-                    Err(_) => None,
-                }
-            }
-            None => self.hinter.hint(line, pos, ctx),
-        }
+        hint_method(line, pos, &self).or_else(|| self.hinter.hint(line, pos, ctx))
     }
 }
 
@@ -284,17 +285,17 @@ impl Validator for MyHelper {
 fn random_value(
     env: &TypeEnv,
     tys: &[Type],
-    given_args: &[Value],
+    given_args: usize,
     config: &Configs,
 ) -> candid::Result<String> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
     let result = IDLArgs::any(&seed, &config, env, &tys)?;
-    Ok(if !given_args.is_empty() {
-        if given_args.len() <= tys.len() {
+    Ok(if given_args > 0 {
+        if given_args <= tys.len() {
             let mut res = String::new();
-            for v in result.args[given_args.len()..].iter() {
+            for v in result.args[given_args..].iter() {
                 res.push_str(&format!(", {}", v));
             }
             res.push(')');

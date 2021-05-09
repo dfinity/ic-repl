@@ -21,7 +21,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 
 <val> := 
  | <candid val>          // any candid value
- | <var> (<selector>)*   // variable with optional selectors
+ | <var> <selector>*     // variable with optional selectors
  | file <text>           // load external file as a blob value
  | encode ( <val),* )    // encode candid arguments as a blob value
 <var> := 

@@ -1,5 +1,5 @@
 use super::error::pretty_parse;
-use super::helper::{did_to_canister_info, Env, MyHelper};
+use super::helper::{did_to_canister_info, MyHelper};
 use super::token::{ParserError, Tokenizer};
 use super::value::Value;
 use anyhow::{anyhow, Context};
@@ -246,34 +246,6 @@ async fn call(
             .await?
     };
     Ok(IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?)
-}
-
-// Return position at the end of principal, principal, method, args
-pub fn extract_canister(
-    line: &str,
-    pos: usize,
-    _env: &Env,
-) -> Option<(usize, Principal, String, Vec<Value>)> {
-    let command = line[..pos].parse::<Command>().ok()?;
-    match command {
-        /*Command::Call {
-            canister,
-            method,
-            args,
-            ..
-        } => {
-            let try_id = Principal::from_text(&canister.value);
-            let canister_id = match try_id {
-                Ok(id) => id,
-                Err(_) => match env.0.get(&canister.value)? {
-                    IDLValue::Principal(id) => id,
-                    _ => return None,
-                }
-            };
-            Some((canister.span.end, canister_id, method, args))
-        }*/
-        _ => None,
-    }
 }
 
 pub fn resolve_path(base: &Path, file: &str) -> PathBuf {
