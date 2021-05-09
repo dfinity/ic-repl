@@ -118,16 +118,18 @@ fn extract_words(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
             String::new()
         };
         let id = &line[start..pos_tail];
-        match Principal::from_text(id) {
-            Ok(id) => Some((pos_tail, Partial::Call(id, tail))),
-            Err(_) => match helper.env.0.get(id)? {
+        if id.starts_with('"') {
+            let id = Principal::from_text(&id[1..id.len() - 1]).ok()?;
+            Some((pos_tail, Partial::Call(id, tail)))
+        } else {
+            match helper.env.0.get(id)? {
                 IDLValue::Principal(id) => Some((pos_tail, Partial::Call(id.clone(), tail))),
                 _ => None,
-            },
+            }
         }
     } else {
         let pos_tail = line[..pos].rfind(|c| c == '.' || c == '[').unwrap_or(pos);
-        let v = line[..pos_tail].parse::<Value>().ok()?;
+        let v = line[start..pos_tail].parse::<Value>().ok()?;
         let v = v.eval(helper).ok()?;
         let tail = if pos_tail < pos {
             line[pos_tail..pos].to_string()
