@@ -1,5 +1,6 @@
 use super::command::resolve_path;
 use super::helper::MyHelper;
+use super::token::{ParserError, Tokenizer};
 use anyhow::{anyhow, Context, Result};
 use candid::{
     parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
@@ -145,4 +146,12 @@ pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValu
         _ => (),
     }
     return Err(anyhow!("{:?} cannot be applied to {}", head, value));
+}
+
+impl std::str::FromStr for Value {
+    type Err = ParserError;
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        let lexer = Tokenizer::new(str);
+        super::grammar::ValueParser::new().parse(lexer)
+    }
 }

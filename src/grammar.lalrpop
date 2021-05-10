@@ -1,7 +1,7 @@
 use super::value::{Field, Value, Selector};
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
-use super::token::{Token, error2, LexicalError, Span, Spanned};
+use super::token::{Token, error2, LexicalError, Span};
 use candid::{Principal, types::Label};
 use super::command::{Command, Commands, BinOp};
 
@@ -35,7 +35,6 @@ extern {
         "call" => Token::Call,
         "encode" => Token::Encode,
         "config" => Token::Config,
-        "show" => Token::Show,
         "assert" => Token::Assert,
         "let" => Token::Let,
         "file" => Token::File,
@@ -64,35 +63,15 @@ pub Commands: Commands = SepBy<Command, ";"> => Commands(<>);
 
 // Command
 pub Command: Command = {
-    "call" <canister:Sp<Name>> "."? => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };
-         Command::Call{canister, method: "".to_string(), args: Vec::new(), encode_only: false}
-    },
-    "call" <canister:Sp<Name>> "." <method:Name> => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
-         Command::Call{canister, method, args: Vec::new(), encode_only: false}
-    },
-    "call" <canister:Sp<Name>> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
+    "call" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
          Command::Call{canister, method, args, encode_only: false}
     },
-    "encode" <canister:Sp<Name>> "."? => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };
-         Command::Call{canister, method: "".to_string(), args: Vec::new(), encode_only: true}
-    },
-    "encode" <canister:Sp<Name>> "." <method:Name> => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
-         Command::Call{canister, method, args: Vec::new(), encode_only: true}
-    },
-    "encode" <canister:Sp<Name>> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
-         let canister = Spanned { span: canister.1.clone(), value: canister.0 };    
+    "encode" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
          Command::Call{canister, method, args, encode_only: true}
-    },    
+    },
     "config" <Text> => Command::Config(<>),
-    "show" <Value> => Command::Show(<>),
-    "assert" <left:Value> "==" <right:Value> => Command::Assert(BinOp::Equal, left, right),
-    "assert" <left:Value> "~=" <right:Value> => Command::Assert(BinOp::SubEqual, left, right),
-    "assert" <left:Value> "!=" <right:Value> => Command::Assert(BinOp::NotEqual, left, right),
+    <Value> => Command::Show(<>),
+    "assert" <left:Value> <op:BinOp> <right:Value> => Command::Assert(op, left, right),
     "let" <id:"id"> "=" <val:Value> => Command::Let(id, val),
     "export" <Text> => Command::Export(<>),
     "load" <Text> => Command::Load(<>),
@@ -103,13 +82,12 @@ pub Command: Command = {
     "identity" <id:"id"> <path:Text?> => Command::Identity(id, path),
 }
 
-Value: Value = {
+pub Value: Value = {
   Arg => <>,
   <v:"id"> <path:(<Selector>)*> => Value::Path(v, path),
   "file" <Text> => Value::Blob(<>),
   "encode" <Values> => Value::Args(<>),
 }
-
 Selector: Selector = {
      "?" => Selector::Field("?".to_string()),
      "." <Name> => Selector::Field(<>),
@@ -117,6 +95,12 @@ Selector: Selector = {
        let idx = <>.0.parse::<u64>().map_err(|_| error2("index out of u64 range", <>.1))?;
        Ok(Selector::Index(idx))
      }
+}
+
+BinOp: BinOp = {
+  "==" => BinOp::Equal,
+  "~=" => BinOp::SubEqual,
+  "!=" => BinOp::NotEqual,
 }
 
 // Candid Value

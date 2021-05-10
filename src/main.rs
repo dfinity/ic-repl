@@ -29,7 +29,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     let replica = opts.replica.unwrap_or_else(|| "local".to_string());
     let url = match replica.as_str() {
         "local" => "http://localhost:8000/",
-        "ic" => "https://boundary.dfinity.network",
+        "ic" => "https://ic0.app",
         url => url,
     };
     println!("Ping {}...", url);

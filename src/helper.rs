@@ -1,16 +1,15 @@
-use crate::command::extract_canister;
 use crate::value::Value;
 use ansi_term::Color;
 use candid::{
     check_prog,
     parser::configs::Configs,
-    parser::value::IDLValue,
+    parser::value::{IDLField, IDLValue, VariantValue},
     pretty_parse,
-    types::{Function, Type},
+    types::{Function, Label, Type},
     Decode, Encode, IDLArgs, IDLProg, Principal, TypeEnv,
 };
 use ic_agent::Agent;
-use rustyline::completion::{Completer, FilenameCompleter, Pair};
+use rustyline::completion::{extract_word, Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
@@ -27,8 +26,6 @@ pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 pub struct IdentityMap(pub BTreeMap<String, Vec<u8>>);
 #[derive(Default)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
-#[derive(Default)]
-pub struct NameEnv(pub BTreeMap<String, Principal>);
 #[derive(Clone)]
 pub struct CanisterInfo {
     pub env: TypeEnv,
@@ -70,7 +67,6 @@ pub struct MyHelper {
     pub agent: Agent,
     pub config: Configs,
     pub env: Env,
-    pub canister_env: NameEnv,
     pub base_path: std::path::PathBuf,
     pub history: Vec<String>,
 }
@@ -94,12 +90,115 @@ impl MyHelper {
             current_identity: "anon".to_owned(),
             config: Configs::from_dhall("{=}").unwrap(),
             env: Env::default(),
-            canister_env: NameEnv::default(),
             base_path: std::env::current_dir().unwrap(),
             history: Vec::new(),
             agent,
             agent_url,
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+enum Partial {
+    Call(Principal, String),
+    Val(IDLValue, String),
+}
+
+fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
+    let (start, _) = extract_word(line, pos, None, b" ");
+    let prev = &line[..start].trim_end();
+    let (_, prev) = extract_word(prev, prev.len(), None, b" ");
+    let is_call = matches!(prev, "call" | "encode");
+    if is_call {
+        let pos_tail = line[start..pos]
+            .rfind('.')
+            .map(|v| start + v)
+            .unwrap_or(pos);
+        let tail = if pos_tail < pos {
+            line[pos_tail + 1..pos].to_string()
+        } else {
+            String::new()
+        };
+        let id = &line[start..pos_tail];
+        if id.starts_with('"') {
+            if id.len() >= 7 {
+                let id = Principal::from_text(&id[1..id.len() - 1]).ok()?;
+                Some((pos_tail, Partial::Call(id, tail)))
+            } else {
+                None
+            }
+        } else {
+            match helper.env.0.get(id)? {
+                IDLValue::Principal(id) => Some((pos_tail, Partial::Call(id.clone(), tail))),
+                _ => None,
+            }
+        }
+    } else {
+        let pos_tail = if line[..pos].ends_with(']') {
+            pos
+        } else {
+            line[start..pos]
+                .rfind(|c| c == '.' || c == '[' || c == ']')
+                .map(|v| start + v)
+                .unwrap_or(pos)
+        };
+        let v = line[start..pos_tail].parse::<Value>().ok()?;
+        let v = v.eval(helper).ok()?;
+        let tail = if pos_tail < pos {
+            line[pos_tail..pos].to_string()
+        } else {
+            String::new()
+        };
+        Some((pos_tail, Partial::Val(v, tail)))
+    }
+}
+fn match_selector(v: &IDLValue, prefix: &str) -> Vec<Pair> {
+    match v {
+        IDLValue::Opt(_) => vec![Pair {
+            display: "?".to_string(),
+            replacement: "?".to_string(),
+        }],
+        IDLValue::Vec(vs) => vec![
+            Pair {
+                display: "vec".to_string(),
+                replacement: "".to_string(),
+            },
+            Pair {
+                display: format!("index should be less than {}", vs.len()),
+                replacement: "".to_string(),
+            },
+        ],
+        IDLValue::Record(fs) => fs.iter().filter_map(|f| match_field(f, prefix)).collect(),
+        IDLValue::Variant(VariantValue(f, _)) => {
+            if let Some(pair) = match_field(f, prefix) {
+                vec![pair]
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+fn match_field(f: &IDLField, prefix: &str) -> Option<Pair> {
+    match &f.id {
+        Label::Named(name)
+            if prefix.is_empty() || prefix.starts_with('.') && name.starts_with(&prefix[1..]) =>
+        {
+            Some(Pair {
+                display: format!(".{} = {}", name, f.val),
+                replacement: format!(".{}", name),
+            })
+        }
+        Label::Id(id) | Label::Unnamed(id)
+            if prefix.is_empty()
+                || prefix.starts_with('[') && id.to_string().starts_with(&prefix[1..]) =>
+        {
+            Some(Pair {
+                display: format!("[{}] = {}", id, f.val),
+                replacement: format!("[{}]", id),
+            })
+        }
+        _ => None,
     }
 }
 
@@ -111,16 +210,33 @@ impl Completer for MyHelper {
         pos: usize,
         ctx: &Context<'_>,
     ) -> Result<(usize, Vec<Pair>), ReadlineError> {
-        match extract_canister(line, pos, &self.canister_env) {
-            Some((pos, canister_id, meth, _)) => {
+        match partial_parse(line, pos, &self) {
+            Some((pos, Partial::Call(canister_id, meth))) => {
                 let mut map = self.canister_map.borrow_mut();
                 Ok(match map.get(&self.agent, &canister_id) {
                     Ok(info) => (pos, info.match_method(&meth)),
                     Err(_) => (pos, Vec::new()),
                 })
             }
-            None => self.completer.complete(line, pos, ctx),
+            Some((pos, Partial::Val(v, rest))) => Ok((pos, match_selector(&v, &rest))),
+            _ => self.completer.complete(line, pos, ctx),
         }
+    }
+}
+
+fn hint_method(line: &str, pos: usize, helper: &MyHelper) -> Option<String> {
+    let start = line.rfind("encode").or_else(|| line.rfind("call"))?;
+    let arg_pos = line[start..].find('(').unwrap_or(pos);
+    match partial_parse(line, arg_pos, helper) {
+        Some((_, Partial::Call(canister_id, method))) => {
+            let mut map = helper.canister_map.borrow_mut();
+            let info = map.get(&helper.agent, &canister_id).ok()?;
+            let func = info.methods.get(&method)?;
+            let given_args = line[arg_pos..].matches(',').count();
+            let value = random_value(&info.env, &func.args, given_args, &helper.config).ok()?;
+            Some(value)
+        }
+        _ => None,
     }
 }
 
@@ -130,21 +246,7 @@ impl Hinter for MyHelper {
         if pos < line.len() {
             return None;
         }
-        match extract_canister(line, pos, &self.canister_env) {
-            Some((_, canister_id, method, args)) => {
-                let mut map = self.canister_map.borrow_mut();
-                match map.get(&self.agent, &canister_id) {
-                    Ok(info) => {
-                        let func = info.methods.get(&method)?;
-                        let value =
-                            random_value(&info.env, &func.args, &args, &self.config).ok()?;
-                        Some(value)
-                    }
-                    Err(_) => None,
-                }
-            }
-            None => self.hinter.hint(line, pos, ctx),
-        }
+        hint_method(line, pos, &self).or_else(|| self.hinter.hint(line, pos, ctx))
     }
 }
 
@@ -191,17 +293,17 @@ impl Validator for MyHelper {
 fn random_value(
     env: &TypeEnv,
     tys: &[Type],
-    given_args: &[Value],
+    given_args: usize,
     config: &Configs,
 ) -> candid::Result<String> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
     let result = IDLArgs::any(&seed, &config, env, &tys)?;
-    Ok(if !given_args.is_empty() {
-        if given_args.len() <= tys.len() {
+    Ok(if given_args > 0 {
+        if given_args <= tys.len() {
             let mut res = String::new();
-            for v in result.args[given_args.len()..].iter() {
+            for v in result.args[given_args..].iter() {
                 res.push_str(&format!(", {}", v));
             }
             res.push(')');
@@ -238,4 +340,122 @@ pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInf
         })
         .collect();
     Ok(CanisterInfo { env, methods })
+}
+
+#[test]
+fn test_partial_parse() -> anyhow::Result<()> {
+    let url = "http://localhost".to_string();
+    let agent = Agent::builder()
+        .with_transport(
+            ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
+        )
+        .build()?;
+    let mut helper = MyHelper::new(agent, url);
+    helper.env.0.insert(
+        "a".to_string(),
+        "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+    );
+    let ic0 = Principal::from_text("aaaaa-aa")?;
+    helper
+        .env
+        .0
+        .insert("ic0".to_string(), IDLValue::Principal(ic0.clone()));
+    assert_eq!(partial_parse("call a", 6, &helper), None);
+    assert_eq!(
+        partial_parse("let id = call \"aaaaa-aa\"", 24, &helper).unwrap(),
+        (24, Partial::Call(ic0.clone(), "".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = call \"aaaaa-aa\".", 25, &helper).unwrap(),
+        (24, Partial::Call(ic0.clone(), "".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = call \"aaaaa-aa\".t", 26, &helper).unwrap(),
+        (24, Partial::Call(ic0.clone(), "t".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = encode ic0", 19, &helper).unwrap(),
+        (19, Partial::Call(ic0.clone(), "".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = encode ic0.", 20, &helper).unwrap(),
+        (19, Partial::Call(ic0.clone(), "".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = encode ic0.t", 21, &helper).unwrap(),
+        (19, Partial::Call(ic0, "t".to_string()))
+    );
+    assert_eq!(
+        partial_parse("let id = a", 10, &helper).unwrap(),
+        (
+            10,
+            Partial::Val(
+                "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}"
+                    .parse::<IDLValue>()?,
+                "".to_string()
+            )
+        )
+    );
+    assert_eq!(partial_parse("let id = a.f1.", 14, &helper), None);
+    assert_eq!(
+        partial_parse("let id = a?", 11, &helper).unwrap(),
+        (
+            11,
+            Partial::Val(
+                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                "".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?.", 12, &helper).unwrap(),
+        (
+            11,
+            Partial::Val(
+                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                ".".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?.f1", 14, &helper).unwrap(),
+        (
+            11,
+            Partial::Val(
+                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                ".f1".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?[0", 13, &helper).unwrap(),
+        (
+            11,
+            Partial::Val(
+                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                "[0".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?[0]", 14, &helper).unwrap(),
+        (
+            14,
+            Partial::Val(
+                "variant {b=vec{1;2;3}}".parse::<IDLValue>()?,
+                "".to_string()
+            )
+        )
+    );
+    assert_eq!(
+        partial_parse("let id = a?[0].", 15, &helper).unwrap(),
+        (
+            14,
+            Partial::Val(
+                "variant {b=vec{1;2;3}}".parse::<IDLValue>()?,
+                ".".to_string()
+            )
+        )
+    );
+    Ok(())
 }

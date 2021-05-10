@@ -15,26 +15,26 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | load <text>                          // load and run a script file
  | config <text>                        // set config for random value generator in dhall format
  | let <id> = <val>                     // bind <val> to a variable <id>
- | show <val>                           // show the value of <val>
+ | <val>                                // show the value of <val>
  | assert <val> <binop> <val>           // assertion
  | identity <id> <text>?                // switch to identity <id>, with optional Ed25519 pem file
 
 <val> := 
  | <candid val>          // any candid value
- | <var> (<selector>)*   // variable with optional selectors
+ | <var> <selector>*     // variable with optional selectors
  | file <text>           // load external file as a blob value
- | encode ( <val),* )    // encode candid arguments as a blob value
+ | encode ( <val),* )    // encode candid arguments as a blob value, use the `encode` command if you can
 <var> := 
  | <id>                  // variable name 
  | _                     // previous call result is bind to `_` 
 <selector> :=
- | ?           // select opt value
- | . <name>    // select field name from record or variant value
- | [ <nat> ]   // select index from vec, record, or variant value
+ | ?                     // select opt value
+ | . <name>              // select field name from record or variant value
+ | [ <nat> ]             // select index from vec, record, or variant value
 <binop> := 
- | ==          // structural equality
- | ~=          // equal under candid subtyping
- | !=          // not equal
+ | ==                    // structural equality
+ | ~=                    // equal under candid subtyping
+ | !=                    // not equal
 ```
 
 ## Example
@@ -66,7 +66,8 @@ call "aaaaa-aa".install_code(
   },
 );
 call "aaaaa-aa".canister_status(id);
-call id.canister_id.greet("test");
+let canister = id.canister_id;
+call canister.greet("test");
 ```
 
 wallet.sh
@@ -76,7 +77,7 @@ import wallet = "rwlgt-iiaaa-aaaaa-aaaaa-cai" : "wallet.did";
 identity default "~/.config/dfx/identity/default/identity.pem";
 call wallet.wallet_create_canister(
   record {
-    cycles = 824_567_85 : nat64;
+    cycles = 824_567_85;
     settings = record {
       controller = null;
       freezing_threshold = null;
@@ -85,7 +86,7 @@ call wallet.wallet_create_canister(
     };
   },
 )
-let id = _;
+let id = _.Ok;
 encode "aaaaa-aa".install_code(
   record {
     arg = encode ();
@@ -103,7 +104,8 @@ call wallet.wallet_call(
     canister = principal "aaaaa-aa";
   },
 );
-call id.canister_id.greet("test");
+let canister = id.canister_id;
+call canister.greet("test");
 ```
 
 ## Notes for Rust canisters
@@ -129,6 +131,7 @@ If you are writing your own `.did` file, you can also supply the did file via th
 * Acess to service init type
 * Hardcode root key
 * `IDLValue::Blob` for efficient blob serialization
+* Tokenization for partial parser (variable needs a preceding space for autocompletion)
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
 * Bind multiple return values to `_`
