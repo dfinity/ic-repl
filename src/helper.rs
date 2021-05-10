@@ -375,7 +375,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
     );
     assert_eq!(
         partial_parse("let id = encode ic0.t", 21, &helper).unwrap(),
-        (19, Partial::Call(ic0.clone(), "t".to_string()))
+        (19, Partial::Call(ic0, "t".to_string()))
     );
     assert_eq!(
         partial_parse("let id = a", 10, &helper).unwrap(),
