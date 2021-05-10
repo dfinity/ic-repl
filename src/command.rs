@@ -161,7 +161,7 @@ impl Command {
                     )
                     .with_identity(identity)
                     .build()?;
-                {
+                if helper.agent_url != "https://ic0.app" {
                     let runtime =
                         tokio::runtime::Runtime::new().expect("Unable to create a runtime");
                     runtime.block_on(agent.fetch_root_key())?;

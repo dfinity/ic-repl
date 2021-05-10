@@ -129,7 +129,6 @@ If you are writing your own `.did` file, you can also supply the did file via th
 ## Issues
 
 * Acess to service init type
-* Hardcode root key
 * `IDLValue::Blob` for efficient blob serialization
 * Tokenization for partial parser (variable needs a preceding space for autocompletion)
 * Autocompletion within Candid value
