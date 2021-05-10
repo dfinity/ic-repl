@@ -110,7 +110,10 @@ fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
     let (_, prev) = extract_word(prev, prev.len(), None, b" ");
     let is_call = matches!(prev, "call" | "encode");
     if is_call {
-        let pos_tail = line[..pos].rfind('.').unwrap_or(pos);
+        let pos_tail = line[start..pos]
+            .rfind('.')
+            .map(|v| start + v)
+            .unwrap_or(pos);
         let tail = if pos_tail < pos {
             line[pos_tail + 1..pos].to_string()
         } else {
@@ -118,8 +121,12 @@ fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
         };
         let id = &line[start..pos_tail];
         if id.starts_with('"') {
-            let id = Principal::from_text(&id[1..id.len() - 1]).ok()?;
-            Some((pos_tail, Partial::Call(id, tail)))
+            if id.len() >= 7 {
+                let id = Principal::from_text(&id[1..id.len() - 1]).ok()?;
+                Some((pos_tail, Partial::Call(id, tail)))
+            } else {
+                None
+            }
         } else {
             match helper.env.0.get(id)? {
                 IDLValue::Principal(id) => Some((pos_tail, Partial::Call(id.clone(), tail))),
@@ -130,8 +137,9 @@ fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
         let pos_tail = if line[..pos].ends_with(']') {
             pos
         } else {
-            line[..pos]
+            line[start..pos]
                 .rfind(|c| c == '.' || c == '[' || c == ']')
+                .map(|v| start + v)
                 .unwrap_or(pos)
         };
         let v = line[start..pos_tail].parse::<Value>().ok()?;

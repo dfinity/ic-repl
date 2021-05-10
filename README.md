@@ -23,7 +23,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | <candid val>          // any candid value
  | <var> <selector>*     // variable with optional selectors
  | file <text>           // load external file as a blob value
- | encode ( <val),* )    // encode candid arguments as a blob value
+ | encode ( <val),* )    // encode candid arguments as a blob value, use the `encode` command if you can
 <var> := 
  | <id>                  // variable name 
  | _                     // previous call result is bind to `_` 
@@ -86,7 +86,7 @@ call wallet.wallet_create_canister(
     };
   },
 )
-let id = _;
+let id = _.Ok;
 encode "aaaaa-aa".install_code(
   record {
     arg = encode ();
@@ -131,6 +131,7 @@ If you are writing your own `.did` file, you can also supply the did file via th
 * Acess to service init type
 * Hardcode root key
 * `IDLValue::Blob` for efficient blob serialization
+* Tokenization for partial parser (variable needs a preceding space for autocompletion)
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
 * Bind multiple return values to `_`
