@@ -4,16 +4,21 @@ use super::token::{ParserError, Tokenizer};
 use anyhow::{anyhow, Context, Result};
 use candid::{
     parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
-    types::{Label, Type},
+    types::{Function, Label, Type},
     Principal, TypeEnv,
 };
+use ic_agent::Agent;
 
 #[derive(Debug, Clone)]
 pub enum Value {
     Path(String, Vec<Selector>),
     Blob(String),
     AnnVal(Box<Value>, Type),
-    Args(Vec<Value>),
+    Method {
+        method: Option<Method>,
+        args: Vec<Value>,
+        encode_only: bool,
+    },
     // from IDLValue without the infered types + Nat8
     Bool(bool),
     Null,
@@ -28,6 +33,11 @@ pub enum Value {
     Principal(Principal),
     Service(Principal),
     Func(Principal, String),
+}
+#[derive(Debug, Clone)]
+pub struct Method {
+    pub canister: String,
+    pub method: String,
 }
 #[derive(Debug, Clone)]
 pub struct Field {
@@ -72,14 +82,40 @@ impl Value {
                 let env = TypeEnv::new();
                 arg.annotate_type(true, &env, &ty)?
             }
-            Value::Args(args) => {
+            Value::Method {
+                method,
+                args,
+                encode_only,
+            } => {
                 let mut res = Vec::with_capacity(args.len());
                 for arg in args.into_iter() {
                     res.push(arg.eval(helper)?);
                 }
                 let args = IDLArgs { args: res };
-                let bytes = args.to_bytes()?;
-                IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect())
+                let opt_func = if let Some(method) = &method {
+                    Some(method.get_type(helper)?)
+                } else {
+                    None
+                };
+                let bytes = if let Some((_, env, func)) = &opt_func {
+                    args.to_bytes_with_types(&env, &func.args)?
+                } else {
+                    args.to_bytes()?
+                };
+                if encode_only {
+                    IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect())
+                } else {
+                    let method = method.unwrap(); // okay to unwrap from parser
+                    let (canister_id, env, func) = opt_func.unwrap();
+                    call(
+                        &helper.agent,
+                        &canister_id,
+                        &method.method,
+                        &bytes,
+                        &env,
+                        &func,
+                    )?
+                }
             }
             Value::Bool(b) => IDLValue::Bool(b),
             Value::Null => IDLValue::Null,
@@ -154,4 +190,71 @@ impl std::str::FromStr for Value {
         let lexer = Tokenizer::new(str);
         super::grammar::ValueParser::new().parse(lexer)
     }
+}
+impl Method {
+    fn get_type(&self, helper: &MyHelper) -> Result<(Principal, TypeEnv, Function)> {
+        let try_id = Principal::from_text(&self.canister);
+        let canister_id = match try_id {
+            Ok(ref id) => id,
+            Err(_) => match helper.env.0.get(&self.canister) {
+                Some(IDLValue::Principal(id)) => id,
+                _ => return Err(anyhow!("{} is not a canister id", self.canister)),
+            },
+        };
+        let agent = &helper.agent;
+        let mut map = helper.canister_map.borrow_mut();
+        let info = map.get(&agent, &canister_id)?;
+        let func = info
+            .methods
+            .get(&self.method)
+            .ok_or_else(|| anyhow!("no method {}", self.method))?
+            .clone();
+        // TODO remove clone
+        Ok((canister_id.clone(), info.env.clone(), func))
+    }
+}
+
+#[tokio::main]
+async fn call(
+    agent: &Agent,
+    canister_id: &Principal,
+    method: &str,
+    args: &[u8],
+    env: &TypeEnv,
+    func: &Function,
+) -> anyhow::Result<IDLValue> {
+    let bytes = if func.is_query() {
+        agent
+            .query(canister_id, method)
+            .with_arg(args)
+            .with_effective_canister_id(canister_id.clone())
+            .call()
+            .await?
+    } else {
+        let waiter = delay::Delay::builder()
+            .exponential_backoff(std::time::Duration::from_secs(1), 1.1)
+            .timeout(std::time::Duration::from_secs(60 * 5))
+            .build();
+        agent
+            .update(canister_id, method)
+            .with_arg(args)
+            .with_effective_canister_id(canister_id.clone())
+            .call_and_wait(waiter)
+            .await?
+    };
+    let mut res = IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?;
+    Ok(match res.args.len() {
+        0 => IDLValue::Null,
+        1 => res.args.pop().unwrap(),
+        len => {
+            let mut fs = Vec::with_capacity(len);
+            for (i, v) in res.args.into_iter().enumerate() {
+                fs.push(IDLField {
+                    id: Label::Id(i as u32),
+                    val: v,
+                });
+            }
+            IDLValue::Record(fs)
+        }
+    })
 }

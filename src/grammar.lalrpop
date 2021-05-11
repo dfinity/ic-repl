@@ -1,4 +1,4 @@
-use super::value::{Field, Value, Selector};
+use super::value::{Field, Value, Selector, Method};
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
 use super::token::{Token, error2, LexicalError, Span};
@@ -63,12 +63,12 @@ pub Commands: Commands = SepBy<Command, ";"> => Commands(<>);
 
 // Command
 pub Command: Command = {
-    "call" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
-         Command::Call{canister, method, args, encode_only: false}
-    },
-    "encode" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")"? => {
-         Command::Call{canister, method, args, encode_only: true}
-    },
+    //"call" <method:Method> "(" <args: SepBy<Value, ",">> ")" => {
+    //     Command::Call{canister:method.canister, method:method.method, args, encode_only: false}
+    //},
+    //"encode" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")" => {
+    //     Command::Call{canister, method, args, encode_only: true}
+    //},
     "config" <Text> => Command::Config(<>),
     <Value> => Command::Show(<>),
     "assert" <left:Value> <op:BinOp> <right:Value> => Command::Assert(op, left, right),
@@ -86,7 +86,8 @@ pub Value: Value = {
   Arg => <>,
   <v:"id"> <path:(<Selector>)*> => Value::Path(v, path),
   "file" <Text> => Value::Blob(<>),
-  "encode" <Values> => Value::Args(<>),
+  "encode" <method:Method?> <args:Values> => Value::Method{method, args, encode_only: true},
+  "call" <method:Method> <args:Values> => Value::Method{method:Some(method), args, encode_only: false},  
 }
 Selector: Selector = {
      "?" => Selector::Field("?".to_string()),
@@ -96,6 +97,7 @@ Selector: Selector = {
        Ok(Selector::Index(idx))
      }
 }
+Method: Method = <canister:Name> "." <method:Name> => Method { canister, method };
 
 BinOp: BinOp = {
   "==" => BinOp::Equal,

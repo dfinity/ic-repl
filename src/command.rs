@@ -16,12 +16,6 @@ use terminal_size::{terminal_size, Width};
 pub struct Commands(pub Vec<Command>);
 #[derive(Debug, Clone)]
 pub enum Command {
-    Call {
-        canister: String,
-        method: String,
-        args: Vec<Value>,
-        encode_only: bool,
-    },
     Config(String),
     Show(Value),
     Let(String, Value),
@@ -41,54 +35,6 @@ pub enum BinOp {
 impl Command {
     pub fn run(self, helper: &mut MyHelper) -> anyhow::Result<()> {
         match self {
-            Command::Call {
-                canister,
-                method,
-                args,
-                encode_only,
-            } => {
-                let try_id = Principal::from_text(&canister);
-                let canister_id = match try_id {
-                    Ok(ref id) => id,
-                    Err(_) => match helper.env.0.get(&canister) {
-                        Some(IDLValue::Principal(id)) => id,
-                        _ => return Err(anyhow!("{} is not a canister id", canister)),
-                    },
-                };
-                let agent = &helper.agent;
-                let mut map = helper.canister_map.borrow_mut();
-                let info = map.get(&agent, &canister_id)?;
-                let func = info
-                    .methods
-                    .get(&method)
-                    .ok_or_else(|| anyhow!("no method {}", method))?;
-                let mut values = Vec::new();
-                for arg in args.into_iter() {
-                    values.push(arg.eval(&helper)?);
-                }
-                let args = IDLArgs { args: values };
-                if encode_only {
-                    let bytes = args.to_bytes_with_types(&info.env, &func.args)?;
-                    let res = IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect());
-                    println!("{}", res);
-                    helper.env.0.insert("_".to_string(), res);
-                    return Ok(());
-                }
-                let time = Instant::now();
-                let res = call(&agent, &canister_id, &method, &args, &info.env, &func)?;
-                let duration = time.elapsed();
-                println!("{}", res);
-                let width = if let Some((Width(w), _)) = terminal_size() {
-                    w as usize
-                } else {
-                    80
-                };
-                println!("{:>width$}", format!("({:.2?})", duration), width = width);
-                // TODO multiple values
-                for arg in res.args.into_iter() {
-                    helper.env.0.insert("_".to_string(), arg);
-                }
-            }
             Command::Import(id, canister_id, did) => {
                 if let Some(did) = &did {
                     let path = resolve_path(&helper.base_path, did);
@@ -130,8 +76,17 @@ impl Command {
             }
             Command::Config(conf) => helper.config = Configs::from_dhall(&conf)?,
             Command::Show(val) => {
+                let time = Instant::now();
                 let v = val.eval(&helper)?;
+                let duration = time.elapsed();
                 println!("{}", v);
+                helper.env.0.insert("_".to_string(), v);
+                let width = if let Some((Width(w), _)) = terminal_size() {
+                    w as usize
+                } else {
+                    80
+                };
+                println!("{:>width$}", format!("({:.2?})", duration), width = width);
             }
             Command::Identity(id, opt_pem) => {
                 use ic_agent::Identity;
