@@ -107,14 +107,15 @@ impl Value {
                 } else {
                     let method = method.unwrap(); // okay to unwrap from parser
                     let (canister_id, env, func) = opt_func.unwrap();
-                    call(
+                    let res = call(
                         &helper.agent,
                         &canister_id,
                         &method.method,
                         &bytes,
                         &env,
                         &func,
-                    )?
+                    )?;
+                    args_to_value(res)
                 }
             }
             Value::Bool(b) => IDLValue::Bool(b),
@@ -222,7 +223,7 @@ async fn call(
     args: &[u8],
     env: &TypeEnv,
     func: &Function,
-) -> anyhow::Result<IDLValue> {
+) -> anyhow::Result<IDLArgs> {
     let bytes = if func.is_query() {
         agent
             .query(canister_id, method)
@@ -242,13 +243,16 @@ async fn call(
             .call_and_wait(waiter)
             .await?
     };
-    let mut res = IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?;
-    Ok(match res.args.len() {
+    Ok(IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?)
+}
+
+fn args_to_value(mut args: IDLArgs) -> IDLValue {
+    match args.args.len() {
         0 => IDLValue::Null,
-        1 => res.args.pop().unwrap(),
+        1 => args.args.pop().unwrap(),
         len => {
             let mut fs = Vec::with_capacity(len);
-            for (i, v) in res.args.into_iter().enumerate() {
+            for (i, v) in args.args.into_iter().enumerate() {
                 fs.push(IDLField {
                     id: Label::Id(i as u32),
                     val: v,
@@ -256,5 +260,5 @@ async fn call(
             }
             IDLValue::Record(fs)
         }
-    })
+    }
 }

@@ -8,25 +8,23 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 
 ```
 <command> := 
- | import <id> = <text> ( : <text> )?   // bind canister URI to <id>, with optional did file
- | call <name> . <name> ( <val>,* )     // call a canister method with candid arguments
- | encode <name> . <name> ( <val>,* )   // encode candid arguments with respect to a canister method signature
- | export <text>                        // export command history to a file that can be run in ic-repl as a script
- | load <text>                          // load and run a script file
- | config <text>                        // set config for random value generator in dhall format
- | let <id> = <val>                     // bind <val> to a variable <id>
- | <val>                                // show the value of <val>
- | assert <val> <binop> <val>           // assertion
- | identity <id> <text>?                // switch to identity <id>, with optional Ed25519 pem file
-
-<val> := 
- | <candid val>          // any candid value
- | <var> <selector>*     // variable with optional selectors
- | file <text>           // load external file as a blob value
- | encode ( <val),* )    // encode candid arguments as a blob value, use the `encode` command if you can
+ | import <id> = <text> (: <text>)?      // bind canister URI to <id>, with optional did file
+ | export <text>                         // export command history to a file that can be run in ic-repl as a script
+ | load <text>                           // load and run a script file
+ | config <text>                         // set config for random value generator in dhall format
+ | let <id> = <exp>                      // bind <exp> to a variable <id>
+ | <exp>                                 // show the value of <exp>
+ | assert <exp> <binop> <exp>            // assertion
+ | identity <id> <text>?                 // switch to identity <id>, with optional Ed25519 pem file
+<exp> := 
+ | <candid val>                          // any candid value
+ | <var> <selector>*                     // variable with optional selectors
+ | file <text>                           // load external file as a blob value
+ | call <name> . <name> ( <exp>,* )      // call a canister method, and store the result as a single value
+ | encode (<name> . <name>)? ( <exp>,* ) // encode candid arguments as a blob value
 <var> := 
  | <id>                  // variable name 
- | _                     // previous call result is bind to `_` 
+ | _                     // previous eval of exp is bind to `_` 
 <selector> :=
  | ?                     // select opt value
  | . <name>              // select field name from record or variant value
@@ -133,7 +131,5 @@ If you are writing your own `.did` file, you can also supply the did file via th
 * Tokenization for partial parser (variable needs a preceding space for autocompletion)
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
-* Bind multiple return values to `_`
 * Loop detection for `load`
-* Import external identity
 * Assert upgrade correctness
