@@ -8,25 +8,24 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 
 ```
 <command> := 
- | import <id> = <text> ( : <text> )?   // bind canister URI to <id>, with optional did file
- | call <name> . <name> ( <val>,* )     // call a canister method with candid arguments
- | encode <name> . <name> ( <val>,* )   // encode candid arguments with respect to a canister method signature
- | export <text>                        // export command history to a file that can be run in ic-repl as a script
- | load <text>                          // load and run a script file
- | config <text>                        // set config for random value generator in dhall format
- | let <id> = <val>                     // bind <val> to a variable <id>
- | <val>                                // show the value of <val>
- | assert <val> <binop> <val>           // assertion
- | identity <id> <text>?                // switch to identity <id>, with optional Ed25519 pem file
-
-<val> := 
- | <candid val>          // any candid value
- | <var> <selector>*     // variable with optional selectors
- | file <text>           // load external file as a blob value
- | encode ( <val),* )    // encode candid arguments as a blob value, use the `encode` command if you can
+ | import <id> = <text> (as <text>)?     // bind canister URI to <id>, with optional did file
+ | export <text>                         // export command history to a file that can be run in ic-repl as a script
+ | load <text>                           // load and run a script file
+ | config <text>                         // set config for random value generator in dhall format
+ | let <id> = <exp>                      // bind <exp> to a variable <id>
+ | <exp>                                 // show the value of <exp>
+ | assert <exp> <binop> <exp>            // assertion
+ | identity <id> <text>?                 // switch to identity <id>, with optional Ed25519 pem file
+<exp> := 
+ | <candid val>                          // any candid value
+ | <var> <selector>*                     // variable with optional selectors
+ | file <text>                           // load external file as a blob value
+ | call <name> . <name> ( <exp>,* )      // call a canister method, and store the result as a single value
+ | encode (<name> . <name>)? ( <exp>,* ) // encode candid arguments as a blob value
+ | decode (as <name> . <name>)? <exp>    // decode blob as candid values
 <var> := 
  | <id>                  // variable name 
- | _                     // previous call result is bind to `_` 
+ | _                     // previous eval of exp is bind to `_` 
 <selector> :=
  | ?                     // select opt value
  | . <name>              // select field name from record or variant value
@@ -55,8 +54,7 @@ assert _ == result;
 install.sh
 ```
 #!/usr/bin/ic-repl
-call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings: null; amount: null });
-let id = _;
+let id = call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings: null; amount: null });
 call "aaaaa-aa".install_code(
   record {
     arg = encode ();
@@ -73,7 +71,7 @@ call canister.greet("test");
 wallet.sh
 ```
 #!/usr/bin/ic-repl
-import wallet = "rwlgt-iiaaa-aaaaa-aaaaa-cai" : "wallet.did";
+import wallet = "rwlgt-iiaaa-aaaaa-aaaaa-cai" as "wallet.did";
 identity default "~/.config/dfx/identity/default/identity.pem";
 call wallet.wallet_create_canister(
   record {
@@ -86,17 +84,16 @@ call wallet.wallet_create_canister(
     };
   },
 )
-let id = _.Ok;
-encode "aaaaa-aa".install_code(
+let id = _.Ok.canister_id;
+let msg = encode "aaaaa-aa".install_code(
   record {
     arg = encode ();
     wasm_module = file "your_wasm_file.wasm";
     mode = variant { install };
-    canister_id = id.canister_id;
+    canister_id = id;
   },
 );
-let msg = _;
-call wallet.wallet_call(
+let res = call wallet.wallet_call(
   record {
     args = msg;
     cycles = 0;
@@ -104,8 +101,8 @@ call wallet.wallet_call(
     canister = principal "aaaaa-aa";
   },
 );
-let canister = id.canister_id;
-call canister.greet("test");
+decode as "aaaaa-aa".install_code res.Ok.return;
+call id.greet("test");
 ```
 
 ## Notes for Rust canisters
@@ -131,9 +128,8 @@ If you are writing your own `.did` file, you can also supply the did file via th
 * Acess to service init type
 * `IDLValue::Blob` for efficient blob serialization
 * Tokenization for partial parser (variable needs a preceding space for autocompletion)
-* Autocompletion within Candid value
+* Rename `Value` module to `Exp`
+* Autocompletion within Candid value; autocompletion for decode method
 * Robust support for `~=`, requires inferring principal types
-* Bind multiple return values to `_`
 * Loop detection for `load`
-* Import external identity
 * Assert upgrade correctness

@@ -64,6 +64,10 @@ pub enum Token {
     Call,
     #[token("encode")]
     Encode,
+    #[token("decode")]
+    Decode,
+    #[token("as")]
+    As,
     #[token("config")]
     Config,
     #[token("let")]
