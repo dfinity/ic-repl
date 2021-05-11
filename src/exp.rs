@@ -10,18 +10,18 @@ use candid::{
 use ic_agent::Agent;
 
 #[derive(Debug, Clone)]
-pub enum Value {
+pub enum Exp {
     Path(String, Vec<Selector>),
     Blob(String),
-    AnnVal(Box<Value>, Type),
+    AnnVal(Box<Exp>, Type),
     Method {
         method: Option<Method>,
-        args: Vec<Value>,
+        args: Vec<Exp>,
         encode_only: bool,
     },
     Decode {
         method: Option<Method>,
-        blob: Box<Value>,
+        blob: Box<Exp>,
     },
     // from IDLValue without the infered types + Nat8
     Bool(bool),
@@ -30,8 +30,8 @@ pub enum Value {
     Number(String), // Undetermined number type
     Nat8(u8),
     Float64(f64),
-    Opt(Box<Value>),
-    Vec(Vec<Value>),
+    Opt(Box<Exp>),
+    Vec(Vec<Exp>),
     Record(Vec<Field>),
     Variant(Box<Field>, u64), // u64 represents the index from the type, defaults to 0 when parsing
     Principal(Principal),
@@ -46,7 +46,7 @@ pub struct Method {
 #[derive(Debug, Clone)]
 pub struct Field {
     pub id: Label,
-    pub val: Value,
+    pub val: Exp,
 }
 #[derive(Debug, Clone)]
 pub enum Selector {
@@ -61,10 +61,10 @@ impl Selector {
         }
     }
 }
-impl Value {
+impl Exp {
     pub fn eval(self, helper: &MyHelper) -> Result<IDLValue> {
         Ok(match self {
-            Value::Path(id, path) => {
+            Exp::Path(id, path) => {
                 let v = helper
                     .env
                     .0
@@ -72,7 +72,7 @@ impl Value {
                     .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
                 project(&v, &path)?.clone()
             }
-            Value::Blob(file) => {
+            Exp::Blob(file) => {
                 let path = resolve_path(&helper.base_path, &file);
                 let blob: Vec<IDLValue> = std::fs::read(&path)
                     .with_context(|| format!("Cannot read {:?}", path))?
@@ -81,12 +81,12 @@ impl Value {
                     .collect();
                 IDLValue::Vec(blob)
             }
-            Value::AnnVal(v, ty) => {
+            Exp::AnnVal(v, ty) => {
                 let arg = v.eval(helper)?;
                 let env = TypeEnv::new();
                 arg.annotate_type(true, &env, &ty)?
             }
-            Value::Decode { method, blob } => {
+            Exp::Decode { method, blob } => {
                 let blob = blob.eval(helper)?;
                 if blob.value_ty() != Type::Vec(Box::new(Type::Nat8)) {
                     return Err(anyhow!("not a blob"));
@@ -110,7 +110,7 @@ impl Value {
                 };
                 args_to_value(args)
             }
-            Value::Method {
+            Exp::Method {
                 method,
                 args,
                 encode_only,
@@ -146,24 +146,24 @@ impl Value {
                     args_to_value(res)
                 }
             }
-            Value::Bool(b) => IDLValue::Bool(b),
-            Value::Null => IDLValue::Null,
-            Value::Text(s) => IDLValue::Text(s),
-            Value::Nat8(n) => IDLValue::Nat8(n),
-            Value::Number(n) => IDLValue::Number(n),
-            Value::Float64(f) => IDLValue::Float64(f),
-            Value::Principal(id) => IDLValue::Principal(id),
-            Value::Service(id) => IDLValue::Service(id),
-            Value::Func(id, meth) => IDLValue::Func(id, meth),
-            Value::Opt(v) => IDLValue::Opt(Box::new((*v).eval(helper)?)),
-            Value::Vec(vs) => {
+            Exp::Bool(b) => IDLValue::Bool(b),
+            Exp::Null => IDLValue::Null,
+            Exp::Text(s) => IDLValue::Text(s),
+            Exp::Nat8(n) => IDLValue::Nat8(n),
+            Exp::Number(n) => IDLValue::Number(n),
+            Exp::Float64(f) => IDLValue::Float64(f),
+            Exp::Principal(id) => IDLValue::Principal(id),
+            Exp::Service(id) => IDLValue::Service(id),
+            Exp::Func(id, meth) => IDLValue::Func(id, meth),
+            Exp::Opt(v) => IDLValue::Opt(Box::new((*v).eval(helper)?)),
+            Exp::Vec(vs) => {
                 let mut vec = Vec::with_capacity(vs.len());
                 for v in vs.into_iter() {
                     vec.push(v.eval(helper)?);
                 }
                 IDLValue::Vec(vec)
             }
-            Value::Record(fs) => {
+            Exp::Record(fs) => {
                 let mut res = Vec::with_capacity(fs.len());
                 for Field { id, val } in fs.into_iter() {
                     res.push(IDLField {
@@ -173,7 +173,7 @@ impl Value {
                 }
                 IDLValue::Record(res)
             }
-            Value::Variant(f, idx) => {
+            Exp::Variant(f, idx) => {
                 let f = IDLField {
                     id: f.id,
                     val: f.val.eval(helper)?,
@@ -213,11 +213,11 @@ pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValu
     return Err(anyhow!("{:?} cannot be applied to {}", head, value));
 }
 
-impl std::str::FromStr for Value {
+impl std::str::FromStr for Exp {
     type Err = ParserError;
     fn from_str(str: &str) -> Result<Self, Self::Err> {
         let lexer = Tokenizer::new(str);
-        super::grammar::ValueParser::new().parse(lexer)
+        super::grammar::ExpParser::new().parse(lexer)
     }
 }
 impl Method {

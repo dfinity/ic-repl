@@ -128,7 +128,6 @@ If you are writing your own `.did` file, you can also supply the did file via th
 * Acess to service init type
 * `IDLValue::Blob` for efficient blob serialization
 * Tokenization for partial parser (variable needs a preceding space for autocompletion)
-* Rename `Value` module to `Exp`
 * Autocompletion within Candid value; autocompletion for decode method
 * Robust support for `~=`, requires inferring principal types
 * Loop detection for `load`

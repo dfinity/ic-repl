@@ -1,7 +1,7 @@
 use super::error::pretty_parse;
+use super::exp::Exp;
 use super::helper::{did_to_canister_info, MyHelper};
 use super::token::{ParserError, Tokenizer};
-use super::value::Value;
 use anyhow::{anyhow, Context};
 use candid::{parser::configs::Configs, parser::value::IDLValue, Principal, TypeEnv};
 use ic_agent::Agent;
@@ -15,9 +15,9 @@ pub struct Commands(pub Vec<Command>);
 #[derive(Debug, Clone)]
 pub enum Command {
     Config(String),
-    Show(Value),
-    Let(String, Value),
-    Assert(BinOp, Value, Value),
+    Show(Exp),
+    Let(String, Exp),
+    Assert(BinOp, Exp, Exp),
     Export(String),
     Import(String, Principal, Option<String>),
     Load(String),

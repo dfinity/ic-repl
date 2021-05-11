@@ -1,4 +1,4 @@
-use crate::value::Value;
+use crate::exp::Exp;
 use ansi_term::Color;
 use candid::{
     check_prog,
@@ -142,7 +142,7 @@ fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
                 .map(|v| start + v)
                 .unwrap_or(pos)
         };
-        let v = line[start..pos_tail].parse::<Value>().ok()?;
+        let v = line[start..pos_tail].parse::<Exp>().ok()?;
         let v = v.eval(helper).ok()?;
         let tail = if pos_tail < pos {
             line[pos_tail..pos].to_string()
