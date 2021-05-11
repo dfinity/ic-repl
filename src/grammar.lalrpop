@@ -34,6 +34,8 @@ extern {
         "principal" => Token::Principal,
         "call" => Token::Call,
         "encode" => Token::Encode,
+        "decode" => Token::Decode,
+        "as" => Token::As,
         "config" => Token::Config,
         "assert" => Token::Assert,
         "let" => Token::Let,
@@ -64,12 +66,12 @@ pub Commands: Commands = SepBy<Command, ";"> => Commands(<>);
 // Command
 pub Command: Command = {
     "config" <Text> => Command::Config(<>),
-    <Value> => Command::Show(<>),
+    Value => Command::Show(<>),
     "assert" <left:Value> <op:BinOp> <right:Value> => Command::Assert(op, left, right),
     "let" <id:"id"> "=" <val:Value> => Command::Let(id, val),
     "export" <Text> => Command::Export(<>),
     "load" <Text> => Command::Load(<>),
-    "import" <id:"id"> "=" <uri:Sp<Text>> <did:(":" <Text>)?> =>? {
+    "import" <id:"id"> "=" <uri:Sp<Text>> <did:("as" <Text>)?> =>? {
          let principal = Principal::from_text(&uri.0).map_err(|e| error2(e, uri.1))?;
          Ok(Command::Import(id, principal, did))
     },
@@ -78,11 +80,13 @@ pub Command: Command = {
 
 pub Value: Value = {
   Arg => <>,
-  <v:"id"> <path:(<Selector>)*> => Value::Path(v, path),
+  Variable => <>,
   "file" <Text> => Value::Blob(<>),
+  "call" <method:Method> <args:Values> => Value::Method{method:Some(method), args, encode_only: false},
   "encode" <method:Method?> <args:Values> => Value::Method{method, args, encode_only: true},
-  "call" <method:Method> <args:Values> => Value::Method{method:Some(method), args, encode_only: false},  
+  "decode" <method:("as" <Method>)?> <blob:Value> => Value::Decode{method, blob:Box::new(blob)},
 }
+Variable: Value = <v:"id"> <path:(<Selector>)*> => Value::Path(v, path);
 Selector: Selector = {
      "?" => Selector::Field("?".to_string()),
      "." <Name> => Selector::Field(<>),

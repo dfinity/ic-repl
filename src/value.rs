@@ -19,6 +19,10 @@ pub enum Value {
         args: Vec<Value>,
         encode_only: bool,
     },
+    Decode {
+        method: Option<Method>,
+        blob: Box<Value>,
+    },
     // from IDLValue without the infered types + Nat8
     Bool(bool),
     Null,
@@ -81,6 +85,30 @@ impl Value {
                 let arg = v.eval(helper)?;
                 let env = TypeEnv::new();
                 arg.annotate_type(true, &env, &ty)?
+            }
+            Value::Decode { method, blob } => {
+                let blob = blob.eval(helper)?;
+                if blob.value_ty() != Type::Vec(Box::new(Type::Nat8)) {
+                    return Err(anyhow!("not a blob"));
+                }
+                let bytes: Vec<u8> = match blob {
+                    IDLValue::Vec(vs) => vs
+                        .into_iter()
+                        .map(|v| match v {
+                            IDLValue::Nat8(u) => u,
+                            _ => unreachable!(),
+                        })
+                        .collect(),
+                    _ => unreachable!(),
+                };
+                let args = match method {
+                    Some(method) => {
+                        let (_, env, func) = method.get_type(helper)?;
+                        IDLArgs::from_bytes_with_types(&bytes, &env, &func.rets)?
+                    }
+                    None => IDLArgs::from_bytes(&bytes)?,
+                };
+                args_to_value(args)
             }
             Value::Method {
                 method,

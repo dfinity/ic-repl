@@ -8,7 +8,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 
 ```
 <command> := 
- | import <id> = <text> (: <text>)?      // bind canister URI to <id>, with optional did file
+ | import <id> = <text> (as <text>)?     // bind canister URI to <id>, with optional did file
  | export <text>                         // export command history to a file that can be run in ic-repl as a script
  | load <text>                           // load and run a script file
  | config <text>                         // set config for random value generator in dhall format
@@ -22,6 +22,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | file <text>                           // load external file as a blob value
  | call <name> . <name> ( <exp>,* )      // call a canister method, and store the result as a single value
  | encode (<name> . <name>)? ( <exp>,* ) // encode candid arguments as a blob value
+ | decode (as <name> . <name>)? <exp>    // decode blob as candid values
 <var> := 
  | <id>                  // variable name 
  | _                     // previous eval of exp is bind to `_` 
@@ -53,8 +54,7 @@ assert _ == result;
 install.sh
 ```
 #!/usr/bin/ic-repl
-call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings: null; amount: null });
-let id = _;
+let id = call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings: null; amount: null });
 call "aaaaa-aa".install_code(
   record {
     arg = encode ();
@@ -71,7 +71,7 @@ call canister.greet("test");
 wallet.sh
 ```
 #!/usr/bin/ic-repl
-import wallet = "rwlgt-iiaaa-aaaaa-aaaaa-cai" : "wallet.did";
+import wallet = "rwlgt-iiaaa-aaaaa-aaaaa-cai" as "wallet.did";
 identity default "~/.config/dfx/identity/default/identity.pem";
 call wallet.wallet_create_canister(
   record {
@@ -84,17 +84,16 @@ call wallet.wallet_create_canister(
     };
   },
 )
-let id = _.Ok;
-encode "aaaaa-aa".install_code(
+let id = _.Ok.canister_id;
+let msg = encode "aaaaa-aa".install_code(
   record {
     arg = encode ();
     wasm_module = file "your_wasm_file.wasm";
     mode = variant { install };
-    canister_id = id.canister_id;
+    canister_id = id;
   },
 );
-let msg = _;
-call wallet.wallet_call(
+let res = call wallet.wallet_call(
   record {
     args = msg;
     cycles = 0;
@@ -102,8 +101,8 @@ call wallet.wallet_call(
     canister = principal "aaaaa-aa";
   },
 );
-let canister = id.canister_id;
-call canister.greet("test");
+decode as "aaaaa-aa".install_code res.Ok.return;
+call id.greet("test");
 ```
 
 ## Notes for Rust canisters
@@ -129,7 +128,8 @@ If you are writing your own `.did` file, you can also supply the did file via th
 * Acess to service init type
 * `IDLValue::Blob` for efficient blob serialization
 * Tokenization for partial parser (variable needs a preceding space for autocompletion)
-* Autocompletion within Candid value
+* Rename `Value` module to `Exp`
+* Autocompletion within Candid value; autocompletion for decode method
 * Robust support for `~=`, requires inferring principal types
 * Loop detection for `load`
 * Assert upgrade correctness
