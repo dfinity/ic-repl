@@ -3,9 +3,7 @@ use super::helper::{did_to_canister_info, MyHelper};
 use super::token::{ParserError, Tokenizer};
 use super::value::Value;
 use anyhow::{anyhow, Context};
-use candid::{
-    parser::configs::Configs, parser::value::IDLValue, types::Function, IDLArgs, Principal, TypeEnv,
-};
+use candid::{parser::configs::Configs, parser::value::IDLValue, Principal, TypeEnv};
 use ic_agent::Agent;
 use pretty_assertions::{assert_eq, assert_ne};
 use std::path::{Path, PathBuf};
@@ -169,38 +167,6 @@ impl std::str::FromStr for Commands {
         let lexer = Tokenizer::new(str);
         super::grammar::CommandsParser::new().parse(lexer)
     }
-}
-
-#[tokio::main]
-async fn call(
-    agent: &Agent,
-    canister_id: &Principal,
-    method: &str,
-    args: &IDLArgs,
-    env: &TypeEnv,
-    func: &Function,
-) -> anyhow::Result<IDLArgs> {
-    let args = args.to_bytes_with_types(env, &func.args)?;
-    let bytes = if func.is_query() {
-        agent
-            .query(canister_id, method)
-            .with_arg(args)
-            .with_effective_canister_id(canister_id.clone())
-            .call()
-            .await?
-    } else {
-        let waiter = delay::Delay::builder()
-            .exponential_backoff(std::time::Duration::from_secs(1), 1.1)
-            .timeout(std::time::Duration::from_secs(60 * 5))
-            .build();
-        agent
-            .update(canister_id, method)
-            .with_arg(args)
-            .with_effective_canister_id(canister_id.clone())
-            .call_and_wait(waiter)
-            .await?
-    };
-    Ok(IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?)
 }
 
 pub fn resolve_path(base: &Path, file: &str) -> PathBuf {

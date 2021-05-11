@@ -63,12 +63,6 @@ pub Commands: Commands = SepBy<Command, ";"> => Commands(<>);
 
 // Command
 pub Command: Command = {
-    //"call" <method:Method> "(" <args: SepBy<Value, ",">> ")" => {
-    //     Command::Call{canister:method.canister, method:method.method, args, encode_only: false}
-    //},
-    //"encode" <canister:Name> "." <method:Name> "(" <args: SepBy<Value, ",">> ")" => {
-    //     Command::Call{canister, method, args, encode_only: true}
-    //},
     "config" <Text> => Command::Config(<>),
     <Value> => Command::Show(<>),
     "assert" <left:Value> <op:BinOp> <right:Value> => Command::Assert(op, left, right),
