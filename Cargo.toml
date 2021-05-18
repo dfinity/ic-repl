@@ -18,7 +18,7 @@ codespan-reporting = "0.11"
 pretty = "0.10.0"
 pem = "0.8"
 shellexpand = "2.1"
-ic-agent = { git = "https://github.com/dfinity/agent-rs.git", branch = "next" }
+ic-agent = "0.4.1"
 tokio = { version = "1.5.0", features = ["full"] }
 delay = "0.3.1"
 anyhow = "1.0"
@@ -28,7 +28,3 @@ lalrpop-util = "0.19"
 clap = "2.33"
 structopt = "0.3.16"
 ring = "0.16"
-
-[patch.crates-io]
-ic-types = { git = "https://github.com/dfinity/agent-rs.git", branch = "next" }
-
