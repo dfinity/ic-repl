@@ -1,4 +1,4 @@
-use crate::token::ParserError;
+use crate::token::{error2, ParserError};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::{self, termcolor::StandardStream};
@@ -46,6 +46,7 @@ pub fn pretty_parse<T>(name: &str, str: &str) -> Result<T, ParserError>
 where
     T: std::str::FromStr<Err = ParserError>,
 {
+    let str = shellexpand::env(str).map_err(|e| error2(e, 0..0))?;
     str.parse::<T>().map_err(|e| {
         let writer = StandardStream::stderr(term::termcolor::ColorChoice::Auto);
         let config = term::Config::default();
