@@ -19,6 +19,7 @@ use rustyline_derive::Helper;
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use tokio::runtime::Runtime;
 
 #[derive(Default)]
 pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
@@ -73,19 +74,13 @@ pub struct MyHelper {
 
 impl MyHelper {
     pub fn new(agent: Agent, agent_url: String) -> Self {
-        let ic_did = include_str!("ic.did");
-        let info = did_to_canister_info("ic.did", ic_did).unwrap();
-        let mut canister_map = CanisterMap::default();
-        canister_map
-            .0
-            .insert(Principal::from_text("aaaaa-aa").unwrap(), info);
-        MyHelper {
+        let mut res = MyHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
             hinter: HistoryHinter {},
             colored_prompt: "".to_owned(),
             validator: MatchingBracketValidator::new(),
-            canister_map: RefCell::new(canister_map),
+            canister_map: RefCell::new(CanisterMap::default()),
             identity_map: IdentityMap::default(),
             current_identity: "anon".to_owned(),
             config: Configs::from_dhall("{=}").unwrap(),
@@ -94,7 +89,45 @@ impl MyHelper {
             history: Vec::new(),
             agent,
             agent_url,
+        };
+        res.fetch_root_key_if_needed().unwrap();
+        res.load_prelude().unwrap();
+        res
+    }
+    fn load_prelude(&mut self) -> anyhow::Result<()> {
+        self.preload_canister(
+            "ic".to_string(),
+            Principal::from_text("aaaaa-aa")?,
+            include_str!("ic.did"),
+        )?;
+        if self.agent_url == "https://ic0.app" {
+            self.preload_canister(
+                "nns".to_string(),
+                Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?,
+                include_str!("governance.did"),
+            )?;
         }
+        Ok(())
+    }
+    fn preload_canister(
+        &mut self,
+        name: String,
+        id: Principal,
+        did_file: &str,
+    ) -> anyhow::Result<()> {
+        let mut canister_map = self.canister_map.borrow_mut();
+        canister_map
+            .0
+            .insert(id.clone(), did_to_canister_info(&name, did_file)?);
+        self.env.0.insert(name, IDLValue::Principal(id));
+        Ok(())
+    }
+    pub fn fetch_root_key_if_needed(&mut self) -> anyhow::Result<()> {
+        if self.agent_url != "https://ic0.app" {
+            let runtime = Runtime::new().expect("Unable to create a runtime");
+            runtime.block_on(self.agent.fetch_root_key())?;
+        };
+        Ok(())
     }
 }
 

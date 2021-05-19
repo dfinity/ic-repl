@@ -114,12 +114,8 @@ impl Command {
                     )
                     .with_identity(identity)
                     .build()?;
-                if helper.agent_url != "https://ic0.app" {
-                    let runtime =
-                        tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-                    runtime.block_on(agent.fetch_root_key())?;
-                }
                 helper.agent = agent;
+                helper.fetch_root_key_if_needed()?;
                 helper.current_identity = id.to_string();
                 helper.env.0.insert(id, IDLValue::Principal(sender));
             }
@@ -127,8 +123,10 @@ impl Command {
                 use std::io::{BufWriter, Write};
                 let file = std::fs::File::create(file)?;
                 let mut writer = BufWriter::new(&file);
-                for item in helper.history.iter() {
-                    writeln!(&mut writer, "{};", item)?;
+                //for item in helper.history.iter() {
+                for (id, val) in helper.env.0.iter() {
+                    //writeln!(&mut writer, "{};", item)?;
+                    writeln!(&mut writer, "let {} = {};", id, val)?;
                 }
             }
             Command::Load(file) => {
@@ -144,7 +142,7 @@ impl Command {
                 let cmds = pretty_parse::<Commands>(&file, &script)?;
                 helper.base_path = path.parent().unwrap().to_path_buf();
                 for cmd in cmds.0.into_iter() {
-                    println!("> {:?}", cmd);
+                    //println!("> {:?}", cmd);
                     cmd.run(helper)?;
                 }
                 helper.base_path = old_base;
