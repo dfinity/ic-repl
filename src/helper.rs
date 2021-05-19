@@ -106,6 +106,11 @@ impl MyHelper {
                 Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?,
                 include_str!("governance.did"),
             )?;
+            self.preload_canister(
+                "ledger".to_string(),
+                Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?,
+                include_str!("ledger.did"),
+            )?;
         }
         Ok(())
     }
