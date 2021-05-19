@@ -377,7 +377,7 @@ pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInf
 
 #[test]
 fn test_partial_parse() -> anyhow::Result<()> {
-    let url = "http://localhost".to_string();
+    let url = "https://ic0.app".to_string();
     let agent = Agent::builder()
         .with_transport(
             ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
