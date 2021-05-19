@@ -2,7 +2,6 @@ use ansi_term::Color;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
-use tokio::runtime::Runtime;
 
 mod command;
 mod error;
@@ -38,10 +37,6 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
             ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url)?,
         )
         .build()?;
-    if url != "https://ic0.app" {
-        let runtime = Runtime::new().expect("Unable to create a runtime");
-        runtime.block_on(agent.fetch_root_key())?;
-    }
 
     println!("Canister REPL");
     let config = rustyline::Config::builder()
