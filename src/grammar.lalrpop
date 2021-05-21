@@ -1,4 +1,4 @@
-use super::exp::{Field, Exp, Selector, Method};
+use super::exp::{Field, Exp, Selector, Method, CallMode};
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
 use super::token::{Token, error2, LexicalError, Span};
@@ -82,8 +82,9 @@ pub Exp: Exp = {
   Arg => <>,
   Variable => <>,
   "file" <Text> => Exp::Blob(<>),
-  "call" <method:Method> <args:Exps> => Exp::Method{method:Some(method), args, encode_only: false},
-  "encode" <method:Method?> <args:Exps> => Exp::Method{method, args, encode_only: true},
+  "call" <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Call},
+  //"call" "as" <proxy:Name> <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Proxy(proxy)},  
+  "encode" <method:Method?> <args:Exps> => Exp::Call{method, args, mode: CallMode::Encode},
   "decode" <method:("as" <Method>)?> <blob:Exp> => Exp::Decode{method, blob:Box::new(blob)},
 }
 Variable: Exp = <v:"id"> <path:(<Selector>)*> => Exp::Path(v, path);

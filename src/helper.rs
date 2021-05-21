@@ -101,6 +101,7 @@ impl MyHelper {
             include_str!("ic.did"),
         )?;
         if self.agent_url == "https://ic0.app" {
+            // TODO remove when nns supports the tmp_hack method
             self.preload_canister(
                 "nns".to_string(),
                 Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?,
