@@ -9,7 +9,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 ```
 <command> := 
  | import <id> = <text> (as <text>)?     // bind canister URI to <id>, with optional did file
- | export <text>                         // export command history to a file that can be run in ic-repl as a script
+ | export <text>                         // export current environment variables
  | load <text>                           // load and run a script file
  | config <text>                         // set config for random value generator in dhall format
  | let <id> = <exp>                      // bind <exp> to a variable <id>
@@ -17,12 +17,12 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | assert <exp> <binop> <exp>            // assertion
  | identity <id> <text>?                 // switch to identity <id>, with optional Ed25519 pem file
 <exp> := 
- | <candid val>                          // any candid value
- | <var> <selector>*                     // variable with optional selectors
- | file <text>                           // load external file as a blob value
- | call <name> . <name> ( <exp>,* )      // call a canister method, and store the result as a single value
- | encode (<name> . <name>)? ( <exp>,* ) // encode candid arguments as a blob value
- | decode (as <name> . <name>)? <exp>    // decode blob as candid values
+ | <candid val>                                    // any candid value
+ | <var> <selector>*                               // variable with optional selectors
+ | file <text>                                     // load external file as a blob value
+ | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
+ | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value
+ | decode (as <name> . <name>)? <exp>              // decode blob as candid values
 <var> := 
  | <id>                  // variable name 
  | _                     // previous eval of exp is bind to `_` 
@@ -54,8 +54,9 @@ assert _ == result;
 ### nns.sh
 ```
 #!/usr/bin/ic-repl -r ic
-// nns canister is auto-imported if connected to the mainnet
+// nns and ledger canisters are auto-imported if connected to the mainnet
 call nns.get_pending_proposals()
+call ledger.account_balance_dfx(record { account = "..." })
 ```
 
 ### install.sh
@@ -92,7 +93,7 @@ call wallet.wallet_create_canister(
   },
 );
 let id = _.Ok.canister_id;
-let msg = encode ic.install_code(
+call as wallet ic.install_code(
   record {
     arg = encode ();
     wasm_module = file "${WASM_FILE}";
@@ -100,16 +101,22 @@ let msg = encode ic.install_code(
     canister_id = id;
   },
 );
-let res = call wallet.wallet_call(
-  record {
-    args = msg;
-    cycles = 0;
-    method_name = "install_code";
-    canister = principal "aaaaa-aa";
-  },
-);
-decode as ic.install_code res.Ok.return;
 call id.greet("test");
+```
+
+## Derived forms
+
+* `call as proxy_canister target_canister.method(args)` is a shorthand for
+```
+let _ = call proxy_canister.wallet_call(
+  record {
+    args = encode target_canister.method(args);
+    cycles = 0;
+    method_name = "method";
+    canister = principal "target_canister";
+  }
+);
+decode as target_canister.method _.Ok.return
 ```
 
 ## Notes for Rust canisters
@@ -128,7 +135,7 @@ fn export_candid() -> String {
 }
 ```
 
-If you are writing your own `.did` file, you can also supply the did file via the `import` command, e.g. `import canister = "rrkah-fqaaa-aaaaa-aaaaq-cai" : "your_own_did_file.did"`
+If you are writing your own `.did` file, you can also supply the did file via the `import` command, e.g. `import canister = "rrkah-fqaaa-aaaaa-aaaaq-cai" as "your_own_did_file.did"`
 
 ## Issues
 
