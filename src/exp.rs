@@ -14,10 +14,10 @@ pub enum Exp {
     Path(String, Vec<Selector>),
     Blob(String),
     AnnVal(Box<Exp>, Type),
-    Method {
+    Call {
         method: Option<Method>,
         args: Vec<Exp>,
-        encode_only: bool,
+        mode: CallMode,
     },
     Decode {
         method: Option<Method>,
@@ -42,6 +42,12 @@ pub enum Exp {
 pub struct Method {
     pub canister: String,
     pub method: String,
+}
+#[derive(Debug, Clone)]
+pub enum CallMode {
+    Call,
+    Encode,
+    Proxy(String),
 }
 #[derive(Debug, Clone)]
 pub struct Field {
@@ -110,11 +116,7 @@ impl Exp {
                 };
                 args_to_value(args)
             }
-            Exp::Method {
-                method,
-                args,
-                encode_only,
-            } => {
+            Exp::Call { method, args, mode } => {
                 let mut res = Vec::with_capacity(args.len());
                 for arg in args.into_iter() {
                     res.push(arg.eval(helper)?);
@@ -130,20 +132,67 @@ impl Exp {
                 } else {
                     args.to_bytes()?
                 };
-                if encode_only {
-                    IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect())
-                } else {
-                    let method = method.unwrap(); // okay to unwrap from parser
-                    let (canister_id, env, func) = opt_func.unwrap();
-                    let res = call(
-                        &helper.agent,
-                        &canister_id,
-                        &method.method,
-                        &bytes,
-                        &env,
-                        &func,
-                    )?;
-                    args_to_value(res)
+                match mode {
+                    CallMode::Encode => {
+                        IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect())
+                    }
+                    CallMode::Call => {
+                        let method = method.unwrap(); // okay to unwrap from parser
+                        let (canister_id, env, func) = opt_func.unwrap();
+                        let res = call(
+                            &helper.agent,
+                            &canister_id,
+                            &method.method,
+                            &bytes,
+                            &env,
+                            &func,
+                        )?;
+                        args_to_value(res)
+                    }
+                    CallMode::Proxy(id) => {
+                        let method = method.unwrap();
+                        let canister_id = str_to_principal(&method.canister, helper)?;
+                        let proxy_id = str_to_principal(&id, helper)?;
+                        let mut env = MyHelper::new(helper.agent.clone(), helper.agent_url.clone());
+                        env.canister_map.borrow_mut().0.insert(
+                            proxy_id.clone(),
+                            helper
+                                .canister_map
+                                .borrow()
+                                .0
+                                .get(&proxy_id)
+                                .ok_or_else(|| {
+                                    anyhow!("{} canister interface not found", proxy_id)
+                                })?
+                                .clone(),
+                        );
+                        env.env.0.insert(
+                            "_msg".to_string(),
+                            IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect()),
+                        );
+                        let code = format!(
+                            r#"
+let _ = call "{id}".wallet_call(
+  record {{
+    args = _msg;
+    cycles = 0;
+    method_name = "{method}";
+    canister = principal "{canister}";
+  }}
+);
+let _ = decode as "{canister}".{method} _.Ok.return;
+"#,
+                            id = proxy_id,
+                            canister = canister_id,
+                            method = method.method
+                        );
+                        let cmds =
+                            crate::pretty_parse::<crate::command::Commands>("forward_call", &code)?;
+                        for cmd in cmds.0.into_iter() {
+                            cmd.run(&mut env)?;
+                        }
+                        env.env.0.get("_").unwrap().clone()
+                    }
                 }
             }
             Exp::Bool(b) => IDLValue::Bool(b),
@@ -220,16 +269,19 @@ impl std::str::FromStr for Exp {
         super::grammar::ExpParser::new().parse(lexer)
     }
 }
+fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
+    let try_id = Principal::from_text(id);
+    Ok(match try_id {
+        Ok(id) => id,
+        Err(_) => match helper.env.0.get(id) {
+            Some(IDLValue::Principal(id)) => id.clone(),
+            _ => return Err(anyhow!("{} is not a canister id", id)),
+        },
+    })
+}
 impl Method {
     fn get_type(&self, helper: &MyHelper) -> Result<(Principal, TypeEnv, Function)> {
-        let try_id = Principal::from_text(&self.canister);
-        let canister_id = match try_id {
-            Ok(ref id) => id,
-            Err(_) => match helper.env.0.get(&self.canister) {
-                Some(IDLValue::Principal(id)) => id,
-                _ => return Err(anyhow!("{} is not a canister id", self.canister)),
-            },
-        };
+        let canister_id = str_to_principal(&self.canister, helper)?;
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
         let info = map.get(&agent, &canister_id)?;
