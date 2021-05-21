@@ -154,7 +154,18 @@ impl Exp {
                         let canister_id = str_to_principal(&method.canister, helper)?;
                         let proxy_id = str_to_principal(&id, helper)?;
                         let mut env = MyHelper::new(helper.agent.clone(), helper.agent_url.clone());
-                        env.canister_map = helper.canister_map.clone();
+                        env.canister_map.borrow_mut().0.insert(
+                            proxy_id.clone(),
+                            helper
+                                .canister_map
+                                .borrow()
+                                .0
+                                .get(&proxy_id)
+                                .ok_or_else(|| {
+                                    anyhow!("{} canister interface not found", proxy_id)
+                                })?
+                                .clone(),
+                        );
                         env.env.0.insert(
                             "_msg".to_string(),
                             IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect()),

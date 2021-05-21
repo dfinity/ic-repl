@@ -21,7 +21,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use tokio::runtime::Runtime;
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 #[derive(Default)]
 pub struct IdentityMap(pub BTreeMap<String, Vec<u8>>);
