@@ -83,7 +83,7 @@ pub Exp: Exp = {
   Variable => <>,
   "file" <Text> => Exp::Blob(<>),
   "call" <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Call},
-  //"call" "as" <proxy:Name> <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Proxy(proxy)},  
+  "call" "as" <proxy:Name> <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Proxy(proxy)},  
   "encode" <method:Method?> <args:Exps> => Exp::Call{method, args, mode: CallMode::Encode},
   "decode" <method:("as" <Method>)?> <blob:Exp> => Exp::Decode{method, blob:Box::new(blob)},
 }

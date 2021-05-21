@@ -13,6 +13,17 @@ call wallet.wallet_create_canister(
   },
 );
 let id = _.Ok.canister_id;
+
+call as wallet ic.install_code(
+  record {
+    arg = encode ();
+    wasm_module = file "${WASM_FILE}";
+    mode = variant { install };
+    canister_id = id;
+  },
+);
+
+/*
 let msg = encode ic.install_code(
   record {
     arg = encode ();
@@ -30,3 +41,4 @@ let res = call wallet.wallet_call(
   },
 );
 decode as ic.install_code res.Ok.return;
+*/
