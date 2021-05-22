@@ -1,4 +1,5 @@
-use crate::exp::Exp;
+use crate::exp::{str_to_principal, Exp};
+use crate::token::{Token, Tokenizer};
 use ansi_term::Color;
 use candid::{
     check_prog,
@@ -145,51 +146,62 @@ enum Partial {
 
 fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
     let (start, _) = extract_word(line, pos, None, b" ");
-    let prev = &line[..start].trim_end();
-    let (_, prev) = extract_word(prev, prev.len(), None, b" ");
-    let is_call = matches!(prev, "call" | "encode");
-    if is_call {
-        let pos_tail = line[start..pos]
-            .rfind('.')
-            .map(|v| start + v)
-            .unwrap_or(pos);
-        let tail = if pos_tail < pos {
-            line[pos_tail + 1..pos].to_string()
+    let iter = Tokenizer::new(&line[start..pos]);
+    let mut tokens = Vec::new();
+    let mut pos_start = 0;
+    for v in iter {
+        let v = v.ok()?;
+        if pos_start == 0
+            && matches!(
+                v.1,
+                Token::Equals | Token::TestEqual | Token::SubEqual | Token::NotEqual
+            )
+        {
+            pos_start = v.2;
+        }
+        let tok = if let Token::Text(id) = v.1 {
+            Token::Id(id)
         } else {
-            String::new()
+            v.1
         };
-        let id = &line[start..pos_tail];
-        if id.starts_with('"') {
-            if id.len() >= 7 {
-                let id = Principal::from_text(&id[1..id.len() - 1]).ok()?;
-                Some((pos_tail, Partial::Call(id, tail)))
-            } else {
-                None
-            }
-        } else {
-            match helper.env.0.get(id)? {
-                IDLValue::Principal(id) => Some((pos_tail, Partial::Call(id.clone(), tail))),
-                _ => None,
+        tokens.push((v.0, tok));
+    }
+    match tokens.as_slice() {
+        [(_, Token::Id(id))] => match str_to_principal(id, helper) {
+            Ok(id) => Some((pos, Partial::Call(id, "".to_string()))),
+            Err(_) => parse_value(&line[..pos], start, pos, helper),
+        },
+        [.., (_, Token::Id(id)), (pos_tail, Token::Dot)] => match str_to_principal(id, helper) {
+            Ok(id) => Some((start + *pos_tail, Partial::Call(id, "".to_string()))),
+            Err(_) => parse_value(&line[..pos], start + pos_start, start + pos_tail, helper),
+        },
+        [.., (_, Token::Id(id)), (pos_tail, Token::Dot), (_, Token::Id(tail))] => {
+            match str_to_principal(id, helper) {
+                Ok(id) => Some((start + *pos_tail, Partial::Call(id, tail.to_string()))),
+                Err(_) => parse_value(&line[..pos], start + pos_start, start + pos_tail, helper),
             }
         }
-    } else {
-        let pos_tail = if line[..pos].ends_with(']') {
-            pos
-        } else {
-            line[start..pos]
-                .rfind(|c| c == '.' || c == '[' || c == ']')
-                .map(|v| start + v)
-                .unwrap_or(pos)
-        };
-        let v = line[start..pos_tail].parse::<Exp>().ok()?;
-        let v = v.eval(helper).ok()?;
-        let tail = if pos_tail < pos {
-            line[pos_tail..pos].to_string()
-        } else {
-            String::new()
-        };
-        Some((pos_tail, Partial::Val(v, tail)))
+        [.., (_, tok)] if matches!(tok, Token::RSquare | Token::Question) => {
+            parse_value(&line[..pos], start + pos_start, pos, helper)
+        }
+        [.., (pos_tail, tok)] if matches!(tok, Token::Dot | Token::LSquare) => {
+            parse_value(&line[..pos], start + pos_start, start + pos_tail, helper)
+        }
+        [.., (pos_tail, Token::Dot), (_, Token::Id(_))]
+        | [.., (pos_tail, Token::LSquare), (_, Token::Decimal(_))] => {
+            parse_value(&line[..pos], start + pos_start, start + pos_tail, helper)
+        }
+        _ => None,
     }
+}
+fn parse_value(
+    line: &str,
+    start: usize,
+    end: usize,
+    helper: &MyHelper,
+) -> Option<(usize, Partial)> {
+    let v = line[start..end].parse::<Exp>().ok()?.eval(helper).ok()?;
+    Some((end, Partial::Val(v, line[end..].to_string())))
 }
 fn match_selector(v: &IDLValue, prefix: &str) -> Vec<Pair> {
     match v {
@@ -399,7 +411,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
         .env
         .0
         .insert("ic0".to_string(), IDLValue::Principal(ic0.clone()));
-    assert_eq!(partial_parse("call a", 6, &helper), None);
+    assert_eq!(partial_parse("call x", 6, &helper), None);
     assert_eq!(
         partial_parse("let id = call \"aaaaa-aa\"", 24, &helper).unwrap(),
         (24, Partial::Call(ic0.clone(), "".to_string()))
@@ -437,9 +449,9 @@ fn test_partial_parse() -> anyhow::Result<()> {
     );
     assert_eq!(partial_parse("let id = a.f1.", 14, &helper), None);
     assert_eq!(
-        partial_parse("let id = a?", 11, &helper).unwrap(),
+        partial_parse("let id =a?", 10, &helper).unwrap(),
         (
-            11,
+            10,
             Partial::Val(
                 "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
                 "".to_string()
@@ -447,9 +459,9 @@ fn test_partial_parse() -> anyhow::Result<()> {
         )
     );
     assert_eq!(
-        partial_parse("let id = a?.", 12, &helper).unwrap(),
+        partial_parse("let id=a?.", 10, &helper).unwrap(),
         (
-            11,
+            9,
             Partial::Val(
                 "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
                 ".".to_string()
