@@ -141,8 +141,7 @@ If you are writing your own `.did` file, you can also supply the did file via th
 
 * Acess to service init type
 * `IDLValue::Blob` for efficient blob serialization
-* Tokenization for partial parser (variable needs a preceding space for autocompletion)
-* Autocompletion within Candid value; autocompletion for decode method
+* Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
 * Loop detection for `load`
 * Assert upgrade correctness
