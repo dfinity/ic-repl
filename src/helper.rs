@@ -171,11 +171,11 @@ fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
             Ok(id) => Some((pos, Partial::Call(id, "".to_string()))),
             Err(_) => parse_value(&line[..pos], start, pos, helper),
         },
-        [.., (_, Token::Id(id)), (pos_tail, Token::Dot)]
-        | [.., (_, Token::Id(id)), (pos_tail, Token::Dot), (_, _)] => {
+        [(_, Token::Id(id)), (pos_tail, Token::Dot)]
+        | [(_, Token::Id(id)), (pos_tail, Token::Dot), (_, _)] => {
             match str_to_principal(id, helper) {
                 Ok(id) => Some((
-                    start + *pos_tail,
+                    start + pos_tail,
                     Partial::Call(id, line[start + pos_tail + 1..pos].to_string()),
                 )),
                 Err(_) => parse_value(&line[..pos], start + pos_start, start + pos_tail, helper),
