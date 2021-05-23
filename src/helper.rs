@@ -171,23 +171,22 @@ fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Pa
             Ok(id) => Some((pos, Partial::Call(id, "".to_string()))),
             Err(_) => parse_value(&line[..pos], start, pos, helper),
         },
-        [.., (_, Token::Id(id)), (pos_tail, Token::Dot)] => match str_to_principal(id, helper) {
-            Ok(id) => Some((start + *pos_tail, Partial::Call(id, "".to_string()))),
-            Err(_) => parse_value(&line[..pos], start + pos_start, start + pos_tail, helper),
-        },
-        [.., (_, Token::Id(id)), (pos_tail, Token::Dot), (_, Token::Id(tail))] => {
+        [.., (_, Token::Id(id)), (pos_tail, Token::Dot)]
+        | [.., (_, Token::Id(id)), (pos_tail, Token::Dot), (_, _)] => {
             match str_to_principal(id, helper) {
-                Ok(id) => Some((start + *pos_tail, Partial::Call(id, tail.to_string()))),
+                Ok(id) => Some((
+                    start + *pos_tail,
+                    Partial::Call(id, line[start + pos_tail + 1..pos].to_string()),
+                )),
                 Err(_) => parse_value(&line[..pos], start + pos_start, start + pos_tail, helper),
             }
         }
-        [.., (_, tok)] if matches!(tok, Token::RSquare | Token::Question) => {
+        [.., (_, Token::RSquare)] | [.., (_, Token::Question)] => {
             parse_value(&line[..pos], start + pos_start, pos, helper)
         }
-        [.., (pos_tail, tok)] if matches!(tok, Token::Dot | Token::LSquare) => {
-            parse_value(&line[..pos], start + pos_start, start + pos_tail, helper)
-        }
-        [.., (pos_tail, Token::Dot), (_, Token::Id(_))]
+        [.., (pos_tail, Token::Dot)]
+        | [.., (pos_tail, Token::Dot), (_, _)]
+        | [.., (pos_tail, Token::LSquare)]
         | [.., (pos_tail, Token::LSquare), (_, Token::Decimal(_))] => {
             parse_value(&line[..pos], start + pos_start, start + pos_tail, helper)
         }
