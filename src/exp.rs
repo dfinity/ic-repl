@@ -269,7 +269,7 @@ impl std::str::FromStr for Exp {
         super::grammar::ExpParser::new().parse(lexer)
     }
 }
-fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
+pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
     let try_id = Principal::from_text(id);
     Ok(match try_id {
         Ok(id) => id,
