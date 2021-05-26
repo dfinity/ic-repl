@@ -19,6 +19,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         repository: 'dfinity/ic-hs'
+        path: ic-hs
         ref: ${{ matrix.spec }}
     - name: Cache cabal
       uses: actions/cache@v2
