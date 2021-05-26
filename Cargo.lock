@@ -930,6 +930,7 @@ dependencies = [
  "ring",
  "rustyline",
  "rustyline-derive",
+ "serde",
  "shellexpand",
  "structopt",
  "terminal_size",
