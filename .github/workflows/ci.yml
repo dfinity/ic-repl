@@ -71,11 +71,9 @@ jobs:
     - name: lint
       run: cargo clippy --tests -- -D clippy::all
 
-    - name: example tests
+    - name: e2e tests
       run: |
         set -ex
         target/debug/ic-repl -r http://localhost:${{ steps.ic_ref.outputs.IC_REF_PORT }} example/install.sh
-      env:
-        WASM_FILE = greet.wasm
     - name: clean up
       run: killall ic-ref
