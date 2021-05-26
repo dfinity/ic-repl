@@ -1,44 +1,21 @@
 #!/ic-repl
-import wallet = "${WALLET_ID:-rwlgt-iiaaa-aaaaa-aaaaa-cai}" as "wallet.did";
-identity default "~/.config/dfx/identity/default/identity.pem";
-call wallet.wallet_create_canister(
-  record {
-    cycles = ${CYCLE:-1_000_000};
-    settings = record {
-      controller = null;
-      freezing_threshold = null;
-      memory_allocation = null;
-      compute_allocation = null;
-    }
-  },
-);
-let id = _.Ok.canister_id;
-
-call as wallet ic.install_code(
+identity alice;
+let id = call ic.provisional_create_canister_with_cycles(record { settings = null; amount = null });
+call ic.canister_status(id);
+assert _.module_hash == (null : opt blob);
+call ic.install_code(
   record {
     arg = encode ();
-    wasm_module = file "${WASM_FILE}";
+    wasm_module = file "greet.wasm";
     mode = variant { install };
-    canister_id = id;
+    canister_id = id.canister_id;
   },
 );
-
-/*
-let msg = encode ic.install_code(
-  record {
-    arg = encode ();
-    wasm_module = file "${WASM_FILE}";
-    mode = variant { install };
-    canister_id = id;
-  },
-);
-let res = call wallet.wallet_call(
-  record {
-    args = msg;
-    cycles = 0;
-    method_name = "install_code";
-    canister = ic;
-  },
-);
-decode as ic.install_code res.Ok.return;
-*/
+let status = call ic.canister_status(id);
+assert status.settings ~= record { controller = alice };
+assert status.module_hash? == blob "\d8\d1\d3;\a3\a65\a6\a6\c8!\06\12\d2\da\9dZ\e4v\8d\27\bd\05\9d\cc\1a\df\cb \01u\dc";
+let canister = id.canister_id;
+call canister.greet("test");
+assert _ == "Hello, test!";
+call ic.stop_canister(id);
+call ic.delete_canister(id);

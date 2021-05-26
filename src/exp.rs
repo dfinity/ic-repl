@@ -304,11 +304,12 @@ async fn call(
     env: &TypeEnv,
     func: &Function,
 ) -> anyhow::Result<IDLArgs> {
+    let effective_id = get_effective_canister_id(canister_id.clone(), method, args)?;
     let bytes = if func.is_query() {
         agent
             .query(canister_id, method)
             .with_arg(args)
-            .with_effective_canister_id(canister_id.clone())
+            .with_effective_canister_id(effective_id)
             .call()
             .await?
     } else {
@@ -319,11 +320,38 @@ async fn call(
         agent
             .update(canister_id, method)
             .with_arg(args)
-            .with_effective_canister_id(canister_id.clone())
+            .with_effective_canister_id(effective_id)
             .call_and_wait(waiter)
             .await?
     };
     Ok(IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?)
+}
+
+fn get_effective_canister_id(
+    canister_id: Principal,
+    method: &str,
+    args: &[u8],
+) -> anyhow::Result<Principal> {
+    use candid::{CandidType, Decode, Deserialize};
+    if canister_id == Principal::management_canister() {
+        match method {
+            "create_canister" | "raw_rand" => Err(anyhow!(
+                "{} can only be called via inter-canister call.",
+                method
+            )),
+            "provisional_create_canister_with_cycles" => Ok(canister_id),
+            _ => {
+                #[derive(CandidType, Deserialize)]
+                struct Arg {
+                    canister_id: Principal,
+                }
+                let args = Decode!(args, Arg)?;
+                Ok(args.canister_id)
+            }
+        }
+    } else {
+        Ok(canister_id)
+    }
 }
 
 fn args_to_value(mut args: IDLArgs) -> IDLValue {
