@@ -75,6 +75,6 @@ jobs:
     - name: e2e tests
       run: |
         set -ex
-        target/debug/ic-repl -r http://localhost:${{ steps.ic_ref.outputs.IC_REF_PORT }} example/install.sh
+        target/debug/ic-repl -r http://localhost:${{ steps.ic_ref.outputs.IC_REF_PORT }} examples/install.sh
     - name: clean up
       run: killall ic-ref
