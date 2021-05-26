@@ -25,7 +25,7 @@ jobs:
       with:
         path: |
           ~/.cabal/store
-        key: cabal-${{ runner.os }}-${{ env.ghc }}-${{ hashFiles('ic-hs/cabal.project', 'ic-hs/cabal.project.freeze') }}
+        key: cabal-${{ runner.os }}-${{ env.ghc }}-${{ env.spec }}-${{ hashFiles('ic-hs/cabal.project', 'ic-hs/cabal.project.freeze') }}
     - uses: actions/setup-haskell@v1.1.4
       with:
         ghc-version: ${{ env.ghc }}
