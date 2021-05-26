@@ -62,7 +62,7 @@ call ledger.account_balance_dfx(record { account = "..." })
 ### install.sh
 ```
 #!/usr/bin/ic-repl
-let id = call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings: null; amount: null });
+let id = call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings = null; amount = null });
 call ic.install_code(
   record {
     arg = encode ();

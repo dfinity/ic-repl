@@ -8,9 +8,46 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ghc: ['8.8.4']
+        spec: ['0.18.0']
     steps:
     - uses: actions/checkout@v2
-    - name: Install stable toolchain
+
+    - name: Checkout ic-ref
+      uses: actions/checkout@v2
+      with:
+        repository: 'dfinity/ic-hs'
+        ref: ${{ matrix.spec }}
+    - name: Cache cabal
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cabal/store
+          key: cabal-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('ic-hs/cabal.project', 'ic-hs/cabal.project.freeze') }}
+    - uses: actions/setup-haskell@v1.1.3
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: '3.2'
+    - name: Build ic-ref
+      run: |
+        ls -l /opt/ghc/
+        export PATH=/opt/ghc/bin:$PATH
+        cabal --version
+        mkdir -p $HOME/bin
+        cd ic-ref/
+        cabal update
+        cabal install -w ghc-${{ matrix.ghc }} --overwrite-policy=always  --installdir=$HOME/bin
+    - name: Running ic-ref
+      id: ic_ref
+      run: |
+        set -ex
+        $HOME/bin/ic-ref --pick-port --write-port-to $HOME/ic_ref_port &
+        sleep 1
+        echo "::set-output name=IC_REF_PORT::$(cat $HOME/ic_ref_port)"
+
+    - name: Install stable Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
@@ -33,3 +70,12 @@ jobs:
       run: cargo fmt -v -- --check
     - name: lint
       run: cargo clippy --tests -- -D clippy::all
+
+    - name: example tests
+      run: |
+        set -ex
+        target/debug/ic-repl -r http://localhost:${{ steps.ic_ref.outputs.IC_REF_PORT }} example/install.sh
+      env:
+        WASM_FILE = greet.wasm
+    - name: clean up
+      run: killall ic-ref
