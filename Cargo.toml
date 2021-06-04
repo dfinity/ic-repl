@@ -8,8 +8,8 @@ edition = "2018"
 lalrpop = "0.19"
 
 [dependencies]
-candid = { git = "https://github.com/dfinity/candid.git", branch = "beta", features = ["random"] }
-rustyline = "8.0"
+candid = { git = "https://github.com/dfinity/candid.git", branch = "master", features = ["random"] }
+rustyline = "8.2"
 rustyline-derive = "0.4"
 ansi_term = "0.12"
 pretty_assertions = "0.7"
@@ -18,9 +18,9 @@ codespan-reporting = "0.11"
 pretty = "0.10.0"
 pem = "0.8"
 shellexpand = "2.1"
-ic-agent = "0.4.1"
-tokio = { version = "1.5.0", features = ["full"] }
-delay = "0.3.1"
+ic-agent = "0.5.0"
+tokio = { version = "1.6.0", features = ["full"] }
+garcon = "0.2.3"
 anyhow = "1.0"
 rand = "0.8"
 logos = "0.12"

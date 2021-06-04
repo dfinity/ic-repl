@@ -313,7 +313,7 @@ async fn call(
             .call()
             .await?
     } else {
-        let waiter = delay::Delay::builder()
+        let waiter = garcon::Delay::builder()
             .exponential_backoff(std::time::Duration::from_secs(1), 1.1)
             .timeout(std::time::Duration::from_secs(60 * 5))
             .build();
