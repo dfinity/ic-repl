@@ -58,15 +58,19 @@ impl Command {
                 match op {
                     BinOp::Equal => assert_eq!(left, right),
                     BinOp::SubEqual => {
-                        let l_ty = left.value_ty();
-                        let r_ty = right.value_ty();
-                        let env = TypeEnv::new();
-                        if let Ok(left) = left.annotate_type(false, &env, &r_ty) {
-                            assert_eq!(left, right);
-                        } else if let Ok(right) = right.annotate_type(false, &env, &l_ty) {
-                            assert_eq!(left, right);
+                        if let (IDLValue::Text(left), IDLValue::Text(right)) = (&left, &right) {
+                            assert!(left.contains(right));
                         } else {
-                            assert_eq!(left, right);
+                            let l_ty = left.value_ty();
+                            let r_ty = right.value_ty();
+                            let env = TypeEnv::new();
+                            if let Ok(left) = left.annotate_type(false, &env, &r_ty) {
+                                assert_eq!(left, right);
+                            } else if let Ok(right) = right.annotate_type(false, &env, &l_ty) {
+                                assert_eq!(left, right);
+                            } else {
+                                assert_eq!(left, right);
+                            }
                         }
                     }
                     BinOp::NotEqual => assert_ne!(left, right),

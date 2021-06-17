@@ -23,6 +23,7 @@ pub enum Exp {
         method: Option<Method>,
         blob: Box<Exp>,
     },
+    Fail(Box<Exp>),
     // from IDLValue without the infered types + Nat8
     Bool(bool),
     Null,
@@ -92,6 +93,10 @@ impl Exp {
                 let env = TypeEnv::new();
                 arg.annotate_type(true, &env, &ty)?
             }
+            Exp::Fail(v) => match v.eval(helper) {
+                Err(e) => IDLValue::Text(e.to_string()),
+                Ok(_) => return Err(anyhow!("Expect an error state")),
+            },
             Exp::Decode { method, blob } => {
                 let blob = blob.eval(helper)?;
                 if blob.value_ty() != Type::Vec(Box::new(Type::Nat8)) {

@@ -20,6 +20,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | <candid val>                                    // any candid value
  | <var> <selector>*                               // variable with optional selectors
  | file <text>                                     // load external file as a blob value
+ | fail <exp>                                      // convert error message as text
  | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
  | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value
  | decode (as <name> . <name>)? <exp>              // decode blob as candid values
@@ -32,7 +33,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | [ <nat> ]             // select index from vec, record, or variant value
 <binop> := 
  | ==                    // structural equality
- | ~=                    // equal under candid subtyping
+ | ~=                    // equal under candid subtyping; for text value, we check if the right side is contained in the left side
  | !=                    // not equal
 ```
 

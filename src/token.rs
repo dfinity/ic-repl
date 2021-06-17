@@ -60,6 +60,8 @@ pub enum Token {
     Import,
     #[token("opt")]
     Opt,
+    #[token("fail")]
+    Fail,
     #[token("call")]
     Call,
     #[token("encode")]
