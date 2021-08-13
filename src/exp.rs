@@ -77,7 +77,7 @@ impl Exp {
                     .0
                     .get(&id)
                     .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
-                project(&v, &path)?.clone()
+                project(v, &path)?.clone()
             }
             Exp::Blob(file) => {
                 let path = resolve_path(&helper.base_path, &file);
@@ -133,7 +133,7 @@ impl Exp {
                     None
                 };
                 let bytes = if let Some((_, env, func)) = &opt_func {
-                    args.to_bytes_with_types(&env, &func.args)?
+                    args.to_bytes_with_types(env, &func.args)?
                 } else {
                     args.to_bytes()?
                 };
@@ -160,7 +160,7 @@ impl Exp {
                         let proxy_id = str_to_principal(&id, helper)?;
                         let mut env = MyHelper::new(helper.agent.clone(), helper.agent_url.clone());
                         env.canister_map.borrow_mut().0.insert(
-                            proxy_id.clone(),
+                            proxy_id,
                             helper
                                 .canister_map
                                 .borrow()
@@ -279,7 +279,7 @@ pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
     Ok(match try_id {
         Ok(id) => id,
         Err(_) => match helper.env.0.get(id) {
-            Some(IDLValue::Principal(id)) => id.clone(),
+            Some(IDLValue::Principal(id)) => *id,
             _ => return Err(anyhow!("{} is not a canister id", id)),
         },
     })
@@ -289,14 +289,14 @@ impl Method {
         let canister_id = str_to_principal(&self.canister, helper)?;
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
-        let info = map.get(&agent, &canister_id)?;
+        let info = map.get(agent, &canister_id)?;
         let func = info
             .methods
             .get(&self.method)
             .ok_or_else(|| anyhow!("no method {}", self.method))?
             .clone();
         // TODO remove clone
-        Ok((canister_id.clone(), info.env.clone(), func))
+        Ok((canister_id, info.env.clone(), func))
     }
 }
 
@@ -309,7 +309,7 @@ async fn call(
     env: &TypeEnv,
     func: &Function,
 ) -> anyhow::Result<IDLArgs> {
-    let effective_id = get_effective_canister_id(canister_id.clone(), method, args)?;
+    let effective_id = get_effective_canister_id(*canister_id, method, args)?;
     let bytes = if func.is_query() {
         agent
             .query(canister_id, method)
