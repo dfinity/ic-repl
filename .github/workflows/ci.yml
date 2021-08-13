@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ghc: '8.8.4'
-      spec: '0.17.0'
+      spec: '0.18.0'
     steps:
     - uses: actions/checkout@v2
 

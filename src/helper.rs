@@ -37,7 +37,7 @@ impl CanisterMap {
     pub fn get(&mut self, agent: &Agent, id: &Principal) -> anyhow::Result<&CanisterInfo> {
         if !self.0.contains_key(id) {
             let info = fetch_actor(agent, id)?;
-            self.0.insert(id.clone(), info);
+            self.0.insert(*id, info);
         }
         Ok(self.0.get(id).unwrap())
     }
@@ -125,7 +125,7 @@ impl MyHelper {
         let mut canister_map = self.canister_map.borrow_mut();
         canister_map
             .0
-            .insert(id.clone(), did_to_canister_info(&name, did_file)?);
+            .insert(id, did_to_canister_info(&name, did_file)?);
         self.env.0.insert(name, IDLValue::Principal(id));
         Ok(())
     }
@@ -260,7 +260,7 @@ impl Completer for MyHelper {
         pos: usize,
         ctx: &Context<'_>,
     ) -> Result<(usize, Vec<Pair>), ReadlineError> {
-        match partial_parse(line, pos, &self) {
+        match partial_parse(line, pos, self) {
             Some((pos, Partial::Call(canister_id, meth))) => {
                 let mut map = self.canister_map.borrow_mut();
                 Ok(match map.get(&self.agent, &canister_id) {
@@ -296,7 +296,7 @@ impl Hinter for MyHelper {
         if pos < line.len() {
             return None;
         }
-        hint_method(line, pos, &self).or_else(|| self.hinter.hint(line, pos, ctx))
+        hint_method(line, pos, self).or_else(|| self.hinter.hint(line, pos, ctx))
     }
 }
 
@@ -349,7 +349,7 @@ fn random_value(
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
-    let result = IDLArgs::any(&seed, &config, env, &tys)?;
+    let result = IDLArgs::any(&seed, config, env, tys)?;
     Ok(if given_args > 0 {
         if given_args <= tys.len() {
             let mut res = String::new();
@@ -409,27 +409,27 @@ fn test_partial_parse() -> anyhow::Result<()> {
     helper
         .env
         .0
-        .insert("ic0".to_string(), IDLValue::Principal(ic0.clone()));
+        .insert("ic0".to_string(), IDLValue::Principal(ic0));
     assert_eq!(partial_parse("call x", 6, &helper), None);
     assert_eq!(
         partial_parse("let id = call \"aaaaa-aa\"", 24, &helper).unwrap(),
-        (24, Partial::Call(ic0.clone(), "".to_string()))
+        (24, Partial::Call(ic0, "".to_string()))
     );
     assert_eq!(
         partial_parse("let id = call \"aaaaa-aa\".", 25, &helper).unwrap(),
-        (24, Partial::Call(ic0.clone(), "".to_string()))
+        (24, Partial::Call(ic0, "".to_string()))
     );
     assert_eq!(
         partial_parse("let id = call \"aaaaa-aa\".t", 26, &helper).unwrap(),
-        (24, Partial::Call(ic0.clone(), "t".to_string()))
+        (24, Partial::Call(ic0, "t".to_string()))
     );
     assert_eq!(
         partial_parse("let id = encode ic0", 19, &helper).unwrap(),
-        (19, Partial::Call(ic0.clone(), "".to_string()))
+        (19, Partial::Call(ic0, "".to_string()))
     );
     assert_eq!(
         partial_parse("let id = encode ic0.", 20, &helper).unwrap(),
-        (19, Partial::Call(ic0.clone(), "".to_string()))
+        (19, Partial::Call(ic0, "".to_string()))
     );
     assert_eq!(
         partial_parse("let id = encode ic0.t", 21, &helper).unwrap(),

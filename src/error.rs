@@ -12,11 +12,11 @@ fn report(e: &ParserError) -> Diagnostic<()> {
             Label::primary((), *location..location + 1).with_message("Invalid token")
         }
         UnrecognizedEOF { location, expected } => {
-            diag = diag.with_notes(report_expected(&expected));
+            diag = diag.with_notes(report_expected(expected));
             Label::primary((), *location..location + 1).with_message("Unexpected EOF")
         }
         UnrecognizedToken { token, expected } => {
-            diag = diag.with_notes(report_expected(&expected));
+            diag = diag.with_notes(report_expected(expected));
             Label::primary((), token.0..token.2).with_message("Unexpected token")
         }
         ExtraToken { token } => Label::primary((), token.0..token.2).with_message("Extra token"),

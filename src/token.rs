@@ -9,7 +9,7 @@ pub enum Token {
     #[token("/*")]
     StartComment,
     #[error]
-    UnexpectedToken,
+    Unexpected,
     #[token("=")]
     Equals,
     #[token("(")]
@@ -204,7 +204,7 @@ impl<'input> Iterator for Tokenizer<'input> {
         let token = self.lex.next()?;
         let span = self.lex.span();
         match token {
-            Token::UnexpectedToken => {
+            Token::Unexpected => {
                 let err = format!("Unknown token {}", self.lex.slice());
                 Some(Err(LexicalError::new(err, span)))
             }

@@ -7,6 +7,7 @@ type ArchiveOptions = record {
   max_message_size_bytes: opt nat32;
   controller_id: principal;
 };
+type CanisterId = principal;
 type BlockHeight = nat64;
 type Duration = record {
   secs: nat64;
@@ -63,9 +64,22 @@ type Transfer = variant {
     amount: ICPTs;
   };
 };
+type HeaderField = record {text; text};
+type HttpRequest = record {
+  url: text;
+  method: text;
+  body: vec nat8;
+  headers: vec HeaderField;
+};
+type HttpResponse = record {
+  body: vec nat8;
+  headers: vec HeaderField;
+  status_code: nat16;
+};
 service: (LedgerCanisterInitPayload) -> {
   send_dfx : (SendArgs) -> (BlockHeight);
   notify_dfx: (NotifyCanisterArgs) -> ();
   account_balance_dfx : (AccountBalanceArgs) -> (ICPTs) query;
+  get_nodes : () -> (vec CanisterId) query;
+  http_request: (HttpRequest) -> (HttpResponse) query;
 }
-

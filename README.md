@@ -74,7 +74,7 @@ call ic.install_code(
   },
 );
 let status = call ic.canister_status(id);
-assert status.settings ~= record { controller = alice };
+assert status.settings ~= record { controllers = vec { alice } };
 assert status.module_hash? == blob "...";
 let canister = id.canister_id;
 call canister.greet("test");
@@ -89,7 +89,7 @@ call wallet.wallet_create_canister(
   record {
     cycles = ${CYCLE:-1_000_000};
     settings = record {
-      controller = null;
+      controllers = null;
       freezing_threshold = null;
       memory_allocation = null;
       compute_allocation = null;

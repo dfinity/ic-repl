@@ -38,23 +38,19 @@ impl Command {
                     let path = resolve_path(&helper.base_path, did);
                     let src = std::fs::read_to_string(&path)
                         .with_context(|| format!("Cannot read {:?}", path))?;
-                    let info = did_to_canister_info(&did, &src)?;
-                    helper
-                        .canister_map
-                        .borrow_mut()
-                        .0
-                        .insert(canister_id.clone(), info);
+                    let info = did_to_canister_info(did, &src)?;
+                    helper.canister_map.borrow_mut().0.insert(canister_id, info);
                 }
                 // TODO decide if it's a Service instead
                 helper.env.0.insert(id, IDLValue::Principal(canister_id));
             }
             Command::Let(id, val) => {
-                let v = val.eval(&helper)?;
+                let v = val.eval(helper)?;
                 helper.env.0.insert(id, v);
             }
             Command::Assert(op, left, right) => {
-                let left = left.eval(&helper)?;
-                let right = right.eval(&helper)?;
+                let left = left.eval(helper)?;
+                let right = right.eval(helper)?;
                 match op {
                     BinOp::Equal => assert_eq!(left, right),
                     BinOp::SubEqual => {
@@ -79,7 +75,7 @@ impl Command {
             Command::Config(conf) => helper.config = Configs::from_dhall(&conf)?,
             Command::Show(val) => {
                 let time = Instant::now();
-                let v = val.eval(&helper)?;
+                let v = val.eval(helper)?;
                 let duration = time.elapsed();
                 println!("{}", v);
                 helper.env.0.insert("_".to_string(), v);
