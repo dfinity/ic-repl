@@ -114,8 +114,12 @@ impl Exp {
                 };
                 let args = match method {
                     Some(method) => {
-                        let (_, env, func) = method.get_type(helper)?;
-                        IDLArgs::from_bytes_with_types(&bytes, &env, &func.rets)?
+                        let (_, func) = method.get_info(helper)?;
+                        if let Some((env, func)) = func {
+                            IDLArgs::from_bytes_with_types(&bytes, &env, &func.rets)?
+                        } else {
+                            IDLArgs::from_bytes(&bytes)?
+                        }
                     }
                     None => IDLArgs::from_bytes(&bytes)?,
                 };
@@ -128,11 +132,11 @@ impl Exp {
                 }
                 let args = IDLArgs { args: res };
                 let opt_func = if let Some(method) = &method {
-                    Some(method.get_type(helper)?)
+                    Some(method.get_info(helper)?)
                 } else {
                     None
                 };
-                let bytes = if let Some((_, env, func)) = &opt_func {
+                let bytes = if let Some((_, Some((env, func)))) = &opt_func {
                     args.to_bytes_with_types(env, &func.args)?
                 } else {
                     args.to_bytes()?
@@ -143,14 +147,13 @@ impl Exp {
                     }
                     CallMode::Call => {
                         let method = method.unwrap(); // okay to unwrap from parser
-                        let (canister_id, env, func) = opt_func.unwrap();
+                        let (canister_id, opt_func) = opt_func.unwrap();
                         let res = call(
                             &helper.agent,
                             &canister_id,
                             &method.method,
                             &bytes,
-                            &env,
-                            &func,
+                            &opt_func,
                         )?;
                         args_to_value(res)
                     }
@@ -284,19 +287,28 @@ pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
         },
     })
 }
+fn get_type(
+    canister_id: Principal,
+    method: &str,
+    helper: &MyHelper,
+) -> Option<(TypeEnv, Function)> {
+    let agent = &helper.agent;
+    let mut map = helper.canister_map.borrow_mut();
+    let info = map.get(agent, &canister_id).ok()?;
+    let func = info.methods.get(method)?.clone();
+    Some((info.env.clone(), func))
+}
 impl Method {
-    fn get_type(&self, helper: &MyHelper) -> Result<(Principal, TypeEnv, Function)> {
+    fn get_info(&self, helper: &MyHelper) -> Result<(Principal, Option<(TypeEnv, Function)>)> {
         let canister_id = str_to_principal(&self.canister, helper)?;
-        let agent = &helper.agent;
-        let mut map = helper.canister_map.borrow_mut();
-        let info = map.get(agent, &canister_id)?;
-        let func = info
-            .methods
-            .get(&self.method)
-            .ok_or_else(|| anyhow!("no method {}", self.method))?
-            .clone();
-        // TODO remove clone
-        Ok((canister_id, info.env.clone(), func))
+        let func = get_type(canister_id, &self.method, helper);
+        if func.is_none() {
+            eprintln!(
+                "Warning: cannot get type for {}.{}, use types infered from textual value",
+                self.canister, self.method
+            );
+        }
+        Ok((canister_id, func))
     }
 }
 
@@ -306,11 +318,14 @@ async fn call(
     canister_id: &Principal,
     method: &str,
     args: &[u8],
-    env: &TypeEnv,
-    func: &Function,
+    opt_func: &Option<(TypeEnv, Function)>,
 ) -> anyhow::Result<IDLArgs> {
     let effective_id = get_effective_canister_id(*canister_id, method, args)?;
-    let bytes = if func.is_query() {
+    let is_query = opt_func
+        .as_ref()
+        .map(|(_, f)| f.is_query())
+        .unwrap_or(false);
+    let bytes = if is_query {
         agent
             .query(canister_id, method)
             .with_arg(args)
@@ -329,7 +344,12 @@ async fn call(
             .call_and_wait(waiter)
             .await?
     };
-    Ok(IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?)
+    let res = if let Some((env, func)) = opt_func {
+        IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?
+    } else {
+        IDLArgs::from_bytes(&bytes)?
+    };
+    Ok(res)
 }
 
 fn get_effective_canister_id(
