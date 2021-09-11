@@ -154,6 +154,7 @@ impl Exp {
                             &method.method,
                             &bytes,
                             &opt_func,
+                            helper.offline,
                         )?;
                         args_to_value(res)
                     }
@@ -161,7 +162,11 @@ impl Exp {
                         let method = method.unwrap();
                         let canister_id = str_to_principal(&method.canister, helper)?;
                         let proxy_id = str_to_principal(&id, helper)?;
-                        let mut env = MyHelper::new(helper.agent.clone(), helper.agent_url.clone());
+                        let mut env = MyHelper::new(
+                            helper.agent.clone(),
+                            helper.agent_url.clone(),
+                            helper.offline,
+                        );
                         env.canister_map.borrow_mut().0.insert(
                             proxy_id,
                             helper
@@ -312,6 +317,24 @@ impl Method {
     }
 }
 
+#[derive(serde::Serialize)]
+struct Ingress {
+    call_type: String,
+    request_id: Option<String>,
+    content: String,
+}
+#[derive(serde::Serialize)]
+struct RequestStatus {
+    canister_id: Principal,
+    request_id: String,
+    content: String,
+}
+#[derive(serde::Serialize)]
+struct IngressWithStatus {
+    ingress: Ingress,
+    request_status: RequestStatus,
+}
+
 #[tokio::main]
 async fn call(
     agent: &Agent,
@@ -319,6 +342,7 @@ async fn call(
     method: &str,
     args: &[u8],
     opt_func: &Option<(TypeEnv, Function)>,
+    offline: bool,
 ) -> anyhow::Result<IDLArgs> {
     let effective_id = get_effective_canister_id(*canister_id, method, args)?;
     let is_query = opt_func
@@ -326,23 +350,51 @@ async fn call(
         .map(|(_, f)| f.is_query())
         .unwrap_or(false);
     let bytes = if is_query {
-        agent
-            .query(canister_id, method)
+        let mut builder = agent.query(canister_id, method);
+        builder
             .with_arg(args)
-            .with_effective_canister_id(effective_id)
-            .call()
-            .await?
+            .with_effective_canister_id(effective_id);
+        if offline {
+            let signed = builder.sign()?;
+            let message = Ingress {
+                call_type: "query".to_owned(),
+                request_id: None,
+                content: hex::encode(signed.signed_query),
+            };
+            println!("{}", serde_json::to_string(&message)?);
+            return Ok(IDLArgs::new(&[]));
+        } else {
+            builder.call().await?
+        }
     } else {
-        let waiter = garcon::Delay::builder()
-            .exponential_backoff(std::time::Duration::from_secs(1), 1.1)
-            .timeout(std::time::Duration::from_secs(60 * 5))
-            .build();
-        agent
-            .update(canister_id, method)
+        let mut builder = agent.update(canister_id, method);
+        builder
             .with_arg(args)
-            .with_effective_canister_id(effective_id)
-            .call_and_wait(waiter)
-            .await?
+            .with_effective_canister_id(effective_id);
+        if offline {
+            let signed = builder.sign()?;
+            let status = agent.sign_request_status(effective_id, signed.request_id)?;
+            let message = IngressWithStatus {
+                ingress: Ingress {
+                    call_type: "update".to_owned(),
+                    request_id: Some(hex::encode(signed.request_id.as_slice())),
+                    content: hex::encode(signed.signed_update),
+                },
+                request_status: RequestStatus {
+                    canister_id: status.effective_canister_id,
+                    request_id: hex::encode(status.request_id.as_slice()),
+                    content: hex::encode(status.signed_request_status),
+                },
+            };
+            println!("{}", serde_json::to_string(&message)?);
+            return Ok(IDLArgs::new(&[]));
+        } else {
+            let waiter = garcon::Delay::builder()
+                .exponential_backoff(std::time::Duration::from_secs(1), 1.1)
+                .timeout(std::time::Duration::from_secs(60 * 5))
+                .build();
+            builder.call_and_wait(waiter).await?
+        }
     };
     let res = if let Some((env, func)) = opt_func {
         IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?

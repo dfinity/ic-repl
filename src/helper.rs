@@ -62,6 +62,7 @@ pub struct MyHelper {
     validator: MatchingBracketValidator,
     hinter: HistoryHinter,
     pub colored_prompt: String,
+    pub offline: bool,
     pub canister_map: RefCell<CanisterMap>,
     pub identity_map: IdentityMap,
     pub current_identity: String,
@@ -74,7 +75,7 @@ pub struct MyHelper {
 }
 
 impl MyHelper {
-    pub fn new(agent: Agent, agent_url: String) -> Self {
+    pub fn new(agent: Agent, agent_url: String, offline: bool) -> Self {
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
@@ -90,6 +91,7 @@ impl MyHelper {
             history: Vec::new(),
             agent,
             agent_url,
+            offline,
         };
         res.fetch_root_key_if_needed().unwrap();
         res.load_prelude().unwrap();
@@ -130,7 +132,7 @@ impl MyHelper {
         Ok(())
     }
     pub fn fetch_root_key_if_needed(&mut self) -> anyhow::Result<()> {
-        if self.agent_url != "https://ic0.app" {
+        if !self.offline && self.agent_url != "https://ic0.app" {
             let runtime = Runtime::new().expect("Unable to create a runtime");
             runtime.block_on(self.agent.fetch_root_key())?;
         };

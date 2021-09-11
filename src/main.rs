@@ -25,7 +25,10 @@ where
 }
 
 fn repl(opts: Opts) -> anyhow::Result<()> {
-    let replica = opts.replica.unwrap_or_else(|| "local".to_string());
+    let mut replica = opts.replica.unwrap_or_else(|| "local".to_string());
+    if opts.offline {
+        replica = "ic".to_string();
+    }
     let url = match replica.as_str() {
         "local" => "http://localhost:8000/",
         "ic" => "https://ic0.app",
@@ -43,7 +46,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .build();
-    let h = MyHelper::new(agent, url.to_string());
+    let h = MyHelper::new(agent, url.to_string(), opts.offline);
     let mut rl = rustyline::Editor::with_config(config);
     rl.set_helper(Some(h));
     if rl.load_history("./.history").is_err() {
@@ -92,6 +95,8 @@ use structopt::StructOpt;
 struct Opts {
     #[structopt(short, long)]
     replica: Option<String>,
+    #[structopt(short, long)]
+    offline: bool,
     #[structopt(short, long)]
     config: Option<String>,
     script: Option<String>,
