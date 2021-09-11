@@ -336,8 +336,14 @@ struct IngressWithStatus {
 }
 
 fn qrcode_gen(json: String) -> anyhow::Result<String> {
+    use libflate::gzip;
     use qrcode::{render::unicode, QrCode};
-    let code = QrCode::new(&json)?;
+    use std::io::Write;
+    let mut encoder = gzip::Encoder::new(Vec::new())?;
+    encoder.write_all(json.as_bytes())?;
+    let zipped = encoder.finish().into_result()?;
+    let base64 = base64::encode(&zipped);
+    let code = QrCode::new(&base64)?;
     let img = code.render::<unicode::Dense1x2>().build();
     Ok(img)
 }
