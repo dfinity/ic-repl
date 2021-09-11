@@ -402,7 +402,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
             ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
         )
         .build()?;
-    let mut helper = MyHelper::new(agent, url);
+    let mut helper = MyHelper::new(agent, url, false);
     helper.env.0.insert(
         "a".to_string(),
         "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
