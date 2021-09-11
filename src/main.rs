@@ -95,7 +95,7 @@ use structopt::StructOpt;
 struct Opts {
     #[structopt(short, long)]
     replica: Option<String>,
-    #[structopt(short, long)]
+    #[structopt(short, long, conflicts_with("replica"))]
     offline: bool,
     #[structopt(short, long)]
     config: Option<String>,

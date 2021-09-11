@@ -335,6 +335,13 @@ struct IngressWithStatus {
     request_status: RequestStatus,
 }
 
+fn qrcode_gen(json: String) -> anyhow::Result<String> {
+    use qrcode::{render::unicode, QrCode};
+    let code = QrCode::new(&json)?;
+    let img = code.render::<unicode::Dense1x2>().build();
+    Ok(img)
+}
+
 #[tokio::main]
 async fn call(
     agent: &Agent,
@@ -361,7 +368,8 @@ async fn call(
                 request_id: None,
                 content: hex::encode(signed.signed_query),
             };
-            println!("{}", serde_json::to_string(&message)?);
+            let image = qrcode_gen(serde_json::to_string(&message)?)?;
+            println!("{}", image);
             return Ok(IDLArgs::new(&[]));
         } else {
             builder.call().await?
@@ -386,7 +394,8 @@ async fn call(
                     content: hex::encode(status.signed_request_status),
                 },
             };
-            println!("{}", serde_json::to_string(&message)?);
+            let image = qrcode_gen(serde_json::to_string(&message)?)?;
+            println!("{}", image);
             return Ok(IDLArgs::new(&[]));
         } else {
             let waiter = garcon::Delay::builder()
