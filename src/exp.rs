@@ -114,7 +114,7 @@ impl Exp {
                         {
                             let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
                             let subaccount =
-                                get_neuron_subaccount(&principal, nonce.parse::<u64>()?);
+                                get_neuron_subaccount(principal, nonce.parse::<u64>()?);
                             let account = AccountIdentifier::new(nns, Some(subaccount));
                             IDLValue::Text(account.to_hex())
                         } else {

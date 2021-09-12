@@ -3,6 +3,7 @@
 // The contents are borrowed from:
 // dfinity-lab/dfinity@25999dd54d29c24edb31483801bddfd8c1d780c8
 // https://github.com/dfinity-lab/dfinity/blob/master/rs/rosetta-api/canister/src/account_identifier.rs
+#![allow(clippy::all)]
 
 use candid::{CandidType, Principal};
 use openssl::sha::Sha224;
