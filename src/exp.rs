@@ -100,15 +100,27 @@ impl Exp {
             },
             Exp::Apply(func, exps) => {
                 use crate::account_identifier::*;
-                if exps.len() != 2 {
-                    return Err(anyhow!("Expects two arguments"));
-                }
+
                 let mut args = Vec::new();
                 for e in exps.into_iter() {
                     args.push(e.eval(helper)?);
                 }
                 match func.as_str() {
                     "account" => {
+                        if args.len() != 1 {
+                            return Err(anyhow!("Expects one argument"));
+                        }
+                        if let IDLValue::Principal(principal) = args[0] {
+                            let account = AccountIdentifier::new(principal, None);
+                            IDLValue::Text(account.to_hex())
+                        } else {
+                            return Err(anyhow!("Wrong argument type"));
+                        }
+                    }
+                    "neuron_account" => {
+                        if args.len() != 2 {
+                            return Err(anyhow!("Expects two arguments"));
+                        }
                         if let (IDLValue::Principal(principal), IDLValue::Number(nonce)) =
                             (&args[0], &args[1])
                         {
