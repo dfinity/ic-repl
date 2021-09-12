@@ -9,7 +9,7 @@ use candid::{
     types::{Function, Label, Type},
     Decode, Encode, IDLArgs, IDLProg, Principal, TypeEnv,
 };
-use ic_agent::Agent;
+use ic_agent::{Agent, Identity};
 use rustyline::completion::{extract_word, Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
@@ -25,7 +25,7 @@ use tokio::runtime::Runtime;
 #[derive(Default)]
 pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 #[derive(Default)]
-pub struct IdentityMap(pub BTreeMap<String, Vec<u8>>);
+pub struct IdentityMap(pub BTreeMap<String, std::sync::Arc<dyn Identity>>);
 #[derive(Default)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
 #[derive(Clone)]

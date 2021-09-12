@@ -850,8 +850,7 @@ dependencies = [
 [[package]]
 name = "ic-agent"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30624e3a380dbec4304199790e2b90360b434ab29f9bdf854f558ede57eb05a3"
+source = "git+https://github.com/dfinity/agent-rs.git?branch=main#f7de7670aa3870023fa45d5b5cee719b6eb7a012"
 dependencies = [
  "async-trait",
  "base32",
