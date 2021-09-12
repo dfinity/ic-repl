@@ -18,7 +18,7 @@ codespan-reporting = "0.11"
 pretty = "0.10.0"
 pem = "0.8"
 shellexpand = "2.1"
-ic-agent = "0.7.0"
+ic-agent = "0.8.0"
 tokio = { version = "1.6.0", features = ["full"] }
 garcon = "0.2.3"
 anyhow = "1.0"
@@ -30,7 +30,12 @@ structopt = "0.3.16"
 ring = "0.16"
 serde = "1.0"
 serde_json = "1.0"
-hex = "0.4"
+hex = { version = "0.4", features = ["serde"] }
+openssl = "0.10"
+crc32fast = "1.2"
 qrcode = { version = "0.12", default-features = false }
 libflate = "1.1"
 base64 = "0.13"
+
+[features]
+static-ssl = ["openssl/vendored"]

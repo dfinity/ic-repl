@@ -3,6 +3,7 @@ use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
 
+mod account_identifier;
 mod command;
 mod error;
 mod exp;

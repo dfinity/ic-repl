@@ -23,6 +23,7 @@ pub enum Exp {
         method: Option<Method>,
         blob: Box<Exp>,
     },
+    Apply(String, Vec<Exp>),
     Fail(Box<Exp>),
     // from IDLValue without the infered types + Nat8
     Bool(bool),
@@ -95,8 +96,34 @@ impl Exp {
             }
             Exp::Fail(v) => match v.eval(helper) {
                 Err(e) => IDLValue::Text(e.to_string()),
-                Ok(_) => return Err(anyhow!("Expect an error state")),
+                Ok(_) => return Err(anyhow!("Expects an error state")),
             },
+            Exp::Apply(func, exps) => {
+                use crate::account_identifier::*;
+                if exps.len() != 2 {
+                    return Err(anyhow!("Expects two arguments"));
+                }
+                let mut args = Vec::new();
+                for e in exps.into_iter() {
+                    args.push(e.eval(helper)?);
+                }
+                match func.as_str() {
+                    "account" => {
+                        if let (IDLValue::Principal(principal), IDLValue::Number(nonce)) =
+                            (&args[0], &args[1])
+                        {
+                            let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
+                            let subaccount =
+                                get_neuron_subaccount(&principal, nonce.parse::<u64>()?);
+                            let account = AccountIdentifier::new(nns, Some(subaccount));
+                            IDLValue::Text(account.to_hex())
+                        } else {
+                            return Err(anyhow!("Wrong argument type"));
+                        }
+                    }
+                    _ => return Err(anyhow!("Unknown function {}", func)),
+                }
+            }
             Exp::Decode { method, blob } => {
                 let blob = blob.eval(helper)?;
                 if blob.value_ty() != Type::Vec(Box::new(Type::Nat8)) {

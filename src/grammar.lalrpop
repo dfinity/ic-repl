@@ -88,6 +88,7 @@ pub Exp: Exp = {
   "call" "as" <proxy:Name> <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Proxy(proxy)},  
   "encode" <method:Method?> <args:Exps> => Exp::Call{method, args, mode: CallMode::Encode},
   "decode" <method:("as" <Method>)?> <blob:Exp> => Exp::Decode{method, blob:Box::new(blob)},
+  <func:"id"> "(" <args:SepBy<Exp, ",">> ")" => Exp::Apply(func, args),
 }
 Variable: Exp = <v:"id"> <path:(<Selector>)*> => Exp::Path(v, path);
 Selector: Selector = {
