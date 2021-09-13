@@ -121,17 +121,19 @@ impl Exp {
                         if args.len() != 2 {
                             return Err(anyhow!("Expects two arguments"));
                         }
-                        if let (IDLValue::Principal(principal), IDLValue::Number(nonce)) =
-                            (&args[0], &args[1])
-                        {
-                            let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
-                            let subaccount =
-                                get_neuron_subaccount(principal, nonce.parse::<u64>()?);
-                            let account = AccountIdentifier::new(nns, Some(subaccount));
-                            IDLValue::Text(account.to_hex())
-                        } else {
-                            return Err(anyhow!("Wrong argument type"));
-                        }
+                        let (principal, nonce) = match (&args[0], &args[1]) {
+                            (IDLValue::Principal(principal), IDLValue::Number(nonce)) => {
+                                (principal, nonce.parse::<u64>()?)
+                            }
+                            (IDLValue::Principal(principal), IDLValue::Nat64(nonce)) => {
+                                (principal, *nonce)
+                            }
+                            (_, _) => return Err(anyhow!("Wrong argument type")),
+                        };
+                        let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
+                        let subaccount = get_neuron_subaccount(principal, nonce);
+                        let account = AccountIdentifier::new(nns, Some(subaccount));
+                        IDLValue::Text(account.to_hex())
                     }
                     _ => return Err(anyhow!("Unknown function {}", func)),
                 }
@@ -378,13 +380,26 @@ fn qrcode_gen(json: String) -> anyhow::Result<String> {
     use libflate::gzip;
     use qrcode::{render::unicode, QrCode};
     use std::io::Write;
+    eprintln!("json length: {}", json.len());
+    eprintln!("{}", json);
     let mut encoder = gzip::Encoder::new(Vec::new())?;
     encoder.write_all(json.as_bytes())?;
     let zipped = encoder.finish().into_result()?;
-    let base64 = base64::encode(&zipped);
-    let code = QrCode::new(&base64)?;
+    let base64 = base64::encode_config(&zipped, base64::URL_SAFE_NO_PAD);
+    eprintln!("base64 length: {}", base64.len());
+    let url = "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string() + &base64;
+    let code = QrCode::new(&url)?;
     let img = code.render::<unicode::Dense1x2>().build();
     Ok(img)
+}
+fn pause() -> anyhow::Result<()> {
+    use std::io::{Read, Write};
+    let mut stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+    eprint!("Press [enter] to continue...");
+    stdout.flush()?;
+    let _ = stdin.read(&mut [0u8])?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -415,6 +430,7 @@ async fn call(
             };
             let image = qrcode_gen(serde_json::to_string(&message)?)?;
             println!("{}", image);
+            pause()?;
             return Ok(IDLArgs::new(&[]));
         } else {
             builder.call().await?
@@ -441,6 +457,7 @@ async fn call(
             };
             let image = qrcode_gen(serde_json::to_string(&message)?)?;
             println!("{}", image);
+            pause()?;
             return Ok(IDLArgs::new(&[]));
         } else {
             let waiter = garcon::Delay::builder()
