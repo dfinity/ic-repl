@@ -33,6 +33,12 @@ pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
 }
+#[derive(Clone)]
+pub enum OfflineOutput {
+    Json,
+    Ascii,
+    Png,
+}
 impl CanisterMap {
     pub fn get(&mut self, agent: &Agent, id: &Principal) -> anyhow::Result<&CanisterInfo> {
         if !self.0.contains_key(id) {
@@ -62,7 +68,7 @@ pub struct MyHelper {
     validator: MatchingBracketValidator,
     hinter: HistoryHinter,
     pub colored_prompt: String,
-    pub offline: bool,
+    pub offline: Option<OfflineOutput>,
     pub canister_map: RefCell<CanisterMap>,
     pub identity_map: IdentityMap,
     pub current_identity: String,
@@ -75,7 +81,7 @@ pub struct MyHelper {
 }
 
 impl MyHelper {
-    pub fn new(agent: Agent, agent_url: String, offline: bool) -> Self {
+    pub fn new(agent: Agent, agent_url: String, offline: Option<OfflineOutput>) -> Self {
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
@@ -132,7 +138,7 @@ impl MyHelper {
         Ok(())
     }
     pub fn fetch_root_key_if_needed(&mut self) -> anyhow::Result<()> {
-        if !self.offline && self.agent_url != "https://ic0.app" {
+        if self.offline.is_none() && self.agent_url != "https://ic0.app" {
             let runtime = Runtime::new().expect("Unable to create a runtime");
             runtime.block_on(self.agent.fetch_root_key())?;
         };
@@ -402,7 +408,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
             ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
         )
         .build()?;
-    let mut helper = MyHelper::new(agent, url, false);
+    let mut helper = MyHelper::new(agent, url, None);
     helper.env.0.insert(
         "a".to_string(),
         "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,

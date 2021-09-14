@@ -12,7 +12,7 @@ mod helper;
 mod token;
 use crate::command::Command;
 use crate::error::pretty_parse;
-use crate::helper::MyHelper;
+use crate::helper::{MyHelper, OfflineOutput};
 
 fn unwrap<T, E, F>(v: Result<T, E>, f: F)
 where
@@ -27,9 +27,17 @@ where
 
 fn repl(opts: Opts) -> anyhow::Result<()> {
     let mut replica = opts.replica.unwrap_or_else(|| "local".to_string());
-    if opts.offline {
+    let offline = if opts.offline {
         replica = "ic".to_string();
-    }
+        Some(match opts.format.as_ref().map(|x| x.as_str()) {
+            Some("json") => OfflineOutput::Json,
+            None | Some("ascii") => OfflineOutput::Ascii,
+            Some("png") => OfflineOutput::Png,
+            _ => unreachable!(),
+        })
+    } else {
+        None
+    };
     let url = match replica.as_str() {
         "local" => "http://localhost:8000/",
         "ic" => "https://ic0.app",
@@ -47,7 +55,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .build();
-    let h = MyHelper::new(agent, url.to_string(), opts.offline);
+    let h = MyHelper::new(agent, url.to_string(), offline);
     let mut rl = rustyline::Editor::with_config(config);
     rl.set_helper(Some(h));
     if rl.load_history("./.history").is_err() {
@@ -95,11 +103,18 @@ use structopt::StructOpt;
 #[structopt(global_settings = &[structopt::clap::AppSettings::ColoredHelp, structopt::clap::AppSettings::DeriveDisplayOrder])]
 struct Opts {
     #[structopt(short, long)]
+    /// Specifies replica URL, possible values: local, ic, URL
     replica: Option<String>,
     #[structopt(short, long, conflicts_with("replica"))]
+    /// Offline mode to be run in air-gap machines
     offline: bool,
+    #[structopt(short, long, requires("offline"), possible_values = &["ascii", "json", "png"])]
+    /// Offline output format
+    format: Option<String>,
     #[structopt(short, long)]
+    /// Specifies config file for Candid random value generation
     config: Option<String>,
+    /// ic-repl script file
     script: Option<String>,
 }
 

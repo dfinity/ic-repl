@@ -1,5 +1,5 @@
 use super::command::resolve_path;
-use super::helper::MyHelper;
+use super::helper::{MyHelper, OfflineOutput};
 use super::token::{ParserError, Tokenizer};
 use anyhow::{anyhow, Context, Result};
 use candid::{
@@ -195,7 +195,7 @@ impl Exp {
                             &method.method,
                             &bytes,
                             &opt_func,
-                            helper.offline,
+                            &helper.offline,
                         )?;
                         args_to_value(res)
                     }
@@ -206,7 +206,7 @@ impl Exp {
                         let mut env = MyHelper::new(
                             helper.agent.clone(),
                             helper.agent_url.clone(),
-                            helper.offline,
+                            helper.offline.clone(),
                         );
                         env.canister_map.borrow_mut().0.insert(
                             proxy_id,
@@ -375,23 +375,30 @@ struct IngressWithStatus {
     ingress: Ingress,
     request_status: RequestStatus,
 }
-
-fn qrcode_gen(json: String) -> anyhow::Result<String> {
-    use libflate::gzip;
-    use qrcode::{render::unicode, QrCode};
-    use std::io::Write;
-    eprintln!("json length: {}", json.len());
-    eprintln!("{}", json);
-    let mut encoder = gzip::Encoder::new(Vec::new())?;
-    encoder.write_all(json.as_bytes())?;
-    let zipped = encoder.finish().into_result()?;
-    let base64 = base64::encode_config(&zipped, base64::URL_SAFE_NO_PAD);
-    eprintln!("base64 length: {}", base64.len());
-    let url = "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string() + &base64;
-    let code = QrCode::new(&url)?;
-    let img = code.render::<unicode::Dense1x2>().build();
-    Ok(img)
+fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()> {
+    match format {
+        OfflineOutput::Json => println!("{}", json),
+        OfflineOutput::Ascii | OfflineOutput::Png => {
+            use libflate::gzip;
+            use qrcode::{render::unicode, QrCode};
+            use std::io::Write;
+            eprintln!("json length: {}", json.len());
+            eprintln!("{}", json);
+            let mut encoder = gzip::Encoder::new(Vec::new())?;
+            encoder.write_all(json.as_bytes())?;
+            let zipped = encoder.finish().into_result()?;
+            let base64 = base64::encode_config(&zipped, base64::URL_SAFE_NO_PAD);
+            eprintln!("base64 length: {}", base64.len());
+            let url = "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string() + &base64;
+            let code = QrCode::new(&url)?;
+            let img = code.render::<unicode::Dense1x2>().build();
+            println!("{}", img);
+            pause()?;
+        }
+    };
+    Ok(())
 }
+
 fn pause() -> anyhow::Result<()> {
     use std::io::{Read, Write};
     let mut stdin = std::io::stdin();
@@ -409,7 +416,7 @@ async fn call(
     method: &str,
     args: &[u8],
     opt_func: &Option<(TypeEnv, Function)>,
-    offline: bool,
+    offline: &Option<OfflineOutput>,
 ) -> anyhow::Result<IDLArgs> {
     let effective_id = get_effective_canister_id(*canister_id, method, args)?;
     let is_query = opt_func
@@ -421,16 +428,14 @@ async fn call(
         builder
             .with_arg(args)
             .with_effective_canister_id(effective_id);
-        if offline {
+        if let Some(offline) = offline {
             let signed = builder.sign()?;
             let message = Ingress {
                 call_type: "query".to_owned(),
                 request_id: None,
                 content: hex::encode(signed.signed_query),
             };
-            let image = qrcode_gen(serde_json::to_string(&message)?)?;
-            println!("{}", image);
-            pause()?;
+            output_message(serde_json::to_string(&message)?, &offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {
             builder.call().await?
@@ -440,7 +445,7 @@ async fn call(
         builder
             .with_arg(args)
             .with_effective_canister_id(effective_id);
-        if offline {
+        if let Some(offline) = offline {
             let signed = builder.sign()?;
             let status = agent.sign_request_status(effective_id, signed.request_id)?;
             let message = IngressWithStatus {
@@ -455,9 +460,7 @@ async fn call(
                     content: hex::encode(status.signed_request_status),
                 },
             };
-            let image = qrcode_gen(serde_json::to_string(&message)?)?;
-            println!("{}", image);
-            pause()?;
+            output_message(serde_json::to_string(&message)?, &offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {
             let waiter = garcon::Delay::builder()
