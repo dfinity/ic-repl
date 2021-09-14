@@ -375,25 +375,48 @@ struct IngressWithStatus {
     ingress: Ingress,
     request_status: RequestStatus,
 }
+static mut PNG_COUNTER: u32 = 0;
 fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()> {
     match format {
         OfflineOutput::Json => println!("{}", json),
-        OfflineOutput::Ascii | OfflineOutput::Png => {
+        _ => {
             use libflate::gzip;
             use qrcode::{render::unicode, QrCode};
             use std::io::Write;
             eprintln!("json length: {}", json.len());
-            eprintln!("{}", json);
             let mut encoder = gzip::Encoder::new(Vec::new())?;
             encoder.write_all(json.as_bytes())?;
             let zipped = encoder.finish().into_result()?;
-            let base64 = base64::encode_config(&zipped, base64::URL_SAFE_NO_PAD);
+            let config = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
+                base64::STANDARD_NO_PAD
+            } else {
+                base64::URL_SAFE_NO_PAD
+            };
+            let base64 = base64::encode_config(&zipped, config);
             eprintln!("base64 length: {}", base64.len());
-            let url = "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string() + &base64;
-            let code = QrCode::new(&url)?;
-            let img = code.render::<unicode::Dense1x2>().build();
-            println!("{}", img);
-            pause()?;
+            let msg = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
+                base64
+            } else {
+                "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string() + &base64
+            };
+            let code = QrCode::new(&msg)?;
+            match format {
+                OfflineOutput::Ascii | OfflineOutput::AsciiNoUrl => {
+                    let img = code.render::<unicode::Dense1x2>().build();
+                    println!("{}", img);
+                    pause()?;
+                }
+                OfflineOutput::Png | OfflineOutput::PngNoUrl => {
+                    let img = code.render::<image::Luma<u8>>().build();
+                    let filename = unsafe {
+                        PNG_COUNTER += 1;
+                        format!("msg{}.png", PNG_COUNTER)
+                    };
+                    img.save(&filename)?;
+                    println!("QR code saved to {}", filename);
+                }
+                _ => unreachable!(),
+            }
         }
     };
     Ok(())
@@ -435,7 +458,7 @@ async fn call(
                 request_id: None,
                 content: hex::encode(signed.signed_query),
             };
-            output_message(serde_json::to_string(&message)?, &offline)?;
+            output_message(serde_json::to_string(&message)?, offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {
             builder.call().await?
@@ -460,7 +483,7 @@ async fn call(
                     content: hex::encode(status.signed_request_status),
                 },
             };
-            output_message(serde_json::to_string(&message)?, &offline)?;
+            output_message(serde_json::to_string(&message)?, offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {
             let waiter = garcon::Delay::builder()

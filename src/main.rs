@@ -29,10 +29,12 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     let mut replica = opts.replica.unwrap_or_else(|| "local".to_string());
     let offline = if opts.offline {
         replica = "ic".to_string();
-        Some(match opts.format.as_ref().map(|x| x.as_str()) {
+        Some(match opts.format.as_deref() {
             Some("json") => OfflineOutput::Json,
             None | Some("ascii") => OfflineOutput::Ascii,
             Some("png") => OfflineOutput::Png,
+            Some("png_no_url") => OfflineOutput::PngNoUrl,
+            Some("ascii_no_url") => OfflineOutput::AsciiNoUrl,
             _ => unreachable!(),
         })
     } else {
@@ -108,7 +110,7 @@ struct Opts {
     #[structopt(short, long, conflicts_with("replica"))]
     /// Offline mode to be run in air-gap machines
     offline: bool,
-    #[structopt(short, long, requires("offline"), possible_values = &["ascii", "json", "png"])]
+    #[structopt(short, long, requires("offline"), possible_values = &["ascii", "json", "png", "ascii_no_url", "png_no_url"])]
     /// Offline output format
     format: Option<String>,
     #[structopt(short, long)]

@@ -38,6 +38,8 @@ pub enum OfflineOutput {
     Json,
     Ascii,
     Png,
+    PngNoUrl,
+    AsciiNoUrl,
 }
 impl CanisterMap {
     pub fn get(&mut self, agent: &Agent, id: &Principal) -> anyhow::Result<&CanisterInfo> {
