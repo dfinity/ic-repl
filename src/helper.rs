@@ -9,7 +9,7 @@ use candid::{
     types::{Function, Label, Type},
     Decode, Encode, IDLArgs, IDLProg, Principal, TypeEnv,
 };
-use ic_agent::Agent;
+use ic_agent::{Agent, Identity};
 use rustyline::completion::{extract_word, Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
@@ -25,13 +25,21 @@ use tokio::runtime::Runtime;
 #[derive(Default)]
 pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 #[derive(Default)]
-pub struct IdentityMap(pub BTreeMap<String, Vec<u8>>);
+pub struct IdentityMap(pub BTreeMap<String, std::sync::Arc<dyn Identity>>);
 #[derive(Default)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
 #[derive(Clone)]
 pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
+}
+#[derive(Clone)]
+pub enum OfflineOutput {
+    Json,
+    Ascii,
+    Png,
+    PngNoUrl,
+    AsciiNoUrl,
 }
 impl CanisterMap {
     pub fn get(&mut self, agent: &Agent, id: &Principal) -> anyhow::Result<&CanisterInfo> {
@@ -62,6 +70,7 @@ pub struct MyHelper {
     validator: MatchingBracketValidator,
     hinter: HistoryHinter,
     pub colored_prompt: String,
+    pub offline: Option<OfflineOutput>,
     pub canister_map: RefCell<CanisterMap>,
     pub identity_map: IdentityMap,
     pub current_identity: String,
@@ -74,7 +83,7 @@ pub struct MyHelper {
 }
 
 impl MyHelper {
-    pub fn new(agent: Agent, agent_url: String) -> Self {
+    pub fn new(agent: Agent, agent_url: String, offline: Option<OfflineOutput>) -> Self {
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
@@ -90,6 +99,7 @@ impl MyHelper {
             history: Vec::new(),
             agent,
             agent_url,
+            offline,
         };
         res.fetch_root_key_if_needed().unwrap();
         res.load_prelude().unwrap();
@@ -130,7 +140,7 @@ impl MyHelper {
         Ok(())
     }
     pub fn fetch_root_key_if_needed(&mut self) -> anyhow::Result<()> {
-        if self.agent_url != "https://ic0.app" {
+        if self.offline.is_none() && self.agent_url != "https://ic0.app" {
             let runtime = Runtime::new().expect("Unable to create a runtime");
             runtime.block_on(self.agent.fetch_root_key())?;
         };
@@ -400,7 +410,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
             ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
         )
         .build()?;
-    let mut helper = MyHelper::new(agent, url);
+    let mut helper = MyHelper::new(agent, url, None);
     helper.env.0.insert(
         "a".to_string(),
         "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,

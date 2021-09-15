@@ -7,6 +7,7 @@ use candid::{parser::configs::Configs, parser::value::IDLValue, Principal, TypeE
 use ic_agent::Agent;
 use pretty_assertions::{assert_eq, assert_ne};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Instant;
 use terminal_size::{terminal_size, Width};
 
@@ -87,32 +88,46 @@ impl Command {
                 println!("{:>width$}", format!("({:.2?})", duration), width = width);
             }
             Command::Identity(id, opt_pem) => {
-                use ic_agent::Identity;
+                use ic_agent::identity::{BasicIdentity, Secp256k1Identity};
                 use ring::signature::Ed25519KeyPair;
-                let keypair = if let Some(pem_path) = opt_pem {
-                    let path = resolve_path(&helper.base_path, &pem_path);
-                    let bytes =
-                        std::fs::read(&path).with_context(|| format!("Cannot read {:?}", path))?;
-                    pem::parse(&bytes)?.contents
-                } else if let Some(keypair) = helper.identity_map.0.get(&id) {
-                    keypair.to_vec()
-                } else {
+                if let Some(pem_path) = &opt_pem {
+                    let pem_path = resolve_path(&helper.base_path, pem_path);
+                    match Secp256k1Identity::from_pem_file(&pem_path) {
+                        Ok(identity) => {
+                            helper
+                                .identity_map
+                                .0
+                                .insert(id.to_string(), Arc::from(identity));
+                        }
+                        Err(_) => {
+                            let identity = BasicIdentity::from_pem_file(&pem_path)?;
+                            helper
+                                .identity_map
+                                .0
+                                .insert(id.to_string(), Arc::from(identity));
+                        }
+                    }
+                } else if helper.identity_map.0.get(&id).is_none() {
                     let rng = ring::rand::SystemRandom::new();
-                    Ed25519KeyPair::generate_pkcs8(&rng)?.as_ref().to_vec()
+                    let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)?.as_ref().to_vec();
+                    let keypair = Ed25519KeyPair::from_pkcs8(&pkcs8_bytes)?;
+                    let identity = BasicIdentity::from_key_pair(keypair);
+                    helper
+                        .identity_map
+                        .0
+                        .insert(id.to_string(), Arc::from(identity));
                 };
-                let identity = ic_agent::identity::BasicIdentity::from_key_pair(
-                    Ed25519KeyPair::from_pkcs8(&keypair)?,
-                );
-                helper.identity_map.0.insert(id.to_string(), keypair);
+                let identity = helper.identity_map.0.get(&id).unwrap();
                 let sender = identity.sender().map_err(|e| anyhow!("{}", e))?;
                 println!("Current identity {}", sender);
+
                 let agent = Agent::builder()
                     .with_transport(
                         ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(
                             &helper.agent_url,
                         )?,
                     )
-                    .with_identity(identity)
+                    .with_arc_identity(identity.clone())
                     .build()?;
                 helper.agent = agent;
                 helper.fetch_root_key_if_needed()?;

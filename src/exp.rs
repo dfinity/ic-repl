@@ -1,5 +1,5 @@
 use super::command::resolve_path;
-use super::helper::MyHelper;
+use super::helper::{MyHelper, OfflineOutput};
 use super::token::{ParserError, Tokenizer};
 use anyhow::{anyhow, Context, Result};
 use candid::{
@@ -23,6 +23,7 @@ pub enum Exp {
         method: Option<Method>,
         blob: Box<Exp>,
     },
+    Apply(String, Vec<Exp>),
     Fail(Box<Exp>),
     // from IDLValue without the infered types + Nat8
     Bool(bool),
@@ -95,8 +96,48 @@ impl Exp {
             }
             Exp::Fail(v) => match v.eval(helper) {
                 Err(e) => IDLValue::Text(e.to_string()),
-                Ok(_) => return Err(anyhow!("Expect an error state")),
+                Ok(_) => return Err(anyhow!("Expects an error state")),
             },
+            Exp::Apply(func, exps) => {
+                use crate::account_identifier::*;
+
+                let mut args = Vec::new();
+                for e in exps.into_iter() {
+                    args.push(e.eval(helper)?);
+                }
+                match func.as_str() {
+                    "account" => {
+                        if args.len() != 1 {
+                            return Err(anyhow!("Expects one argument"));
+                        }
+                        if let IDLValue::Principal(principal) = args[0] {
+                            let account = AccountIdentifier::new(principal, None);
+                            IDLValue::Text(account.to_hex())
+                        } else {
+                            return Err(anyhow!("Wrong argument type"));
+                        }
+                    }
+                    "neuron_account" => {
+                        if args.len() != 2 {
+                            return Err(anyhow!("Expects two arguments"));
+                        }
+                        let (principal, nonce) = match (&args[0], &args[1]) {
+                            (IDLValue::Principal(principal), IDLValue::Number(nonce)) => {
+                                (principal, nonce.parse::<u64>()?)
+                            }
+                            (IDLValue::Principal(principal), IDLValue::Nat64(nonce)) => {
+                                (principal, *nonce)
+                            }
+                            (_, _) => return Err(anyhow!("Wrong argument type")),
+                        };
+                        let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
+                        let subaccount = get_neuron_subaccount(principal, nonce);
+                        let account = AccountIdentifier::new(nns, Some(subaccount));
+                        IDLValue::Text(account.to_hex())
+                    }
+                    _ => return Err(anyhow!("Unknown function {}", func)),
+                }
+            }
             Exp::Decode { method, blob } => {
                 let blob = blob.eval(helper)?;
                 if blob.value_ty() != Type::Vec(Box::new(Type::Nat8)) {
@@ -154,6 +195,7 @@ impl Exp {
                             &method.method,
                             &bytes,
                             &opt_func,
+                            &helper.offline,
                         )?;
                         args_to_value(res)
                     }
@@ -161,7 +203,11 @@ impl Exp {
                         let method = method.unwrap();
                         let canister_id = str_to_principal(&method.canister, helper)?;
                         let proxy_id = str_to_principal(&id, helper)?;
-                        let mut env = MyHelper::new(helper.agent.clone(), helper.agent_url.clone());
+                        let mut env = MyHelper::new(
+                            helper.agent.clone(),
+                            helper.agent_url.clone(),
+                            helper.offline.clone(),
+                        );
                         env.canister_map.borrow_mut().0.insert(
                             proxy_id,
                             helper
@@ -312,6 +358,80 @@ impl Method {
     }
 }
 
+#[derive(serde::Serialize)]
+struct Ingress {
+    call_type: String,
+    request_id: Option<String>,
+    content: String,
+}
+#[derive(serde::Serialize)]
+struct RequestStatus {
+    canister_id: Principal,
+    request_id: String,
+    content: String,
+}
+#[derive(serde::Serialize)]
+struct IngressWithStatus {
+    ingress: Ingress,
+    request_status: RequestStatus,
+}
+static mut PNG_COUNTER: u32 = 0;
+fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()> {
+    match format {
+        OfflineOutput::Json => println!("{}", json),
+        _ => {
+            use libflate::gzip;
+            use qrcode::{render::unicode, QrCode};
+            use std::io::Write;
+            eprintln!("json length: {}", json.len());
+            let mut encoder = gzip::Encoder::new(Vec::new())?;
+            encoder.write_all(json.as_bytes())?;
+            let zipped = encoder.finish().into_result()?;
+            let config = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
+                base64::STANDARD_NO_PAD
+            } else {
+                base64::URL_SAFE_NO_PAD
+            };
+            let base64 = base64::encode_config(&zipped, config);
+            eprintln!("base64 length: {}", base64.len());
+            let msg = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
+                base64
+            } else {
+                "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string() + &base64
+            };
+            let code = QrCode::new(&msg)?;
+            match format {
+                OfflineOutput::Ascii | OfflineOutput::AsciiNoUrl => {
+                    let img = code.render::<unicode::Dense1x2>().build();
+                    println!("{}", img);
+                    pause()?;
+                }
+                OfflineOutput::Png | OfflineOutput::PngNoUrl => {
+                    let img = code.render::<image::Luma<u8>>().build();
+                    let filename = unsafe {
+                        PNG_COUNTER += 1;
+                        format!("msg{}.png", PNG_COUNTER)
+                    };
+                    img.save(&filename)?;
+                    println!("QR code saved to {}", filename);
+                }
+                _ => unreachable!(),
+            }
+        }
+    };
+    Ok(())
+}
+
+fn pause() -> anyhow::Result<()> {
+    use std::io::{Read, Write};
+    let mut stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+    eprint!("Press [enter] to continue...");
+    stdout.flush()?;
+    let _ = stdin.read(&mut [0u8])?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn call(
     agent: &Agent,
@@ -319,6 +439,7 @@ async fn call(
     method: &str,
     args: &[u8],
     opt_func: &Option<(TypeEnv, Function)>,
+    offline: &Option<OfflineOutput>,
 ) -> anyhow::Result<IDLArgs> {
     let effective_id = get_effective_canister_id(*canister_id, method, args)?;
     let is_query = opt_func
@@ -326,23 +447,51 @@ async fn call(
         .map(|(_, f)| f.is_query())
         .unwrap_or(false);
     let bytes = if is_query {
-        agent
-            .query(canister_id, method)
+        let mut builder = agent.query(canister_id, method);
+        builder
             .with_arg(args)
-            .with_effective_canister_id(effective_id)
-            .call()
-            .await?
+            .with_effective_canister_id(effective_id);
+        if let Some(offline) = offline {
+            let signed = builder.sign()?;
+            let message = Ingress {
+                call_type: "query".to_owned(),
+                request_id: None,
+                content: hex::encode(signed.signed_query),
+            };
+            output_message(serde_json::to_string(&message)?, offline)?;
+            return Ok(IDLArgs::new(&[]));
+        } else {
+            builder.call().await?
+        }
     } else {
-        let waiter = garcon::Delay::builder()
-            .exponential_backoff(std::time::Duration::from_secs(1), 1.1)
-            .timeout(std::time::Duration::from_secs(60 * 5))
-            .build();
-        agent
-            .update(canister_id, method)
+        let mut builder = agent.update(canister_id, method);
+        builder
             .with_arg(args)
-            .with_effective_canister_id(effective_id)
-            .call_and_wait(waiter)
-            .await?
+            .with_effective_canister_id(effective_id);
+        if let Some(offline) = offline {
+            let signed = builder.sign()?;
+            let status = agent.sign_request_status(effective_id, signed.request_id)?;
+            let message = IngressWithStatus {
+                ingress: Ingress {
+                    call_type: "update".to_owned(),
+                    request_id: Some(hex::encode(signed.request_id.as_slice())),
+                    content: hex::encode(signed.signed_update),
+                },
+                request_status: RequestStatus {
+                    canister_id: status.effective_canister_id,
+                    request_id: hex::encode(status.request_id.as_slice()),
+                    content: hex::encode(status.signed_request_status),
+                },
+            };
+            output_message(serde_json::to_string(&message)?, offline)?;
+            return Ok(IDLArgs::new(&[]));
+        } else {
+            let waiter = garcon::Delay::builder()
+                .exponential_backoff(std::time::Duration::from_secs(1), 1.1)
+                .timeout(std::time::Duration::from_secs(60 * 5))
+                .build();
+            builder.call_and_wait(waiter).await?
+        }
     };
     let res = if let Some((env, func)) = opt_func {
         IDLArgs::from_bytes_with_types(&bytes, env, &func.rets)?
