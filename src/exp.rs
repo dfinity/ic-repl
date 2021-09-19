@@ -394,19 +394,18 @@ fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()> {
             };
             let base64 = base64::encode_config(&zipped, config);
             eprintln!("base64 length: {}", base64.len());
-            let msg = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
-                base64
-            } else {
-                "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string() + &base64
+            let msg = match format {
+                OfflineOutput::Ascii(url) | OfflineOutput::Png(url) => url.to_owned() + &base64,
+                _ => base64,
             };
             let code = QrCode::new(&msg)?;
             match format {
-                OfflineOutput::Ascii | OfflineOutput::AsciiNoUrl => {
+                OfflineOutput::Ascii(_) | OfflineOutput::AsciiNoUrl => {
                     let img = code.render::<unicode::Dense1x2>().build();
                     println!("{}", img);
                     pause()?;
                 }
-                OfflineOutput::Png | OfflineOutput::PngNoUrl => {
+                OfflineOutput::Png(_) | OfflineOutput::PngNoUrl => {
                     let img = code.render::<image::Luma<u8>>().build();
                     let filename = unsafe {
                         PNG_COUNTER += 1;

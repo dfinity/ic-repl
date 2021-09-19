@@ -36,8 +36,8 @@ pub struct CanisterInfo {
 #[derive(Clone)]
 pub enum OfflineOutput {
     Json,
-    Ascii,
-    Png,
+    Ascii(String),
+    Png(String),
     PngNoUrl,
     AsciiNoUrl,
 }

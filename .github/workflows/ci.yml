@@ -26,14 +26,12 @@ jobs:
         path: |
           ~/.cabal/store
         key: cabal-${{ runner.os }}-${{ env.ghc }}-${{ env.spec }}-${{ hashFiles('ic-hs/cabal.project', 'ic-hs/cabal.project.freeze') }}
-    - uses: actions/setup-haskell@v1.1.4
+    - uses: haskell/actions/setup@v1
       with:
         ghc-version: ${{ env.ghc }}
         cabal-version: '3.2'
     - name: Build ic-ref
       run: |
-        ls -l /opt/ghc/
-        export PATH=/opt/ghc/bin:$PATH
         cabal --version
         mkdir -p $HOME/bin
         cd ic-hs/

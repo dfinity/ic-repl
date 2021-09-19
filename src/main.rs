@@ -29,10 +29,13 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     let mut replica = opts.replica.unwrap_or_else(|| "local".to_string());
     let offline = if opts.offline {
         replica = "ic".to_string();
+        let send_url = opts
+            .url
+            .unwrap_or_else(|| "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string());
         Some(match opts.format.as_deref() {
             Some("json") => OfflineOutput::Json,
-            None | Some("ascii") => OfflineOutput::Ascii,
-            Some("png") => OfflineOutput::Png,
+            None | Some("ascii") => OfflineOutput::Ascii(send_url),
+            Some("png") => OfflineOutput::Png(send_url),
             Some("png_no_url") => OfflineOutput::PngNoUrl,
             Some("ascii_no_url") => OfflineOutput::AsciiNoUrl,
             _ => unreachable!(),
@@ -113,6 +116,9 @@ struct Opts {
     #[structopt(short, long, requires("offline"), possible_values = &["ascii", "json", "png", "ascii_no_url", "png_no_url"])]
     /// Offline output format
     format: Option<String>,
+    #[structopt(short, long, requires("offline"))]
+    /// Offline URL embeded in the QR code, only used in ascii or png format. Default value: "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg="
+    url: Option<String>,
     #[structopt(short, long)]
     /// Specifies config file for Candid random value generation
     config: Option<String>,
