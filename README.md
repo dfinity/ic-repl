@@ -24,6 +24,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
  | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value
  | decode (as <name> . <name>)? <exp>              // decode blob as candid values
+ | <func> ( <exp>,* )                              // call built-in function
 <var> := 
  | <id>                  // variable name 
  | _                     // previous eval of exp is bind to `_` 
@@ -35,6 +36,9 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | ==                    // structural equality
  | ~=                    // equal under candid subtyping; for text value, we check if the right side is contained in the left side
  | !=                    // not equal
+<func> :=
+ | account               // convert principal to account id
+ | neuron_account        // convert (principal, nonce) to account in the governance canister
 ```
 
 ## Example
