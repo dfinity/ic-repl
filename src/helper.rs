@@ -26,8 +26,10 @@ use tokio::runtime::Runtime;
 pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 #[derive(Default)]
 pub struct IdentityMap(pub BTreeMap<String, std::sync::Arc<dyn Identity>>);
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
+#[derive(Default)]
+pub struct FuncEnv(pub BTreeMap<String, (Vec<String>, Vec<crate::command::Command>)>);
 #[derive(Clone)]
 pub struct CanisterInfo {
     pub env: TypeEnv,
@@ -78,6 +80,7 @@ pub struct MyHelper {
     pub agent: Agent,
     pub config: Configs,
     pub env: Env,
+    pub func_env: FuncEnv,
     pub base_path: std::path::PathBuf,
     pub history: Vec<String>,
 }
@@ -95,6 +98,7 @@ impl MyHelper {
             current_identity: "anon".to_owned(),
             config: Configs::from_dhall("{=}").unwrap(),
             env: Env::default(),
+            func_env: FuncEnv::default(),
             base_path: std::env::current_dir().unwrap(),
             history: Vec::new(),
             agent,

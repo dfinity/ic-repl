@@ -23,6 +23,11 @@ pub enum Command {
     Import(String, Principal, Option<String>),
     Load(String),
     Identity(String, Option<String>),
+    Func {
+        name: String,
+        args: Vec<String>,
+        body: Vec<Command>,
+    },
 }
 #[derive(Debug, Clone)]
 pub enum BinOp {
@@ -48,6 +53,9 @@ impl Command {
             Command::Let(id, val) => {
                 let v = val.eval(helper)?;
                 helper.env.0.insert(id, v);
+            }
+            Command::Func { name, args, body } => {
+                helper.func_env.0.insert(name, (args, body));
             }
             Command::Assert(op, left, right) => {
                 let left = left.eval(helper)?;

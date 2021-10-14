@@ -8,14 +8,15 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
 
 ```
 <command> := 
- | import <id> = <text> (as <text>)?     // bind canister URI to <id>, with optional did file
- | export <text>                         // export current environment variables
- | load <text>                           // load and run a script file
- | config <text>                         // set config for random value generator in dhall format
- | let <id> = <exp>                      // bind <exp> to a variable <id>
- | <exp>                                 // show the value of <exp>
- | assert <exp> <binop> <exp>            // assertion
- | identity <id> <text>?                 // switch to identity <id>, with optional Ed25519 pem file
+ | import <id> = <text> (as <text>)?         // bind canister URI to <id>, with optional did file
+ | export <text>                             // export current environment variables
+ | load <text>                               // load and run a script file
+ | config <text>                             // set config for random value generator in dhall format
+ | let <id> = <exp>                          // bind <exp> to a variable <id>
+ | <exp>                                     // show the value of <exp>
+ | assert <exp> <binop> <exp>                // assertion
+ | identity <id> <text>?                     // switch to identity <id>, with optional Ed25519 pem file
+ | function <id> ( <id>,* ) { <command>;* }  // define a function
 <exp> := 
  | <candid val>                                    // any candid value
  | <var> <selector>*                               // variable with optional selectors
