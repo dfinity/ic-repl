@@ -25,7 +25,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
  | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value
  | decode (as <name> . <name>)? <exp>              // decode blob as candid values
- | <func> ( <exp>,* )                              // call built-in function
+ | <id> ( <exp>,* )                                // function application
 <var> := 
  | <id>                  // variable name 
  | _                     // previous eval of exp is bind to `_` 
@@ -37,12 +37,9 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | ==                    // structural equality
  | ~=                    // equal under candid subtyping; for text value, we check if the right side is contained in the left side
  | !=                    // not equal
-<func> :=
- | account               // convert principal to account id
- | neuron_account        // convert (principal, nonce) to account in the governance canister
 ```
 
-## Example
+## Examples
 
 ### test.sh
 ```
@@ -62,22 +59,45 @@ assert _ == result;
 #!/usr/bin/ic-repl -r ic
 // nns and ledger canisters are auto-imported if connected to the mainnet
 call nns.get_pending_proposals()
-call ledger.account_balance_dfx(record { account = "..." })
+identity private "./private.pem";
+call ledger.account_balance_dfx(record { account = account(private) });
+function stake_neuron(amount, memo) {
+  call ledger.send_dfx(
+    record {
+      to = neuron_account(private, memo);
+      fee = record { e8s = 10_000 };
+      memo = memo;
+      from_subaccount = null;
+      created_at_time = null;
+      amount = record { e8s = amount };
+    },
+  );
+  call nns.claim_or_refresh_neuron_from_account(
+    record { controller = opt private; memo = memo }
+  );
+  _.result?.NeuronId
+};
+stake_neuron(100_000_000, 42);
 ```
 
 ### install.sh
 ```
 #!/usr/bin/ic-repl
+function deploy(wasm) {
+  let id = call ic.provisional_create_canister_with_cycles(record { settings = null; amount = null });
+  call ic.install_code(
+    record {
+      arg = encode ();
+      wasm_module = wasm;
+      mode = variant { install };
+      canister_id = id.canister_id;
+    },
+  );
+  id
+};
+
 identity alice;
-let id = call "aaaaa-aa".provisional_create_canister_with_cycles(record { settings = null; amount = null });
-call ic.install_code(
-  record {
-    arg = encode ();
-    wasm_module = file "greet.wasm";
-    mode = variant { install };
-    canister_id = id.canister_id;
-  },
-);
+let id = deploy(file "greet.wasm");
 let status = call ic.canister_status(id);
 assert status.settings ~= record { controllers = vec { alice } };
 assert status.module_hash? == blob "...";
@@ -112,6 +132,15 @@ call as wallet ic.install_code(
 );
 call id.greet("test");
 ```
+
+## Functions
+
+Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
+You cannot define recursive functions, as there is no control flow in the language.
+
+We also provide built-in functions for the ledger account:
+* account(principal): convert principal to account id.
+* neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
 
 ## Derived forms
 
