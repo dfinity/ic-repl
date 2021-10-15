@@ -146,15 +146,14 @@ impl Exp {
                                     args.len()
                                 ));
                             }
-                            let old_env = helper.env.clone();
+                            let mut helper = helper.spawn();
                             for (id, v) in formal_args.iter().zip(args.into_iter()) {
                                 helper.env.0.insert(id.to_string(), v);
                             }
                             for cmd in body.iter() {
-                                cmd.run(helper)?;
+                                cmd.clone().run(&mut helper)?;
                             }
                             let res = helper.env.0.get("_").unwrap_or(&IDLValue::Null).clone();
-                            helper.env = old_env;
                             res
                         }
                     },
