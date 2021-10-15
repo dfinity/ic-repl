@@ -22,12 +22,14 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use tokio::runtime::Runtime;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct IdentityMap(pub BTreeMap<String, std::sync::Arc<dyn Identity>>);
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
+#[derive(Default, Clone)]
+pub struct FuncEnv(pub BTreeMap<String, (Vec<String>, Vec<crate::command::Command>)>);
 #[derive(Clone)]
 pub struct CanisterInfo {
     pub env: TypeEnv,
@@ -78,11 +80,32 @@ pub struct MyHelper {
     pub agent: Agent,
     pub config: Configs,
     pub env: Env,
+    pub func_env: FuncEnv,
     pub base_path: std::path::PathBuf,
     pub history: Vec<String>,
 }
 
 impl MyHelper {
+    pub fn spawn(&self) -> Self {
+        MyHelper {
+            completer: FilenameCompleter::new(),
+            highlighter: MatchingBracketHighlighter::new(),
+            hinter: HistoryHinter {},
+            colored_prompt: "".to_owned(),
+            validator: MatchingBracketValidator::new(),
+            history: Vec::new(),
+            config: Configs::from_dhall("{=}").unwrap(),
+            canister_map: self.canister_map.clone(),
+            identity_map: self.identity_map.clone(),
+            current_identity: self.current_identity.clone(),
+            env: self.env.clone(),
+            func_env: self.func_env.clone(),
+            base_path: self.base_path.clone(),
+            agent: self.agent.clone(),
+            agent_url: self.agent_url.clone(),
+            offline: self.offline.clone(),
+        }
+    }
     pub fn new(agent: Agent, agent_url: String, offline: Option<OfflineOutput>) -> Self {
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
@@ -95,6 +118,7 @@ impl MyHelper {
             current_identity: "anon".to_owned(),
             config: Configs::from_dhall("{=}").unwrap(),
             env: Env::default(),
+            func_env: FuncEnv::default(),
             base_path: std::env::current_dir().unwrap(),
             history: Vec::new(),
             agent,

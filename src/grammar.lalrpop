@@ -42,6 +42,7 @@ extern {
         "fail" => Token::Fail,
         "file" => Token::File,
         "identity" => Token::Identity,
+        "function" => Token::Function,
         "sign" => Token::Sign(<char>),
         "=" => Token::Equals,
         "==" => Token::TestEqual,
@@ -77,6 +78,7 @@ pub Command: Command = {
          Ok(Command::Import(id, principal, did))
     },
     "identity" <id:"id"> <path:Text?> => Command::Identity(id, path),
+    "function" <name:"id"> "(" <args:SepBy<"id", ",">> ")" "{" <body:SepBy<Command, ";">> "}" => Command::Func {name,args,body},
 }
 
 pub Exp: Exp = {

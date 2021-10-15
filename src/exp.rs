@@ -135,7 +135,28 @@ impl Exp {
                         let account = AccountIdentifier::new(nns, Some(subaccount));
                         IDLValue::Text(account.to_hex())
                     }
-                    _ => return Err(anyhow!("Unknown function {}", func)),
+                    func => match helper.func_env.0.get(func) {
+                        None => return Err(anyhow!("Unknown function {}", func)),
+                        Some((formal_args, body)) => {
+                            if formal_args.len() != args.len() {
+                                return Err(anyhow!(
+                                    "{} expects {} arguments, but {} is provided",
+                                    func,
+                                    formal_args.len(),
+                                    args.len()
+                                ));
+                            }
+                            let mut helper = helper.spawn();
+                            for (id, v) in formal_args.iter().zip(args.into_iter()) {
+                                helper.env.0.insert(id.to_string(), v);
+                            }
+                            for cmd in body.iter() {
+                                cmd.clone().run(&mut helper)?;
+                            }
+                            let res = helper.env.0.get("_").unwrap_or(&IDLValue::Null).clone();
+                            res
+                        }
+                    },
                 }
             }
             Exp::Decode { method, blob } => {

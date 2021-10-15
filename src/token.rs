@@ -84,6 +84,8 @@ pub enum Token {
     Export,
     #[token("load")]
     Load,
+    #[token("function")]
+    Function,
     #[token("==")]
     TestEqual,
     #[token("~=")]

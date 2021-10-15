@@ -6,20 +6,23 @@ identity private "../private.pem";
 let amount = 100_000_000;  // 1 ICP
 let memo = 42;  // memo determines neuron id
 
-call ledger.send_dfx(
-  record {
-    to = neuron_account(private, memo);
-    fee = record { e8s = 10_000 };
-    memo = memo;
-    from_subaccount = null;
-    created_at_time = null;
-    amount = record { e8s = amount };
-  },
-);
+function stake(amount, memo) {
+  call ledger.send_dfx(
+    record {
+      to = neuron_account(private, memo);
+      fee = record { e8s = 10_000 };
+      memo = memo;
+      from_subaccount = null;
+      created_at_time = null;
+      amount = record { e8s = amount };
+    },
+  );
+  call nns.claim_or_refresh_neuron_from_account(
+    record { controller = opt private; memo = memo }
+  );
+};
 
-call nns.claim_or_refresh_neuron_from_account(
-  record { controller = opt private; memo = memo }
-);
+stake(amount, memo);
 
 let neuron_id = 3543344363;  // The neuron_id is the return of the previous method call
 
@@ -42,19 +45,21 @@ let add_hot_key = variant {
 let remove_hot_key = variant {
   RemoveHotKey = record { hot_key_to_remove = opt hot_key }
 };
+function config_neuron(neuron_id, operation) {
+  call nns.manage_neuron(
+    record {
+      id = opt record { id = neuron_id };
+      command = opt variant {
+        Configure = record {
+          operation = opt operation;
+        }
+      };
+      neuron_id_or_subaccount = null;
+    },
+  );
+};
 
-// Choose a specific operation above to execute
-call nns.manage_neuron(
-  record {
-    id = opt record { id = neuron_id };
-    command = opt variant {
-      Configure = record {
-        operation = opt dissolve_delay;
-      }
-    };
-    neuron_id_or_subaccount = null;
-  },
-);
+config_neuron(neuron_id, dissolve_delay);
 
 // Disburse
 call nns.manage_neuron(
@@ -66,3 +71,4 @@ call nns.manage_neuron(
     neuron_id_or_subaccount = null;
   },
 );
+
