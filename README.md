@@ -90,7 +90,7 @@ function stake(amount, memo) {
   );
   _.result?.NeuronId
 };
-stake_neuron(100_000_000, 42);
+let neuron_id = stake(100_000_000, 42);
 ```
 
 ### install.sh
