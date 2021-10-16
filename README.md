@@ -1,7 +1,7 @@
 # Canister REPL
 
 ```
-ic-repl --replica [local|ic|url] --config <dhall config> [script file]
+ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <dhall config> [script file]
 ```
 
 ## Commands
@@ -15,7 +15,7 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | let <id> = <exp>                          // bind <exp> to a variable <id>
  | <exp>                                     // show the value of <exp>
  | assert <exp> <binop> <exp>                // assertion
- | identity <id> <text>?                     // switch to identity <id>, with optional Ed25519 pem file
+ | identity <id> <text>?                     // switch to identity <id>, with optional pem file
  | function <id> ( <id>,* ) { <command>;* }  // define a function
 <exp> := 
  | <candid val>                                    // any candid value
@@ -39,6 +39,15 @@ ic-repl --replica [local|ic|url] --config <dhall config> [script file]
  | !=                    // not equal
 ```
 
+## Functions
+
+Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
+You cannot define recursive functions, as there is no control flow in the language.
+
+We also provide built-in functions for the ledger account:
+* account(principal): convert principal to account id.
+* neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
+
 ## Examples
 
 ### test.sh
@@ -61,10 +70,11 @@ assert _ == result;
 call nns.get_pending_proposals()
 identity private "./private.pem";
 call ledger.account_balance_dfx(record { account = account(private) });
-function stake_neuron(amount, memo) {
+
+function transfer(to, amount, memo) {
   call ledger.send_dfx(
     record {
-      to = neuron_account(private, memo);
+      to = to;
       fee = record { e8s = 10_000 };
       memo = memo;
       from_subaccount = null;
@@ -72,6 +82,9 @@ function stake_neuron(amount, memo) {
       amount = record { e8s = amount };
     },
   );
+};
+function stake(amount, memo) {
+  let _ = transfer(neuron_account(private, memo), amount, memo);
   call nns.claim_or_refresh_neuron_from_account(
     record { controller = opt private; memo = memo }
   );
@@ -132,15 +145,6 @@ call as wallet ic.install_code(
 );
 call id.greet("test");
 ```
-
-## Functions
-
-Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
-You cannot define recursive functions, as there is no control flow in the language.
-
-We also provide built-in functions for the ledger account:
-* account(principal): convert principal to account id.
-* neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
 
 ## Derived forms
 

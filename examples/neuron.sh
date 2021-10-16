@@ -1,15 +1,10 @@
 #!/usr/bin/ic-repl -o
 identity private "../private.pem";
 
-// Staking or top up
-
-let amount = 100_000_000;  // 1 ICP
-let memo = 42;  // memo determines neuron id
-
-function stake(amount, memo) {
+function transfer(to, amount, memo) {
   call ledger.send_dfx(
     record {
-      to = neuron_account(private, memo);
+      to = to;
       fee = record { e8s = 10_000 };
       memo = memo;
       from_subaccount = null;
@@ -17,36 +12,51 @@ function stake(amount, memo) {
       amount = record { e8s = amount };
     },
   );
+};
+
+// Staking or top up
+function stake(amount, memo) {
+  let _ = transfer(neuron_account(private, memo), amount, memo);
   call nns.claim_or_refresh_neuron_from_account(
     record { controller = opt private; memo = memo }
   );
+  _.result?.NeuronId
 };
 
-stake(amount, memo);
-
-let neuron_id = 3543344363;  // The neuron_id is the return of the previous method call
+let amount = 100_000_000;  // 1 ICP
+let memo = 42;  // memo determines neuron id
+let neuron_id = stake(amount, memo);
 
 // Define neuron config operations
-let dissolve_delay = variant {
-  IncreaseDissolveDelay = record {
-    additional_dissolve_delay_seconds = 3_600;
+function dissolve_delay(delay) {
+  variant {
+    IncreaseDissolveDelay = record {
+      additional_dissolve_delay_seconds = delay;
+    }
   }
 };
-let start_dissolving = variant {
-  StartDissolving = record {}
+function start_dissolving() {
+  variant {
+    StartDissolving = record {}
+  }
 };
-let stop_dissolving = variant {
-  StopDissolving = record {}
+function stop_dissolving() {
+  variant {
+    StopDissolving = record {}
+  }
 };
-let hot_key = principal "aaaaa-aa";
-let add_hot_key = variant {
-  AddHotKey = record { new_hot_key = opt hot_key }
+function add_hot_key(hot_key) {
+  variant {
+    AddHotKey = record { new_hot_key = opt hot_key }
+  }
 };
-let remove_hot_key = variant {
-  RemoveHotKey = record { hot_key_to_remove = opt hot_key }
+function remove_hot_key(hot_key) {
+  variant {
+    RemoveHotKey = record { hot_key_to_remove = opt hot_key }
+  }
 };
 function config_neuron(neuron_id, operation) {
-  call nns.manage_neuron(
+  let _ = call nns.manage_neuron(
     record {
       id = opt record { id = neuron_id };
       command = opt variant {
@@ -59,16 +69,25 @@ function config_neuron(neuron_id, operation) {
   );
 };
 
-config_neuron(neuron_id, dissolve_delay);
+config_neuron(neuron_id, dissolve_delay(3600));
 
-// Disburse
-call nns.manage_neuron(
-  record {
-    id = opt record { id = neuron_id };
-    command = opt variant {
-      Disburse = record { to_account = null; amount = null }
-    };
-    neuron_id_or_subaccount = null;
-  },
-);
+function disburse() {
+  variant { Disburse = record { to_account = null; amount = null } }
+};
+function spawn() {
+  variant { Spawn = record { new_controller = null } }
+};
+function merge_maturity(percent) {
+  variant { MergeMaturity = record { percentage_to_merge = percent } }
+};
+function manage(neuron_id, cmd) {
+  let _ = call nns.manage_neuron(
+    record {
+      id = opt record { id = neuron_id };
+      command = opt cmd;
+      neuron_id_or_subaccount = null;
+    },
+  )
+};
 
+manage(neuron_id, disburse());
