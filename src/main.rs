@@ -72,8 +72,8 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     }
     if let Some(file) = opts.script {
         let cmd = Command::Load(file);
-        let mut helper = rl.helper_mut().unwrap();
-        return cmd.run(&mut helper);
+        let helper = rl.helper_mut().unwrap();
+        return cmd.run(helper);
     }
 
     let mut count = 1;
@@ -86,9 +86,9 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
             Ok(line) => {
                 rl.add_history_entry(&line);
                 unwrap(pretty_parse::<Command>("stdin", &line), |cmd| {
-                    let mut helper = rl.helper_mut().unwrap();
+                    let helper = rl.helper_mut().unwrap();
                     helper.history.push(line.clone());
-                    unwrap(cmd.run(&mut helper), |_| {});
+                    unwrap(cmd.run(helper), |_| {});
                 });
             }
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => break,

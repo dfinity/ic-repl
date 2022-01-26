@@ -29,6 +29,7 @@ pub enum Command {
         body: Vec<Command>,
     },
 }
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone)]
 pub enum BinOp {
     Equal,
