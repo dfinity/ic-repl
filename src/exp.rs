@@ -362,7 +362,15 @@ fn get_type(
     let agent = &helper.agent;
     let mut map = helper.canister_map.borrow_mut();
     let info = map.get(agent, &canister_id).ok()?;
-    let func = info.methods.get(method)?.clone();
+    let func = if method == "__init_args" {
+        Function {
+            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
+            rets: Vec::new(),
+            modes: Vec::new(),
+        }
+    } else {
+        info.methods.get(method)?.clone()
+    };
     Some((info.env.clone(), func))
 }
 impl Method {

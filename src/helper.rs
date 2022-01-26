@@ -34,6 +34,7 @@ pub struct FuncEnv(pub BTreeMap<String, (Vec<String>, Vec<crate::command::Comman
 pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
+    pub init: Option<Vec<Type>>,
 }
 #[derive(Clone)]
 pub enum OfflineOutput {
@@ -423,7 +424,16 @@ pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInf
             (meth.to_owned(), func.clone())
         })
         .collect();
-    Ok(CanisterInfo { env, methods })
+    let init = find_init_args(&env, &actor);
+    Ok(CanisterInfo { env, methods, init })
+}
+
+fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
+    match actor {
+        Type::Var(id) => find_init_args(env, env.find_type(id).ok()?),
+        Type::Class(init, _) => Some(init.to_vec()),
+        _ => None,
+    }
 }
 
 #[test]
