@@ -23,7 +23,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
  | file <text>                                     // load external file as a blob value
  | fail <exp>                                      // convert error message as text
  | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
- | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value
+ | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value. canister.__init_args represents init args
  | decode (as <name> . <name>)? <exp>              // decode blob as candid values
  | <id> ( <exp>,* )                                // function application
 <var> := 
@@ -181,7 +181,7 @@ If you are writing your own `.did` file, you can also supply the did file via th
 
 ## Issues
 
-* Acess to service init type
+* Acess to service init type (get from either Wasm or http endpoint)
 * `IDLValue::Blob` for efficient blob serialization
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
