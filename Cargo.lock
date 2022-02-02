@@ -898,6 +898,7 @@ dependencies = [
  "openssl",
  "pem 0.8.3",
  "pretty 0.10.0",
+ "pretty-hex",
  "pretty_assertions",
  "qrcode",
  "rand",
@@ -1641,6 +1642,12 @@ dependencies = [
  "arrayvec",
  "typed-arena 2.0.1",
 ]
+
+[[package]]
+name = "pretty-hex"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5c99d529f0d30937f6f4b8a86d988047327bb88d04d2c4afc356de74722131"
 
 [[package]]
 name = "pretty_assertions"

@@ -100,7 +100,7 @@ impl Command {
             Command::Fetch(id, path) => {
                 let id = str_to_principal(&id, helper)?;
                 let res = fetch_metadata(&helper.agent, id, &path)?;
-                println!("{}", res);
+                println!("{}", pretty_hex::pretty_hex(&res));
             }
             Command::Identity(id, opt_pem) => {
                 use ic_agent::identity::{BasicIdentity, Secp256k1Identity};
