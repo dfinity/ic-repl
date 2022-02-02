@@ -15,6 +15,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
  | let <id> = <exp>                          // bind <exp> to a variable <id>
  | <exp>                                     // show the value of <exp>
  | assert <exp> <binop> <exp>                // assertion
+ | fetch <name> <text>                       // fetch the HTTP endpoint of `canister/<canister_id>/<name>`
  | identity <id> <text>?                     // switch to identity <id>, with optional pem file
  | function <id> ( <id>,* ) { <command>;* }  // define a function
 <exp> := 
