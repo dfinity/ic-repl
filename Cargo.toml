@@ -19,7 +19,7 @@ codespan-reporting = "0.11"
 pretty = "0.10.0"
 pem = "0.8"
 shellexpand = "2.1"
-ic-agent = { version = "0.11.0", git = "https://github.com/dfinity/agent-rs.git", branch = "read_state_raw" }
+ic-agent = "0.12.0"
 tokio = { version = "1.6.0", features = ["full"] }
 garcon = "0.2.3"
 anyhow = "1.0"
