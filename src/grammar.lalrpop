@@ -42,6 +42,7 @@ extern {
         "fail" => Token::Fail,
         "file" => Token::File,
         "identity" => Token::Identity,
+        "fetch" => Token::Fetch,
         "function" => Token::Function,
         "sign" => Token::Sign(<char>),
         "=" => Token::Equals,
@@ -77,6 +78,7 @@ pub Command: Command = {
          let principal = Principal::from_text(&uri.0).map_err(|e| error2(e, uri.1))?;
          Ok(Command::Import(id, principal, did))
     },
+    "fetch" <id:Name> <path:Text> => Command::Fetch(id, path),
     "identity" <id:"id"> <path:Text?> => Command::Identity(id, path),
     "function" <name:"id"> "(" <args:SepBy<"id", ",">> ")" "{" <body:SepBy<Command, ";">> "}" => Command::Func {name,args,body},
 }

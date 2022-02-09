@@ -411,6 +411,20 @@ async fn fetch_actor(agent: &Agent, canister_id: &Principal) -> anyhow::Result<C
     let response = Decode!(&response, String)?;
     did_to_canister_info(&format!("did file for {}", canister_id), &response)
 }
+#[tokio::main]
+pub async fn fetch_metadata(
+    agent: &Agent,
+    canister_id: Principal,
+    sub_paths: &str,
+) -> anyhow::Result<Vec<u8>> {
+    use ic_agent::{hash_tree::Label, lookup_value};
+    let mut path: Vec<Label> = vec!["canister".into(), canister_id.into()];
+    path.extend(sub_paths.split('/').map(|str| str.into()));
+    let cert = agent
+        .read_state_raw(vec![path.clone()], canister_id)
+        .await?;
+    Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
+}
 
 pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInfo> {
     let ast = pretty_parse::<IDLProg>(name, did)?;

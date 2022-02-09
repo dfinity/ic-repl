@@ -8,17 +8,18 @@ edition = "2018"
 lalrpop = "0.19"
 
 [dependencies]
-candid = { version = "0.7.8", features = ["random"] }
+candid = { version = "0.7.10", features = ["random"] }
 rustyline = "8.2"
 rustyline-derive = "0.4"
 ansi_term = "0.12"
 pretty_assertions = "0.7"
+pretty-hex = "0.2.1"
 terminal_size = "0.1"
 codespan-reporting = "0.11"
 pretty = "0.10.0"
 pem = "0.8"
 shellexpand = "2.1"
-ic-agent = "0.11.0"
+ic-agent = "0.12.0"
 tokio = { version = "1.6.0", features = ["full"] }
 garcon = "0.2.3"
 anyhow = "1.0"

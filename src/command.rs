@@ -1,6 +1,6 @@
 use super::error::pretty_parse;
-use super::exp::Exp;
-use super::helper::{did_to_canister_info, MyHelper};
+use super::exp::{str_to_principal, Exp};
+use super::helper::{did_to_canister_info, fetch_metadata, MyHelper};
 use super::token::{ParserError, Tokenizer};
 use anyhow::{anyhow, Context};
 use candid::{parser::configs::Configs, parser::value::IDLValue, Principal, TypeEnv};
@@ -23,6 +23,7 @@ pub enum Command {
     Import(String, Principal, Option<String>),
     Load(String),
     Identity(String, Option<String>),
+    Fetch(String, String),
     Func {
         name: String,
         args: Vec<String>,
@@ -95,6 +96,11 @@ impl Command {
                     80
                 };
                 println!("{:>width$}", format!("({:.2?})", duration), width = width);
+            }
+            Command::Fetch(id, path) => {
+                let id = str_to_principal(&id, helper)?;
+                let res = fetch_metadata(&helper.agent, id, &path)?;
+                println!("{}", pretty_hex::pretty_hex(&res));
             }
             Command::Identity(id, opt_pem) => {
                 use ic_agent::identity::{BasicIdentity, Secp256k1Identity};

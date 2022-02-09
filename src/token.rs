@@ -80,6 +80,8 @@ pub enum Token {
     Assert,
     #[token("identity")]
     Identity,
+    #[token("fetch")]
+    Fetch,
     #[token("export")]
     Export,
     #[token("load")]
