@@ -20,12 +20,13 @@ use rustyline_derive::Helper;
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 #[derive(Default, Clone)]
 pub struct CanisterMap(pub BTreeMap<Principal, CanisterInfo>);
 #[derive(Default, Clone)]
-pub struct IdentityMap(pub BTreeMap<String, std::sync::Arc<dyn Identity>>);
+pub struct IdentityMap(pub BTreeMap<String, Arc<dyn Identity>>);
 #[derive(Default, Clone)]
 pub struct Env(pub BTreeMap<String, IDLValue>);
 #[derive(Default, Clone)]
@@ -116,7 +117,7 @@ impl MyHelper {
             validator: MatchingBracketValidator::new(),
             canister_map: RefCell::new(CanisterMap::default()),
             identity_map: IdentityMap::default(),
-            current_identity: "anon".to_owned(),
+            current_identity: "anonymous".to_owned(),
             config: Configs::from_dhall("{=}").unwrap(),
             env: Env::default(),
             func_env: FuncEnv::default(),
@@ -131,6 +132,10 @@ impl MyHelper {
         res
     }
     fn load_prelude(&mut self) -> anyhow::Result<()> {
+        self.identity_map.0.insert(
+            "anonymous".to_string(),
+            Arc::new(ic_agent::identity::AnonymousIdentity),
+        );
         self.preload_canister(
             "ic".to_string(),
             Principal::from_text("aaaaa-aa")?,
