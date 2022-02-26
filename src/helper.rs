@@ -48,7 +48,7 @@ pub enum OfflineOutput {
 impl CanisterMap {
     pub fn get(&mut self, agent: &Agent, id: &Principal) -> anyhow::Result<&CanisterInfo> {
         if !self.0.contains_key(id) {
-            let info = fetch_actor(agent, id)?;
+            let info = fetch_actor(agent, *id)?;
             self.0.insert(*id, info);
         }
         Ok(self.0.get(id).unwrap())
@@ -407,17 +407,30 @@ fn random_value(
 }
 
 #[tokio::main]
-async fn fetch_actor(agent: &Agent, canister_id: &Principal) -> anyhow::Result<CanisterInfo> {
-    let response = agent
-        .query(canister_id, "__get_candid_interface_tmp_hack")
-        .with_arg(&Encode!()?)
-        .call()
-        .await?;
-    let response = Decode!(&response, String)?;
-    did_to_canister_info(&format!("did file for {}", canister_id), &response)
+async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<CanisterInfo> {
+    let response = fetch_metadata_(agent, canister_id, "metadata/candid:service").await;
+    let candid = match response {
+        Ok(blob) => std::str::from_utf8(&blob)?.to_owned(),
+        Err(_) => {
+            let response = agent
+                .query(&canister_id, "__get_candid_interface_tmp_hack")
+                .with_arg(&Encode!()?)
+                .call()
+                .await?;
+            Decode!(&response, String)?
+        }
+    };
+    did_to_canister_info(&format!("did file for {}", canister_id), &candid)
 }
 #[tokio::main]
 pub async fn fetch_metadata(
+    agent: &Agent,
+    canister_id: Principal,
+    sub_paths: &str,
+) -> anyhow::Result<Vec<u8>> {
+    fetch_metadata_(agent, canister_id, sub_paths).await
+}
+async fn fetch_metadata_(
     agent: &Agent,
     canister_id: Principal,
     sub_paths: &str,
