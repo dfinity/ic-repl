@@ -387,6 +387,7 @@ fn random_value(
     config: &Configs,
 ) -> candid::Result<String> {
     use rand::Rng;
+    use std::fmt::Write;
     let mut rng = rand::thread_rng();
     let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
     let result = IDLArgs::any(&seed, config, env, tys)?;
@@ -394,7 +395,7 @@ fn random_value(
         if given_args <= tys.len() {
             let mut res = String::new();
             for v in result.args[given_args..].iter() {
-                res.push_str(&format!(", {}", v));
+                write!(&mut res, ", {}", v).map_err(|e| anyhow::anyhow!("{}", e))?;
             }
             res.push(')');
             res
@@ -439,7 +440,7 @@ async fn fetch_metadata_(
     let mut path: Vec<Label> = vec!["canister".into(), canister_id.into()];
     path.extend(sub_paths.split('/').map(|str| str.into()));
     let cert = agent
-        .read_state_raw(vec![path.clone()], canister_id)
+        .read_state_raw(vec![path.clone()], canister_id, false)
         .await?;
     Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
