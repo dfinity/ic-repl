@@ -139,19 +139,19 @@ impl MyHelper {
         self.preload_canister(
             "ic".to_string(),
             Principal::from_text("aaaaa-aa")?,
-            include_str!("ic.did"),
+            Some(include_str!("ic.did")),
         )?;
         if self.agent_url == "https://ic0.app" {
-            // TODO remove when nns supports the tmp_hack method
             self.preload_canister(
                 "nns".to_string(),
                 Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?,
-                include_str!("governance.did"),
+                // only load did file in offline mode
+                self.offline.as_ref().and_then(|_| Some(include_str!("governance.did"))),
             )?;
             self.preload_canister(
                 "ledger".to_string(),
                 Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?,
-                include_str!("ledger.did"),
+                self.offline.as_ref().and_then(|_| Some(include_str!("ledger.did"))),
             )?;
         }
         Ok(())
@@ -160,12 +160,14 @@ impl MyHelper {
         &mut self,
         name: String,
         id: Principal,
-        did_file: &str,
+        did_file: Option<&str>,
     ) -> anyhow::Result<()> {
         let mut canister_map = self.canister_map.borrow_mut();
-        canister_map
-            .0
-            .insert(id, did_to_canister_info(&name, did_file)?);
+        if let Some(did_file) = did_file {
+            canister_map
+                .0
+                .insert(id, did_to_canister_info(&name, did_file)?);
+        }
         self.env.0.insert(name, IDLValue::Principal(id));
         Ok(())
     }
