@@ -38,7 +38,7 @@ jobs:
     - name: install dfx
       run: |
         echo y | DFX_VERSION=$DFX_VERSION bash -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-        touch dfx.json
+        echo '{}' > dfx.json
         dfx start --background
 
     - name: e2e tests
