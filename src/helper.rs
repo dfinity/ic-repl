@@ -146,12 +146,14 @@ impl MyHelper {
                 "nns".to_string(),
                 Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?,
                 // only load did file in offline mode
-                self.offline.as_ref().and_then(|_| Some(include_str!("governance.did"))),
+                self.offline
+                    .as_ref()
+                    .map(|_| include_str!("governance.did")),
             )?;
             self.preload_canister(
                 "ledger".to_string(),
                 Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?,
-                self.offline.as_ref().and_then(|_| Some(include_str!("ledger.did"))),
+                self.offline.as_ref().map(|_| include_str!("ledger.did")),
             )?;
         }
         Ok(())
