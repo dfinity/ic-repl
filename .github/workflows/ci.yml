@@ -35,10 +35,13 @@ jobs:
       run: cargo fmt -v -- --check
     - name: lint
       run: cargo clippy --tests -- -D clippy::all
+    - name: install dfx
+      run: |
+        echo y | DFX_VERSION=$DFX_VERSION bash -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+        touch dfx.json
+        dfx start --background
 
     - name: e2e tests
       run: |
         set -ex
-        echo y | DFX_VERSION=$DFX_VERSION bash -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-        dfx start --background
         target/debug/ic-repl -r http://localhost:8000 examples/install.sh
