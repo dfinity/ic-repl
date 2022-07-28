@@ -1,8 +1,8 @@
 use ansi_term::Color;
+use clap::Parser;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
-use clap::Parser;
 
 mod account_identifier;
 mod command;
