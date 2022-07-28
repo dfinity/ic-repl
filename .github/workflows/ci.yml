@@ -9,42 +9,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      ghc: '8.10.7'
-      spec: 'f771c6b3e7cdde413d3b960f63165c6ecf3e0b7c'
+      DFX_VERSION: 0.11.0
     steps:
     - uses: actions/checkout@v2
-
-    - name: Checkout ic-ref
-      uses: actions/checkout@v2
-      with:
-        repository: 'dfinity/ic-hs'
-        path: ic-hs
-        ref: ${{ env.spec }}
-    - name: Cache cabal
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cabal/store
-        key: cabal-${{ runner.os }}-${{ env.ghc }}-${{ env.spec }}-${{ hashFiles('ic-hs/cabal.project', 'ic-hs/cabal.project.freeze') }}
-    - uses: haskell/actions/setup@v1
-      with:
-        ghc-version: ${{ env.ghc }}
-        cabal-version: '3.2'
-    - name: Build ic-ref
-      run: |
-        cabal --version
-        mkdir -p $HOME/bin
-        cd ic-hs/
-        cabal update
-        cabal install -w ghc-${{ env.ghc }} --overwrite-policy=always  --installdir=$HOME/bin
-    - name: Running ic-ref
-      id: ic_ref
-      run: |
-        set -ex
-        $HOME/bin/ic-ref --pick-port --write-port-to $HOME/ic_ref_port &
-        sleep 1
-        echo "::set-output name=IC_REF_PORT::$(cat $HOME/ic_ref_port)"
-
     - name: Install stable Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
@@ -68,10 +35,13 @@ jobs:
       run: cargo fmt -v -- --check
     - name: lint
       run: cargo clippy --tests -- -D clippy::all
+    - name: install dfx
+      run: |
+        echo y | DFX_VERSION=$DFX_VERSION bash -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+        echo '{}' > dfx.json
+        dfx start --background
 
     - name: e2e tests
       run: |
         set -ex
-        target/debug/ic-repl -r http://localhost:${{ steps.ic_ref.outputs.IC_REF_PORT }} examples/install.sh
-    - name: clean up
-      run: killall ic-ref
+        target/debug/ic-repl -r http://localhost:8000 examples/install.sh

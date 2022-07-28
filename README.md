@@ -70,10 +70,10 @@ assert _ == result;
 // nns and ledger canisters are auto-imported if connected to the mainnet
 call nns.get_pending_proposals()
 identity private "./private.pem";
-call ledger.account_balance_dfx(record { account = account(private) });
+call ledger.account_balance(record { account = account(private) });
 
 function transfer(to, amount, memo) {
-  call ledger.send_dfx(
+  call ledger.transfer(
     record {
       to = to;
       fee = record { e8s = 10_000 };
