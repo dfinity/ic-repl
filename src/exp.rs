@@ -112,7 +112,9 @@ impl Exp {
                         }
                         if let IDLValue::Principal(principal) = args[0] {
                             let account = AccountIdentifier::new(principal, None);
-                            IDLValue::Text(account.to_hex())
+                            IDLValue::Vec(
+                                account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
+                            )
                         } else {
                             return Err(anyhow!("Wrong argument type"));
                         }
@@ -133,7 +135,7 @@ impl Exp {
                         let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
                         let subaccount = get_neuron_subaccount(principal, nonce);
                         let account = AccountIdentifier::new(nns, Some(subaccount));
-                        IDLValue::Text(account.to_hex())
+                        IDLValue::Vec(account.to_vec().into_iter().map(IDLValue::Nat8).collect())
                     }
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),
@@ -547,7 +549,9 @@ fn get_effective_canister_id(
                 struct Arg {
                     canister_id: Principal,
                 }
-                let args = Decode!(args, Arg)?;
+                let args = Decode!(args, Arg).map_err(|_| {
+                    anyhow!("{} can only be called via inter-canister call.", method)
+                })?;
                 Ok(args.canister_id)
             }
         }

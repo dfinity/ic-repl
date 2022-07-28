@@ -2,7 +2,7 @@
 identity private "../private.pem";
 
 function transfer(to, amount, memo) {
-  call ledger.send_dfx(
+  call ledger.transfer(
     record {
       to = to;
       fee = record { e8s = 10_000 };
