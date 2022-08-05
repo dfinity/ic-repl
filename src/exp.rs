@@ -137,6 +137,28 @@ impl Exp {
                         let account = AccountIdentifier::new(nns, Some(subaccount));
                         IDLValue::Vec(account.to_vec().into_iter().map(IDLValue::Nat8).collect())
                     }
+                    "wasm_profiling" => {
+                        if args.len() != 1 {
+                            return Err(anyhow!("Expects one argument"));
+                        }
+                        if let Some(IDLValue::Vec(vec)) = args.get(0) {
+                            let blob: Vec<u8> = vec
+                                .iter()
+                                .map(|n| {
+                                    if let IDLValue::Nat8(n) = n {
+                                        *n
+                                    } else {
+                                        unreachable!()
+                                    }
+                                })
+                                .collect();
+                            let mut m = walrus::Module::from_buffer(&blob)?;
+                            ic_wasm::instrumentation::instrument(&mut m);
+                            IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
+                        } else {
+                            return Err(anyhow!("Wrong argument type"));
+                        }
+                    }
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),
                         Some((formal_args, body)) => {
@@ -178,8 +200,8 @@ impl Exp {
                 };
                 let args = match method {
                     Some(method) => {
-                        let (_, func) = method.get_info(helper)?;
-                        if let Some((env, func)) = func {
+                        let info = method.get_info(helper)?;
+                        if let Some((env, func)) = info.signature {
                             IDLArgs::from_bytes_with_types(&bytes, &env, &func.rets)?
                         } else {
                             IDLArgs::from_bytes(&bytes)?
@@ -195,12 +217,16 @@ impl Exp {
                     res.push(arg.eval(helper)?);
                 }
                 let args = IDLArgs { args: res };
-                let opt_func = if let Some(method) = &method {
+                let opt_info = if let Some(method) = &method {
                     Some(method.get_info(helper)?)
                 } else {
                     None
                 };
-                let bytes = if let Some((_, Some((env, func)))) = &opt_func {
+                let bytes = if let Some(MethodInfo {
+                    signature: Some((env, func)),
+                    ..
+                }) = &opt_info
+                {
                     args.to_bytes_with_types(env, &func.args)?
                 } else {
                     args.to_bytes()?
@@ -211,15 +237,18 @@ impl Exp {
                     }
                     CallMode::Call => {
                         let method = method.unwrap(); // okay to unwrap from parser
-                        let (canister_id, opt_func) = opt_func.unwrap();
+                        let info = opt_info.unwrap();
                         let res = call(
                             &helper.agent,
-                            &canister_id,
+                            &info.canister_id,
                             &method.method,
                             &bytes,
-                            &opt_func,
+                            &info.signature,
                             &helper.offline,
                         )?;
+                        if info.profiling {
+                            eprintln!("This is a profiling canister");
+                        }
                         args_to_value(res)
                     }
                     CallMode::Proxy(id) => {
@@ -356,36 +385,58 @@ pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
         },
     })
 }
-fn get_type(
-    canister_id: Principal,
-    method: &str,
-    helper: &MyHelper,
-) -> Option<(TypeEnv, Function)> {
-    let agent = &helper.agent;
-    let mut map = helper.canister_map.borrow_mut();
-    let info = map.get(agent, &canister_id).ok()?;
-    let func = if method == "__init_args" {
-        Function {
-            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
-            rets: Vec::new(),
-            modes: Vec::new(),
-        }
-    } else {
-        info.methods.get(method)?.clone()
-    };
-    Some((info.env.clone(), func))
+
+struct MethodInfo {
+    pub canister_id: Principal,
+    pub signature: Option<(TypeEnv, Function)>,
+    pub profiling: bool,
 }
 impl Method {
-    fn get_info(&self, helper: &MyHelper) -> Result<(Principal, Option<(TypeEnv, Function)>)> {
+    fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
         let canister_id = str_to_principal(&self.canister, helper)?;
-        let func = get_type(canister_id, &self.method, helper);
-        if func.is_none() {
-            eprintln!(
-                "Warning: cannot get type for {}.{}, use types infered from textual value",
-                self.canister, self.method
-            );
-        }
-        Ok((canister_id, func))
+        let agent = &helper.agent;
+        let mut map = helper.canister_map.borrow_mut();
+        Ok(match map.get(agent, &canister_id) {
+            Err(_) => {
+                eprintln!(
+                    "Warning: cannot get type for {}.{}, use types infered from textual value",
+                    self.canister, self.method
+                );
+                MethodInfo {
+                    canister_id,
+                    signature: None,
+                    profiling: false,
+                }
+            }
+            Ok(info) => {
+                let signature = if self.method == "__init_args" {
+                    Some((
+                        info.env.clone(),
+                        Function {
+                            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
+                            rets: Vec::new(),
+                            modes: Vec::new(),
+                        },
+                    ))
+                } else {
+                    info.methods
+                        .get(&self.method)
+                        .or_else(|| {
+                            eprintln!(
+                                "Warning: cannot get type for {}.{}, use types infered from textual value",
+                                self.canister, self.method
+                            );
+                            None
+                        })
+                        .map(|ty| (info.env.clone(), ty.clone()))
+                };
+                MethodInfo {
+                    canister_id,
+                    signature,
+                    profiling: info.profiling,
+                }
+            }
+        })
     }
 }
 

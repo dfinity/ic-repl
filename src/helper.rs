@@ -36,6 +36,7 @@ pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
     pub init: Option<Vec<Type>>,
+    pub profiling: bool,
 }
 #[derive(Clone)]
 pub enum OfflineOutput {
@@ -168,7 +169,7 @@ impl MyHelper {
         if let Some(did_file) = did_file {
             canister_map
                 .0
-                .insert(id, did_to_canister_info(&name, did_file)?);
+                .insert(id, did_to_canister_info(&name, did_file, false)?);
         }
         self.env.0.insert(name, IDLValue::Principal(id));
         Ok(())
@@ -414,6 +415,9 @@ fn random_value(
 #[tokio::main]
 async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<CanisterInfo> {
     let response = fetch_metadata_(agent, canister_id, "metadata/candid:service").await;
+    let profiling = fetch_metadata_(agent, canister_id, "metadata/profiling")
+        .await
+        .is_ok();
     let candid = match response {
         Ok(blob) => std::str::from_utf8(&blob)?.to_owned(),
         Err(_) => {
@@ -425,7 +429,7 @@ async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<Ca
             Decode!(&response, String)?
         }
     };
-    did_to_canister_info(&format!("did file for {}", canister_id), &candid)
+    did_to_canister_info(&format!("did file for {}", canister_id), &candid, profiling)
 }
 #[tokio::main]
 pub async fn fetch_metadata(
@@ -449,7 +453,11 @@ async fn fetch_metadata_(
     Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
 
-pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInfo> {
+pub fn did_to_canister_info(
+    name: &str,
+    did: &str,
+    profiling: bool,
+) -> anyhow::Result<CanisterInfo> {
     let ast = pretty_parse::<IDLProg>(name, did)?;
     let mut env = TypeEnv::new();
     let actor = check_prog(&mut env, &ast)?.unwrap();
@@ -462,7 +470,12 @@ pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInf
         })
         .collect();
     let init = find_init_args(&env, &actor);
-    Ok(CanisterInfo { env, methods, init })
+    Ok(CanisterInfo {
+        env,
+        methods,
+        init,
+        profiling,
+    })
 }
 
 fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
