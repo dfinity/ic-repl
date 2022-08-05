@@ -46,7 +46,7 @@ impl Command {
                     let path = resolve_path(&helper.base_path, did);
                     let src = std::fs::read_to_string(&path)
                         .with_context(|| format!("Cannot read {:?}", path))?;
-                    let info = did_to_canister_info(did, &src, false)?;
+                    let info = did_to_canister_info(did, &src, None)?;
                     helper.canister_map.borrow_mut().0.insert(canister_id, info);
                 }
                 // TODO decide if it's a Service instead

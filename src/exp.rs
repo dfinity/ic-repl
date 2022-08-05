@@ -246,8 +246,8 @@ impl Exp {
                             &info.signature,
                             &helper.offline,
                         )?;
-                        if info.profiling {
-                            eprintln!("This is a profiling canister");
+                        if info.profiling.is_some() && helper.offline.is_none() {
+                            get_profiling(&helper.agent, &info.canister_id)?;
                         }
                         args_to_value(res)
                     }
@@ -389,7 +389,7 @@ pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
 struct MethodInfo {
     pub canister_id: Principal,
     pub signature: Option<(TypeEnv, Function)>,
-    pub profiling: bool,
+    pub profiling: Option<Vec<(u16, String)>>,
 }
 impl Method {
     fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
@@ -405,7 +405,7 @@ impl Method {
                 MethodInfo {
                     canister_id,
                     signature: None,
-                    profiling: false,
+                    profiling: None,
                 }
             }
             Ok(info) => {
@@ -433,7 +433,7 @@ impl Method {
                 MethodInfo {
                     canister_id,
                     signature,
-                    profiling: info.profiling,
+                    profiling: info.profiling.clone(),
                 }
             }
         })
@@ -510,6 +510,20 @@ fn pause() -> anyhow::Result<()> {
     eprint!("Press [enter] to continue...");
     stdout.flush()?;
     let _ = stdin.read(&mut [0u8])?;
+    Ok(())
+}
+
+#[tokio::main]
+async fn get_profiling(agent: &Agent, canister_id: &Principal) -> anyhow::Result<()> {
+    use candid::{Decode, Encode};
+    let mut builder = agent.query(canister_id, "__get_profiling");
+    let bytes = builder
+        .with_arg(Encode!()?)
+        .with_effective_canister_id(*canister_id)
+        .call()
+        .await?;
+    let pair = Decode!(&bytes, Vec<(i32, i64)>)?;
+    println!("{:?}", pair);
     Ok(())
 }
 

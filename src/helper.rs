@@ -36,7 +36,7 @@ pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
     pub init: Option<Vec<Type>>,
-    pub profiling: bool,
+    pub profiling: Option<Vec<(u16, String)>>,
 }
 #[derive(Clone)]
 pub enum OfflineOutput {
@@ -169,7 +169,7 @@ impl MyHelper {
         if let Some(did_file) = did_file {
             canister_map
                 .0
-                .insert(id, did_to_canister_info(&name, did_file, false)?);
+                .insert(id, did_to_canister_info(&name, did_file, None)?);
         }
         self.env.0.insert(name, IDLValue::Principal(id));
         Ok(())
@@ -415,9 +415,11 @@ fn random_value(
 #[tokio::main]
 async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<CanisterInfo> {
     let response = fetch_metadata_(agent, canister_id, "metadata/candid:service").await;
-    let profiling = fetch_metadata_(agent, canister_id, "metadata/profiling")
+    let profiling = fetch_metadata_(agent, canister_id, "metadata/name")
         .await
-        .is_ok();
+        .ok()
+        .as_ref()
+        .and_then(|bytes| Decode!(bytes, Vec<(u16, String)>).ok());
     let candid = match response {
         Ok(blob) => std::str::from_utf8(&blob)?.to_owned(),
         Err(_) => {
@@ -456,7 +458,7 @@ async fn fetch_metadata_(
 pub fn did_to_canister_info(
     name: &str,
     did: &str,
-    profiling: bool,
+    profiling: Option<Vec<(u16, String)>>,
 ) -> anyhow::Result<CanisterInfo> {
     let ast = pretty_parse::<IDLProg>(name, did)?;
     let mut env = TypeEnv::new();
