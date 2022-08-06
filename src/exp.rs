@@ -522,8 +522,40 @@ async fn get_profiling(agent: &Agent, canister_id: &Principal) -> anyhow::Result
         .with_effective_canister_id(*canister_id)
         .call()
         .await?;
-    let pair = Decode!(&bytes, Vec<(i32, i64)>)?;
-    println!("{:?}", pair);
+    let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
+    render_profiling(pairs)?;
+    Ok(())
+}
+
+fn render_profiling(input: Vec<(i32, i64)>) -> anyhow::Result<()> {
+    use inferno::flamegraph::{from_reader, Options};
+    use std::fmt::Write;
+    let mut stack = Vec::new();
+    let mut prefix = Vec::new();
+    let mut result = String::new();
+    for (id, count) in input.into_iter() {
+        if id >= 0 {
+            stack.push((id, count));
+            prefix.push(id.to_string());
+        } else {
+            match stack.pop() {
+                None => return Err(anyhow!("pop empty stack")),
+                Some((start_id, start)) => {
+                    if start_id != -id {
+                        return Err(anyhow!("func id mismatch"));
+                    }
+                    let cost = count - start;
+                    let frame = prefix.join(";");
+                    prefix.pop().unwrap();
+                    writeln!(&mut result, "{} {}", frame, cost)?;
+                }
+            }
+        }
+    }
+    let mut opt = Options::default();
+    let reader = std::io::Cursor::new(result);
+    let mut writer = std::fs::File::create("a.svg")?;
+    from_reader(&mut opt, reader, &mut writer)?;
     Ok(())
 }
 

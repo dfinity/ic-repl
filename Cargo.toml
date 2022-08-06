@@ -21,6 +21,7 @@ pem = "1.0"
 shellexpand = "2.1"
 ic-agent = "0.20.0"
 ic-wasm = { version = "0.1", git = "https://github.com/dfinity/ic-wasm", branch = "profiling" }
+inferno = "0.11"
 walrus = "0.19"
 tokio = { version = "1.20.0", features = ["full"] }
 garcon = "0.2.3"
