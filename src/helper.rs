@@ -36,7 +36,7 @@ pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
     pub init: Option<Vec<Type>>,
-    pub profiling: Option<Vec<(u16, String)>>,
+    pub profiling: Option<BTreeMap<u16, String>>,
 }
 #[derive(Clone)]
 pub enum OfflineOutput {
@@ -419,7 +419,7 @@ async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<Ca
         .await
         .ok()
         .as_ref()
-        .and_then(|bytes| Decode!(bytes, Vec<(u16, String)>).ok());
+        .and_then(|bytes| Decode!(bytes, BTreeMap<u16, String>).ok());
     let candid = match response {
         Ok(blob) => std::str::from_utf8(&blob)?.to_owned(),
         Err(_) => {
@@ -458,7 +458,7 @@ async fn fetch_metadata_(
 pub fn did_to_canister_info(
     name: &str,
     did: &str,
-    profiling: Option<Vec<(u16, String)>>,
+    profiling: Option<BTreeMap<u16, String>>,
 ) -> anyhow::Result<CanisterInfo> {
     let ast = pretty_parse::<IDLProg>(name, did)?;
     let mut env = TypeEnv::new();

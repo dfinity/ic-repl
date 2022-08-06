@@ -8,6 +8,7 @@ use candid::{
     Principal, TypeEnv,
 };
 use ic_agent::Agent;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub enum Exp {
@@ -246,8 +247,10 @@ impl Exp {
                             &info.signature,
                             &helper.offline,
                         )?;
-                        if info.profiling.is_some() && helper.offline.is_none() {
-                            get_profiling(&helper.agent, &info.canister_id)?;
+                        if helper.offline.is_none() {
+                            if let Some(names) = info.profiling {
+                                get_profiling(&helper.agent, &info.canister_id, &names)?;
+                            }
                         }
                         args_to_value(res)
                     }
@@ -389,7 +392,7 @@ pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
 struct MethodInfo {
     pub canister_id: Principal,
     pub signature: Option<(TypeEnv, Function)>,
-    pub profiling: Option<Vec<(u16, String)>>,
+    pub profiling: Option<BTreeMap<u16, String>>,
 }
 impl Method {
     fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
@@ -514,7 +517,11 @@ fn pause() -> anyhow::Result<()> {
 }
 
 #[tokio::main]
-async fn get_profiling(agent: &Agent, canister_id: &Principal) -> anyhow::Result<()> {
+async fn get_profiling(
+    agent: &Agent,
+    canister_id: &Principal,
+    names: &BTreeMap<u16, String>,
+) -> anyhow::Result<()> {
     use candid::{Decode, Encode};
     let mut builder = agent.query(canister_id, "__get_profiling");
     let bytes = builder
@@ -523,11 +530,11 @@ async fn get_profiling(agent: &Agent, canister_id: &Principal) -> anyhow::Result
         .call()
         .await?;
     let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
-    render_profiling(pairs)?;
+    render_profiling(pairs, names)?;
     Ok(())
 }
 
-fn render_profiling(input: Vec<(i32, i64)>) -> anyhow::Result<()> {
+fn render_profiling(input: Vec<(i32, i64)>, names: &BTreeMap<u16, String>) -> anyhow::Result<()> {
     use inferno::flamegraph::{from_reader, Options};
     use std::fmt::Write;
     let mut stack = Vec::new();
@@ -536,7 +543,11 @@ fn render_profiling(input: Vec<(i32, i64)>) -> anyhow::Result<()> {
     for (id, count) in input.into_iter() {
         if id >= 0 {
             stack.push((id, count));
-            prefix.push(id.to_string());
+            let name = match names.get(&(id as u16)) {
+                Some(name) => name.clone(),
+                None => "func_".to_string() + &id.to_string(),
+            };
+            prefix.push(name);
         } else {
             match stack.pop() {
                 None => return Err(anyhow!("pop empty stack")),
