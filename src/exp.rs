@@ -249,7 +249,16 @@ impl Exp {
                         )?;
                         if helper.offline.is_none() {
                             if let Some(names) = info.profiling {
-                                get_profiling(&helper.agent, &info.canister_id, &names)?;
+                                let mut ok_to_profile = true;
+                                if let Some((_, func)) = info.signature {
+                                    if func.is_query() {
+                                        ok_to_profile = false;
+                                    }
+                                }
+                                if ok_to_profile {
+                                    let title = format!("{}.{}", method.canister, method.method);
+                                    get_profiling(&helper.agent, &info.canister_id, &names, title)?;
+                                }
                             }
                         }
                         args_to_value(res)
@@ -389,6 +398,7 @@ pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
     })
 }
 
+#[derive(Debug)]
 struct MethodInfo {
     pub canister_id: Principal,
     pub signature: Option<(TypeEnv, Function)>,
@@ -400,7 +410,7 @@ impl Method {
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
         Ok(match map.get(agent, &canister_id) {
-            Err(_) => {
+            Err(e) => {
                 eprintln!(
                     "Warning: cannot get type for {}.{}, use types infered from textual value",
                     self.canister, self.method
@@ -521,6 +531,7 @@ async fn get_profiling(
     agent: &Agent,
     canister_id: &Principal,
     names: &BTreeMap<u16, String>,
+    title: String,
 ) -> anyhow::Result<()> {
     use candid::{Decode, Encode};
     let mut builder = agent.query(canister_id, "__get_profiling");
@@ -530,19 +541,24 @@ async fn get_profiling(
         .call()
         .await?;
     let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
-    render_profiling(pairs, names)?;
+    render_profiling(pairs, names, title)?;
     Ok(())
 }
 
-fn render_profiling(input: Vec<(i32, i64)>, names: &BTreeMap<u16, String>) -> anyhow::Result<()> {
+fn render_profiling(
+    input: Vec<(i32, i64)>,
+    names: &BTreeMap<u16, String>,
+    title: String,
+) -> anyhow::Result<()> {
     use inferno::flamegraph::{from_reader, Options};
     use std::fmt::Write;
     let mut stack = Vec::new();
     let mut prefix = Vec::new();
     let mut result = String::new();
+    let mut total = 0;
     for (id, count) in input.into_iter() {
         if id >= 0 {
-            stack.push((id, count));
+            stack.push((id, count, 0));
             let name = match names.get(&(id as u16)) {
                 Some(name) => name.clone(),
                 None => "func_".to_string() + &id.to_string(),
@@ -551,19 +567,34 @@ fn render_profiling(input: Vec<(i32, i64)>, names: &BTreeMap<u16, String>) -> an
         } else {
             match stack.pop() {
                 None => return Err(anyhow!("pop empty stack")),
-                Some((start_id, start)) => {
+                Some((start_id, start, children)) => {
                     if start_id != -id {
                         return Err(anyhow!("func id mismatch"));
                     }
                     let cost = count - start;
                     let frame = prefix.join(";");
                     prefix.pop().unwrap();
-                    writeln!(&mut result, "{} {}", frame, cost)?;
+                    if let Some((parent, parent_cost, children_cost)) = stack.pop() {
+                        stack.push((parent, parent_cost, children_cost + cost));
+                    } else {
+                        total += cost;
+                    }
+                    //println!("{} {}", frame, cost - children);
+                    writeln!(&mut result, "{} {}", frame, cost - children)?;
                 }
             }
         }
     }
+    if !stack.is_empty() {
+        return Err(anyhow!("stack not empty"));
+    }
+    println!("Cost: {} Wasm instructions", total);
     let mut opt = Options::default();
+    opt.count_name = "instructions".to_string();
+    opt.title = title;
+    opt.image_width = Some(1024);
+    opt.flame_chart = true;
+    opt.no_sort = true;
     let reader = std::io::Cursor::new(result);
     let mut writer = std::fs::File::create("a.svg")?;
     from_reader(&mut opt, reader, &mut writer)?;

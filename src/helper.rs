@@ -31,7 +31,7 @@ pub struct IdentityMap(pub BTreeMap<String, Arc<dyn Identity>>);
 pub struct Env(pub BTreeMap<String, IDLValue>);
 #[derive(Default, Clone)]
 pub struct FuncEnv(pub BTreeMap<String, (Vec<String>, Vec<crate::command::Command>)>);
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
@@ -427,8 +427,18 @@ async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<Ca
                 .query(&canister_id, "__get_candid_interface_tmp_hack")
                 .with_arg(&Encode!()?)
                 .call()
-                .await?;
-            Decode!(&response, String)?
+                .await;
+            match response {
+                Ok(response) => Decode!(&response, String)?,
+                Err(_) => {
+                    return Ok(CanisterInfo {
+                        env: Default::default(),
+                        methods: Default::default(),
+                        init: None,
+                        profiling,
+                    })
+                }
+            }
         }
     };
     did_to_canister_info(&format!("did file for {}", canister_id), &candid, profiling)
