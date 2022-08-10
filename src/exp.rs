@@ -399,17 +399,11 @@ impl Method {
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
         Ok(match map.get(agent, &canister_id) {
-            Err(_) => {
-                eprintln!(
-                    "Warning: cannot get type for {}.{}, use types infered from textual value",
-                    self.canister, self.method
-                );
-                MethodInfo {
-                    canister_id,
-                    signature: None,
-                    profiling: None,
-                }
-            }
+            Err(_) => MethodInfo {
+                canister_id,
+                signature: None,
+                profiling: None,
+            },
             Ok(info) => {
                 let signature = if self.method == "__init_args" {
                     Some((
@@ -534,6 +528,7 @@ async fn get_profiling(
     Ok(())
 }
 
+static mut SVG_COUNTER: u32 = 0;
 fn render_profiling(
     input: Vec<(i32, i64)>,
     names: &BTreeMap<u16, String>,
@@ -575,7 +570,7 @@ fn render_profiling(
         }
     }
     if !stack.is_empty() {
-        return Err(anyhow!("stack not empty"));
+        eprintln!("A trap occured or trace is too large");
     }
     println!("Cost: {} Wasm instructions", total);
     let mut opt = Options::default();
@@ -585,7 +580,12 @@ fn render_profiling(
     opt.flame_chart = true;
     opt.no_sort = true;
     let reader = std::io::Cursor::new(result);
-    let mut writer = std::fs::File::create("a.svg")?;
+    let filename = unsafe {
+        SVG_COUNTER += 1;
+        format!("graph_{}.svg", SVG_COUNTER)
+    };
+    println!("Flamegraph written to {}", filename);
+    let mut writer = std::fs::File::create(&filename)?;
     from_reader(&mut opt, reader, &mut writer)?;
     Ok(())
 }

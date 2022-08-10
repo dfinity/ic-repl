@@ -44,7 +44,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
 Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
 You cannot define recursive functions, as there is no control flow in the language.
 
-We also provide built-in functions for the ledger account:
+We also provide some built-in functions:
 * account(principal): convert principal to account id.
 * neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
 * file(path): load external file as a blob value.
