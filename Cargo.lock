@@ -1148,7 +1148,7 @@ dependencies = [
 [[package]]
 name = "ic-wasm"
 version = "0.1.3"
-source = "git+https://github.com/dfinity/ic-wasm?branch=profiling#d4b5552a3279eaed1eed31dd7359d413707f7d4d"
+source = "git+https://github.com/dfinity/ic-wasm?branch=profiling#954db777d1d9423c59bdb262c9192fa43447c277"
 dependencies = [
  "anyhow",
  "candid",

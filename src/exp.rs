@@ -410,7 +410,7 @@ impl Method {
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
         Ok(match map.get(agent, &canister_id) {
-            Err(e) => {
+            Err(_) => {
                 eprintln!(
                     "Warning: cannot get type for {}.{}, use types infered from textual value",
                     self.canister, self.method
