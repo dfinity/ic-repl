@@ -40,7 +40,6 @@ extern {
         "assert" => Token::Assert,
         "let" => Token::Let,
         "fail" => Token::Fail,
-        "file" => Token::File,
         "identity" => Token::Identity,
         "fetch" => Token::Fetch,
         "function" => Token::Function,
@@ -86,7 +85,6 @@ pub Command: Command = {
 pub Exp: Exp = {
   Arg => <>,
   Variable => <>,
-  "file" <Text> => Exp::Blob(<>),
   "fail" <Exp> => Exp::Fail(Box::new(<>)),
   "call" <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Call},
   "call" "as" <proxy:Name> <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Proxy(proxy)},  

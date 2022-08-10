@@ -13,7 +13,6 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone)]
 pub enum Exp {
     Path(String, Vec<Selector>),
-    Blob(String),
     AnnVal(Box<Exp>, Type),
     Call {
         method: Option<Method>,
@@ -81,15 +80,6 @@ impl Exp {
                     .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
                 project(v, &path)?.clone()
             }
-            Exp::Blob(file) => {
-                let path = resolve_path(&helper.base_path, &file);
-                let blob: Vec<IDLValue> = std::fs::read(&path)
-                    .with_context(|| format!("Cannot read {:?}", path))?
-                    .into_iter()
-                    .map(IDLValue::Nat8)
-                    .collect();
-                IDLValue::Vec(blob)
-            }
             Exp::AnnVal(v, ty) => {
                 let arg = v.eval(helper)?;
                 let env = TypeEnv::new();
@@ -107,59 +97,58 @@ impl Exp {
                     args.push(e.eval(helper)?);
                 }
                 match func.as_str() {
-                    "account" => {
-                        if args.len() != 1 {
-                            return Err(anyhow!("Expects one argument"));
-                        }
-                        if let IDLValue::Principal(principal) = args[0] {
-                            let account = AccountIdentifier::new(principal, None);
+                    "account" => match args.as_slice() {
+                        [IDLValue::Principal(principal)] => {
+                            let account = AccountIdentifier::new(*principal, None);
                             IDLValue::Vec(
                                 account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
                             )
-                        } else {
-                            return Err(anyhow!("Wrong argument type"));
                         }
-                    }
-                    "neuron_account" => {
-                        if args.len() != 2 {
-                            return Err(anyhow!("Expects two arguments"));
+                        _ => return Err(anyhow!("account expects principal")),
+                    },
+                    "neuron_account" => match args.as_slice() {
+                        [IDLValue::Principal(principal), nonce] => {
+                            let nonce = match nonce {
+                                IDLValue::Number(nonce) => nonce.parse::<u64>()?,
+                                IDLValue::Nat64(nonce) => *nonce,
+                                _ => {
+                                    return Err(anyhow!(
+                                        "neuron_account expects (principal, nonce)"
+                                    ))
+                                }
+                            };
+                            let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
+                            let subaccount = get_neuron_subaccount(principal, nonce);
+                            let account = AccountIdentifier::new(nns, Some(subaccount));
+                            IDLValue::Vec(
+                                account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
+                            )
                         }
-                        let (principal, nonce) = match (&args[0], &args[1]) {
-                            (IDLValue::Principal(principal), IDLValue::Number(nonce)) => {
-                                (principal, nonce.parse::<u64>()?)
-                            }
-                            (IDLValue::Principal(principal), IDLValue::Nat64(nonce)) => {
-                                (principal, *nonce)
-                            }
-                            (_, _) => return Err(anyhow!("Wrong argument type")),
-                        };
-                        let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
-                        let subaccount = get_neuron_subaccount(principal, nonce);
-                        let account = AccountIdentifier::new(nns, Some(subaccount));
-                        IDLValue::Vec(account.to_vec().into_iter().map(IDLValue::Nat8).collect())
-                    }
-                    "wasm_profiling" => {
-                        if args.len() != 1 {
-                            return Err(anyhow!("Expects one argument"));
-                        }
-                        if let Some(IDLValue::Vec(vec)) = args.get(0) {
-                            let blob: Vec<u8> = vec
-                                .iter()
-                                .map(|n| {
-                                    if let IDLValue::Nat8(n) = n {
-                                        *n
-                                    } else {
-                                        unreachable!()
-                                    }
-                                })
+                        _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
+                    },
+                    "file" => match args.as_slice() {
+                        [IDLValue::Text(file)] => {
+                            let path = resolve_path(&helper.base_path, file);
+                            let blob: Vec<IDLValue> = std::fs::read(&path)
+                                .with_context(|| format!("Cannot read {:?}", path))?
+                                .into_iter()
+                                .map(IDLValue::Nat8)
                                 .collect();
+                            IDLValue::Vec(blob)
+                        }
+                        _ => return Err(anyhow!("file expects file path")),
+                    },
+                    "wasm_profiling" => match args.as_slice() {
+                        [IDLValue::Text(file)] => {
+                            let path = resolve_path(&helper.base_path, file);
+                            let blob = std::fs::read(&path)
+                                .with_context(|| format!("Cannot read {:?}", path))?;
                             let mut m = walrus::Module::from_buffer(&blob)?;
                             ic_wasm::instrumentation::instrument(&mut m);
                             IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
-                        } else {
-                            return Err(anyhow!("Wrong argument type"));
                         }
-                    }
+                        _ => return Err(anyhow!("wasm_profiling expects file path")),
+                    },
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),
                         Some((formal_args, body)) => {
