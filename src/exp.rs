@@ -346,7 +346,7 @@ pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValu
     }
     let (head, tail) = (&path[0], &path[1..]);
     match (value, head) {
-        (IDLValue::Opt(opt), Selector::Field(f)) if f == "?" => return project(&*opt, tail),
+        (IDLValue::Opt(opt), Selector::Field(f)) if f == "?" => return project(opt, tail),
         (IDLValue::Vec(vs), Selector::Index(idx)) => {
             let idx = *idx as usize;
             if idx < vs.len() {
@@ -366,7 +366,7 @@ pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValu
         }
         _ => (),
     }
-    return Err(anyhow!("{:?} cannot be applied to {}", head, value));
+    Err(anyhow!("{:?} cannot be applied to {}", head, value))
 }
 
 impl std::str::FromStr for Exp {
