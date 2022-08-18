@@ -8,11 +8,11 @@ use candid::{
     Principal, TypeEnv,
 };
 use ic_agent::Agent;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub enum Exp {
     Path(String, Vec<Selector>),
-    Blob(String),
     AnnVal(Box<Exp>, Type),
     Call {
         method: Option<Method>,
@@ -80,15 +80,6 @@ impl Exp {
                     .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
                 project(v, &path)?.clone()
             }
-            Exp::Blob(file) => {
-                let path = resolve_path(&helper.base_path, &file);
-                let blob: Vec<IDLValue> = std::fs::read(&path)
-                    .with_context(|| format!("Cannot read {:?}", path))?
-                    .into_iter()
-                    .map(IDLValue::Nat8)
-                    .collect();
-                IDLValue::Vec(blob)
-            }
             Exp::AnnVal(v, ty) => {
                 let arg = v.eval(helper)?;
                 let env = TypeEnv::new();
@@ -106,37 +97,58 @@ impl Exp {
                     args.push(e.eval(helper)?);
                 }
                 match func.as_str() {
-                    "account" => {
-                        if args.len() != 1 {
-                            return Err(anyhow!("Expects one argument"));
-                        }
-                        if let IDLValue::Principal(principal) = args[0] {
-                            let account = AccountIdentifier::new(principal, None);
+                    "account" => match args.as_slice() {
+                        [IDLValue::Principal(principal)] => {
+                            let account = AccountIdentifier::new(*principal, None);
                             IDLValue::Vec(
                                 account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
                             )
-                        } else {
-                            return Err(anyhow!("Wrong argument type"));
                         }
-                    }
-                    "neuron_account" => {
-                        if args.len() != 2 {
-                            return Err(anyhow!("Expects two arguments"));
+                        _ => return Err(anyhow!("account expects principal")),
+                    },
+                    "neuron_account" => match args.as_slice() {
+                        [IDLValue::Principal(principal), nonce] => {
+                            let nonce = match nonce {
+                                IDLValue::Number(nonce) => nonce.parse::<u64>()?,
+                                IDLValue::Nat64(nonce) => *nonce,
+                                _ => {
+                                    return Err(anyhow!(
+                                        "neuron_account expects (principal, nonce)"
+                                    ))
+                                }
+                            };
+                            let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
+                            let subaccount = get_neuron_subaccount(principal, nonce);
+                            let account = AccountIdentifier::new(nns, Some(subaccount));
+                            IDLValue::Vec(
+                                account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
+                            )
                         }
-                        let (principal, nonce) = match (&args[0], &args[1]) {
-                            (IDLValue::Principal(principal), IDLValue::Number(nonce)) => {
-                                (principal, nonce.parse::<u64>()?)
-                            }
-                            (IDLValue::Principal(principal), IDLValue::Nat64(nonce)) => {
-                                (principal, *nonce)
-                            }
-                            (_, _) => return Err(anyhow!("Wrong argument type")),
-                        };
-                        let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
-                        let subaccount = get_neuron_subaccount(principal, nonce);
-                        let account = AccountIdentifier::new(nns, Some(subaccount));
-                        IDLValue::Vec(account.to_vec().into_iter().map(IDLValue::Nat8).collect())
-                    }
+                        _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
+                    },
+                    "file" => match args.as_slice() {
+                        [IDLValue::Text(file)] => {
+                            let path = resolve_path(&helper.base_path, file);
+                            let blob: Vec<IDLValue> = std::fs::read(&path)
+                                .with_context(|| format!("Cannot read {:?}", path))?
+                                .into_iter()
+                                .map(IDLValue::Nat8)
+                                .collect();
+                            IDLValue::Vec(blob)
+                        }
+                        _ => return Err(anyhow!("file expects file path")),
+                    },
+                    "wasm_profiling" => match args.as_slice() {
+                        [IDLValue::Text(file)] => {
+                            let path = resolve_path(&helper.base_path, file);
+                            let blob = std::fs::read(&path)
+                                .with_context(|| format!("Cannot read {:?}", path))?;
+                            let mut m = walrus::Module::from_buffer(&blob)?;
+                            ic_wasm::instrumentation::instrument(&mut m);
+                            IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
+                        }
+                        _ => return Err(anyhow!("wasm_profiling expects file path")),
+                    },
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),
                         Some((formal_args, body)) => {
@@ -178,8 +190,8 @@ impl Exp {
                 };
                 let args = match method {
                     Some(method) => {
-                        let (_, func) = method.get_info(helper)?;
-                        if let Some((env, func)) = func {
+                        let info = method.get_info(helper)?;
+                        if let Some((env, func)) = info.signature {
                             IDLArgs::from_bytes_with_types(&bytes, &env, &func.rets)?
                         } else {
                             IDLArgs::from_bytes(&bytes)?
@@ -195,12 +207,16 @@ impl Exp {
                     res.push(arg.eval(helper)?);
                 }
                 let args = IDLArgs { args: res };
-                let opt_func = if let Some(method) = &method {
+                let opt_info = if let Some(method) = &method {
                     Some(method.get_info(helper)?)
                 } else {
                     None
                 };
-                let bytes = if let Some((_, Some((env, func)))) = &opt_func {
+                let bytes = if let Some(MethodInfo {
+                    signature: Some((env, func)),
+                    ..
+                }) = &opt_info
+                {
                     args.to_bytes_with_types(env, &func.args)?
                 } else {
                     args.to_bytes()?
@@ -211,15 +227,29 @@ impl Exp {
                     }
                     CallMode::Call => {
                         let method = method.unwrap(); // okay to unwrap from parser
-                        let (canister_id, opt_func) = opt_func.unwrap();
+                        let info = opt_info.unwrap();
                         let res = call(
                             &helper.agent,
-                            &canister_id,
+                            &info.canister_id,
                             &method.method,
                             &bytes,
-                            &opt_func,
+                            &info.signature,
                             &helper.offline,
                         )?;
+                        if helper.offline.is_none() {
+                            if let Some(names) = info.profiling {
+                                let mut ok_to_profile = true;
+                                if let Some((_, func)) = info.signature {
+                                    if func.is_query() {
+                                        ok_to_profile = false;
+                                    }
+                                }
+                                if ok_to_profile {
+                                    let title = format!("{}.{}", method.canister, method.method);
+                                    get_profiling(&helper.agent, &info.canister_id, &names, title)?;
+                                }
+                            }
+                        }
                         args_to_value(res)
                     }
                     CallMode::Proxy(id) => {
@@ -356,36 +386,53 @@ pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
         },
     })
 }
-fn get_type(
-    canister_id: Principal,
-    method: &str,
-    helper: &MyHelper,
-) -> Option<(TypeEnv, Function)> {
-    let agent = &helper.agent;
-    let mut map = helper.canister_map.borrow_mut();
-    let info = map.get(agent, &canister_id).ok()?;
-    let func = if method == "__init_args" {
-        Function {
-            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
-            rets: Vec::new(),
-            modes: Vec::new(),
-        }
-    } else {
-        info.methods.get(method)?.clone()
-    };
-    Some((info.env.clone(), func))
+
+#[derive(Debug)]
+struct MethodInfo {
+    pub canister_id: Principal,
+    pub signature: Option<(TypeEnv, Function)>,
+    pub profiling: Option<BTreeMap<u16, String>>,
 }
 impl Method {
-    fn get_info(&self, helper: &MyHelper) -> Result<(Principal, Option<(TypeEnv, Function)>)> {
+    fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
         let canister_id = str_to_principal(&self.canister, helper)?;
-        let func = get_type(canister_id, &self.method, helper);
-        if func.is_none() {
-            eprintln!(
-                "Warning: cannot get type for {}.{}, use types infered from textual value",
-                self.canister, self.method
-            );
-        }
-        Ok((canister_id, func))
+        let agent = &helper.agent;
+        let mut map = helper.canister_map.borrow_mut();
+        Ok(match map.get(agent, &canister_id) {
+            Err(_) => MethodInfo {
+                canister_id,
+                signature: None,
+                profiling: None,
+            },
+            Ok(info) => {
+                let signature = if self.method == "__init_args" {
+                    Some((
+                        info.env.clone(),
+                        Function {
+                            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
+                            rets: Vec::new(),
+                            modes: Vec::new(),
+                        },
+                    ))
+                } else {
+                    info.methods
+                        .get(&self.method)
+                        .or_else(|| {
+                            eprintln!(
+                                "Warning: cannot get type for {}.{}, use types infered from textual value",
+                                self.canister, self.method
+                            );
+                            None
+                        })
+                        .map(|ty| (info.env.clone(), ty.clone()))
+                };
+                MethodInfo {
+                    canister_id,
+                    signature,
+                    profiling: info.profiling.clone(),
+                }
+            }
+        })
     }
 }
 
@@ -459,6 +506,87 @@ fn pause() -> anyhow::Result<()> {
     eprint!("Press [enter] to continue...");
     stdout.flush()?;
     let _ = stdin.read(&mut [0u8])?;
+    Ok(())
+}
+
+#[tokio::main]
+async fn get_profiling(
+    agent: &Agent,
+    canister_id: &Principal,
+    names: &BTreeMap<u16, String>,
+    title: String,
+) -> anyhow::Result<()> {
+    use candid::{Decode, Encode};
+    let mut builder = agent.query(canister_id, "__get_profiling");
+    let bytes = builder
+        .with_arg(Encode!()?)
+        .with_effective_canister_id(*canister_id)
+        .call()
+        .await?;
+    let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
+    render_profiling(pairs, names, title)?;
+    Ok(())
+}
+
+static mut SVG_COUNTER: u32 = 0;
+fn render_profiling(
+    input: Vec<(i32, i64)>,
+    names: &BTreeMap<u16, String>,
+    title: String,
+) -> anyhow::Result<()> {
+    use inferno::flamegraph::{from_reader, Options};
+    use std::fmt::Write;
+    let mut stack = Vec::new();
+    let mut prefix = Vec::new();
+    let mut result = String::new();
+    let mut total = 0;
+    for (id, count) in input.into_iter() {
+        if id >= 0 {
+            stack.push((id, count, 0));
+            let name = match names.get(&(id as u16)) {
+                Some(name) => name.clone(),
+                None => "func_".to_string() + &id.to_string(),
+            };
+            prefix.push(name);
+        } else {
+            match stack.pop() {
+                None => return Err(anyhow!("pop empty stack")),
+                Some((start_id, start, children)) => {
+                    if start_id != -id {
+                        return Err(anyhow!("func id mismatch"));
+                    }
+                    let cost = count - start;
+                    let frame = prefix.join(";");
+                    prefix.pop().unwrap();
+                    if let Some((parent, parent_cost, children_cost)) = stack.pop() {
+                        stack.push((parent, parent_cost, children_cost + cost));
+                    } else {
+                        total += cost;
+                    }
+                    //println!("{} {}", frame, cost - children);
+                    writeln!(&mut result, "{} {}", frame, cost - children)?;
+                }
+            }
+        }
+    }
+    if !stack.is_empty() {
+        eprintln!("A trap occured or trace is too large");
+    }
+    println!("Cost: {} Wasm instructions", total);
+    let mut opt = Options::default();
+    opt.count_name = "instructions".to_string();
+    opt.title = title;
+    opt.image_width = Some(1024);
+    opt.flame_chart = true;
+    opt.no_sort = true;
+    let reader = std::io::Cursor::new(result);
+    let filename = unsafe {
+        SVG_COUNTER += 1;
+        format!("graph_{}.svg", SVG_COUNTER)
+    };
+    println!("Flamegraph written to {}", filename);
+    let mut writer = std::fs::File::create(&filename)?;
+    from_reader(&mut opt, reader, &mut writer)?;
     Ok(())
 }
 

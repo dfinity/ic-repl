@@ -21,7 +21,6 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
 <exp> := 
  | <candid val>                                    // any candid value
  | <var> <selector>*                               // variable with optional selectors
- | file <text>                                     // load external file as a blob value
  | fail <exp>                                      // convert error message as text
  | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
  | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value. canister.__init_args represents init args
@@ -45,9 +44,11 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
 Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
 You cannot define recursive functions, as there is no control flow in the language.
 
-We also provide built-in functions for the ledger account:
+We also provide some built-in functions:
 * account(principal): convert principal to account id.
 * neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
+* file(path): load external file as a blob value.
+* wasm_profiling(path): load Wasm module, instrument the code and store as a blob value.
 
 ## Examples
 
@@ -111,7 +112,7 @@ function deploy(wasm) {
 };
 
 identity alice;
-let id = deploy(file "greet.wasm");
+let id = deploy(file("greet.wasm"));
 let status = call ic.canister_status(id);
 assert status.settings ~= record { controllers = vec { alice } };
 assert status.module_hash? == blob "...";
@@ -139,7 +140,7 @@ let id = _.Ok.canister_id;
 call as wallet ic.install_code(
   record {
     arg = encode ();
-    wasm_module = file "${WASM_FILE}";
+    wasm_module = file("${WASM_FILE}");
     mode = variant { install };
     canister_id = id;
   },

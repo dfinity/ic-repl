@@ -31,11 +31,12 @@ pub struct IdentityMap(pub BTreeMap<String, Arc<dyn Identity>>);
 pub struct Env(pub BTreeMap<String, IDLValue>);
 #[derive(Default, Clone)]
 pub struct FuncEnv(pub BTreeMap<String, (Vec<String>, Vec<crate::command::Command>)>);
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
     pub init: Option<Vec<Type>>,
+    pub profiling: Option<BTreeMap<u16, String>>,
 }
 #[derive(Clone)]
 pub enum OfflineOutput {
@@ -168,7 +169,7 @@ impl MyHelper {
         if let Some(did_file) = did_file {
             canister_map
                 .0
-                .insert(id, did_to_canister_info(&name, did_file)?);
+                .insert(id, did_to_canister_info(&name, did_file, None)?);
         }
         self.env.0.insert(name, IDLValue::Principal(id));
         Ok(())
@@ -414,6 +415,11 @@ fn random_value(
 #[tokio::main]
 async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<CanisterInfo> {
     let response = fetch_metadata_(agent, canister_id, "metadata/candid:service").await;
+    let profiling = fetch_metadata_(agent, canister_id, "metadata/name")
+        .await
+        .ok()
+        .as_ref()
+        .and_then(|bytes| Decode!(bytes, BTreeMap<u16, String>).ok());
     let candid = match response {
         Ok(blob) => std::str::from_utf8(&blob)?.to_owned(),
         Err(_) => {
@@ -421,11 +427,21 @@ async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<Ca
                 .query(&canister_id, "__get_candid_interface_tmp_hack")
                 .with_arg(&Encode!()?)
                 .call()
-                .await?;
-            Decode!(&response, String)?
+                .await;
+            match response {
+                Ok(response) => Decode!(&response, String)?,
+                Err(_) => {
+                    return Ok(CanisterInfo {
+                        env: Default::default(),
+                        methods: Default::default(),
+                        init: None,
+                        profiling,
+                    })
+                }
+            }
         }
     };
-    did_to_canister_info(&format!("did file for {}", canister_id), &candid)
+    did_to_canister_info(&format!("did file for {}", canister_id), &candid, profiling)
 }
 #[tokio::main]
 pub async fn fetch_metadata(
@@ -449,7 +465,11 @@ async fn fetch_metadata_(
     Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
 
-pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInfo> {
+pub fn did_to_canister_info(
+    name: &str,
+    did: &str,
+    profiling: Option<BTreeMap<u16, String>>,
+) -> anyhow::Result<CanisterInfo> {
     let ast = pretty_parse::<IDLProg>(name, did)?;
     let mut env = TypeEnv::new();
     let actor = check_prog(&mut env, &ast)?.unwrap();
@@ -462,7 +482,12 @@ pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInf
         })
         .collect();
     let init = find_init_args(&env, &actor);
-    Ok(CanisterInfo { env, methods, init })
+    Ok(CanisterInfo {
+        env,
+        methods,
+        init,
+        profiling,
+    })
 }
 
 fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
