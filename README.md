@@ -16,7 +16,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
  | <exp>                                     // show the value of <exp>
  | assert <exp> <binop> <exp>                // assertion
  | fetch <name> <text>                       // fetch the HTTP endpoint of `canister/<canister_id>/<name>`
- | identity <id> <text>?                     // switch to identity <id>, with optional pem file
+ | identity <id> (<text> | record { slot_index = <nat>; key_id = <text> })?   // switch to identity <id>, with optional pem file
  | function <id> ( <id>,* ) { <command>;* }  // define a function
 <exp> := 
  | <candid val>                                    // any candid value
