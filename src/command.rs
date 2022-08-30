@@ -22,13 +22,19 @@ pub enum Command {
     Export(String),
     Import(String, Principal, Option<String>),
     Load(String),
-    Identity(String, Option<String>),
+    Identity(String, IdentityConfig),
     Fetch(String, String),
     Func {
         name: String,
         args: Vec<String>,
         body: Vec<Command>,
     },
+}
+#[derive(Debug, Clone)]
+pub enum IdentityConfig {
+    Empty,
+    Pem(String),
+    Hsm { slot_index: usize, key_id: String },
 }
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone)]
@@ -102,35 +108,62 @@ impl Command {
                 let res = fetch_metadata(&helper.agent, id, &path)?;
                 println!("{}", pretty_hex::pretty_hex(&res));
             }
-            Command::Identity(id, opt_pem) => {
+            Command::Identity(id, config) => {
                 use ic_agent::identity::{BasicIdentity, Secp256k1Identity};
                 use ring::signature::Ed25519KeyPair;
-                if let Some(pem_path) = &opt_pem {
-                    let pem_path = resolve_path(&helper.base_path, pem_path);
-                    match Secp256k1Identity::from_pem_file(&pem_path) {
-                        Ok(identity) => {
-                            helper
-                                .identity_map
-                                .0
-                                .insert(id.to_string(), Arc::from(identity));
+                match &config {
+                    IdentityConfig::Hsm { slot_index, key_id } => {
+                        #[cfg(target_os = "macos")]
+                        const PKCS11_LIBPATH: &str = "/Library/OpenSC/lib/pkcs11/opensc-pkcs11.so";
+                        #[cfg(target_os = "linux")]
+                        const PKCS11_LIBPATH: &str = "/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so";
+                        #[cfg(target_os = "windows")]
+                        const PKCS11_LIBPATH: &str =
+                            "C:/Program Files/OpenSC Project/OpenSC/pkcs11/opensc-pkcs11.dll";
+                        let lib_path = std::env::var("PKCS11_LIBPATH")
+                            .unwrap_or_else(|_| PKCS11_LIBPATH.to_string());
+                        let identity = ic_identity_hsm::HardwareIdentity::new(
+                            lib_path,
+                            *slot_index,
+                            key_id,
+                            get_dfx_hsm_pin,
+                        )?;
+                        helper
+                            .identity_map
+                            .0
+                            .insert(id.to_string(), Arc::from(identity));
+                    }
+                    IdentityConfig::Pem(pem_path) => {
+                        let pem_path = resolve_path(&helper.base_path, pem_path);
+                        match Secp256k1Identity::from_pem_file(&pem_path) {
+                            Ok(identity) => {
+                                helper
+                                    .identity_map
+                                    .0
+                                    .insert(id.to_string(), Arc::from(identity));
+                            }
+                            Err(_) => {
+                                let identity = BasicIdentity::from_pem_file(&pem_path)?;
+                                helper
+                                    .identity_map
+                                    .0
+                                    .insert(id.to_string(), Arc::from(identity));
+                            }
                         }
-                        Err(_) => {
-                            let identity = BasicIdentity::from_pem_file(&pem_path)?;
+                    }
+                    IdentityConfig::Empty => {
+                        if helper.identity_map.0.get(&id).is_none() {
+                            let rng = ring::rand::SystemRandom::new();
+                            let pkcs8_bytes =
+                                Ed25519KeyPair::generate_pkcs8(&rng)?.as_ref().to_vec();
+                            let keypair = Ed25519KeyPair::from_pkcs8(&pkcs8_bytes)?;
+                            let identity = BasicIdentity::from_key_pair(keypair);
                             helper
                                 .identity_map
                                 .0
                                 .insert(id.to_string(), Arc::from(identity));
                         }
                     }
-                } else if helper.identity_map.0.get(&id).is_none() {
-                    let rng = ring::rand::SystemRandom::new();
-                    let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)?.as_ref().to_vec();
-                    let keypair = Ed25519KeyPair::from_pkcs8(&pkcs8_bytes)?;
-                    let identity = BasicIdentity::from_key_pair(keypair);
-                    helper
-                        .identity_map
-                        .0
-                        .insert(id.to_string(), Arc::from(identity));
                 };
                 let identity = helper.identity_map.0.get(&id).unwrap();
                 let sender = identity.sender().map_err(|e| anyhow!("{}", e))?;
@@ -204,4 +237,12 @@ pub fn resolve_path(base: &Path, file: &str) -> PathBuf {
     } else {
         base.join(file)
     }
+}
+
+fn get_dfx_hsm_pin() -> Result<String, String> {
+    std::env::var("DFX_HSM_PIN").or_else(|_| {
+        rpassword::prompt_password("HSM PIN: ")
+            .context("No DFX_HSM_PIN environment variable and cannot read HSM PIN from tty")
+            .map_err(|e| e.to_string())
+    })
 }
