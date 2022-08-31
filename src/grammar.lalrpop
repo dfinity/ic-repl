@@ -78,7 +78,18 @@ pub Command: Command = {
          Ok(Command::Import(id, principal, did))
     },
     "fetch" <id:Name> <path:Text> => Command::Fetch(id, path),
-    "identity" <id:"id"> <path:Text?> => Command::Identity(id, path),
+    "identity" <id:"id"> <config:Sp<Exp>?> =>? {
+      use super::command::IdentityConfig::*;
+      Ok(match config {
+        None => Command::Identity(id, Empty),
+        Some((Exp::Text(path), _)) => Command::Identity(id, Pem(path)),
+        Some((Exp::Record(fs), pos)) => match fs.as_slice() {
+          [Field { id: key, val: Exp::Text(key_id) }, Field { id: slot, val: Exp::Number(slot_index) }] if *slot == Label::Named("slot_index".to_string()) && *key == Label::Named("key_id".to_string()) => Command::Identity(id, Hsm{ key_id: key_id.to_string(), slot_index: slot_index.parse::<usize>().map_err(|_| error2("slot_index cannot convert to usize", pos))? }),
+          _ => return Err(error2("only expect record { slot_index : nat; key_id : text }", pos)),
+        },
+        Some((_, pos)) => return Err(error2("Identity can either be a .pem file or HSM slot_index and key_id record", pos)),
+      })
+    },
     "function" <name:"id"> "(" <args:SepBy<"id", ",">> ")" "{" <body:SepBy<Command, ";">> "}" => Command::Func {name,args,body},
 }
 
