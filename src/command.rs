@@ -109,9 +109,9 @@ impl Command {
                 println!("{}", pretty_hex::pretty_hex(&res));
             }
             Command::Identity(id, config) => {
-                use ic_agent::identity::{BasicIdentity, Secp256k1Identity};
+                use ic_agent::identity::{BasicIdentity, Identity, Secp256k1Identity};
                 use ring::signature::Ed25519KeyPair;
-                match &config {
+                let identity: Arc<dyn Identity> = match &config {
                     IdentityConfig::Hsm { slot_index, key_id } => {
                         #[cfg(target_os = "macos")]
                         const PKCS11_LIBPATH: &str = "/Library/OpenSC/lib/pkcs11/opensc-pkcs11.so";
@@ -122,50 +122,35 @@ impl Command {
                             "C:/Program Files/OpenSC Project/OpenSC/pkcs11/opensc-pkcs11.dll";
                         let lib_path = std::env::var("PKCS11_LIBPATH")
                             .unwrap_or_else(|_| PKCS11_LIBPATH.to_string());
-                        let identity = ic_identity_hsm::HardwareIdentity::new(
+                        Arc::from(ic_identity_hsm::HardwareIdentity::new(
                             lib_path,
                             *slot_index,
                             key_id,
                             get_dfx_hsm_pin,
-                        )?;
-                        helper
-                            .identity_map
-                            .0
-                            .insert(id.to_string(), Arc::from(identity));
+                        )?)
                     }
                     IdentityConfig::Pem(pem_path) => {
                         let pem_path = resolve_path(&helper.base_path, pem_path);
                         match Secp256k1Identity::from_pem_file(&pem_path) {
-                            Ok(identity) => {
-                                helper
-                                    .identity_map
-                                    .0
-                                    .insert(id.to_string(), Arc::from(identity));
-                            }
-                            Err(_) => {
-                                let identity = BasicIdentity::from_pem_file(&pem_path)?;
-                                helper
-                                    .identity_map
-                                    .0
-                                    .insert(id.to_string(), Arc::from(identity));
-                            }
+                            Ok(identity) => Arc::from(identity),
+                            Err(_) => Arc::from(BasicIdentity::from_pem_file(&pem_path)?),
                         }
                     }
-                    IdentityConfig::Empty => {
-                        if helper.identity_map.0.get(&id).is_none() {
+                    IdentityConfig::Empty => match helper.identity_map.0.get(&id) {
+                        Some(identity) => identity.clone(),
+                        None => {
                             let rng = ring::rand::SystemRandom::new();
                             let pkcs8_bytes =
                                 Ed25519KeyPair::generate_pkcs8(&rng)?.as_ref().to_vec();
                             let keypair = Ed25519KeyPair::from_pkcs8(&pkcs8_bytes)?;
-                            let identity = BasicIdentity::from_key_pair(keypair);
-                            helper
-                                .identity_map
-                                .0
-                                .insert(id.to_string(), Arc::from(identity));
+                            Arc::from(BasicIdentity::from_key_pair(keypair))
                         }
-                    }
+                    },
                 };
-                let identity = helper.identity_map.0.get(&id).unwrap();
+                helper
+                    .identity_map
+                    .0
+                    .insert(id.to_string(), identity.clone());
                 let sender = identity.sender().map_err(|e| anyhow!("{}", e))?;
                 println!("Current identity {}", sender);
 
