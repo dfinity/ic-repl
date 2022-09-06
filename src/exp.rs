@@ -292,7 +292,7 @@ let _ = decode as "{canister}".{method} _.Ok.return;
                         );
                         let cmds =
                             crate::pretty_parse::<crate::command::Commands>("forward_call", &code)?;
-                        for cmd in cmds.0.into_iter() {
+                        for (cmd, _) in cmds.0.into_iter() {
                             cmd.run(&mut env)?;
                         }
                         env.env.0.get("_").unwrap().clone()

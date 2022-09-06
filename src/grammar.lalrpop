@@ -63,7 +63,7 @@ extern {
     }
 }
 
-pub Commands: Commands = SepBy<Command, ";"> => Commands(<>);
+pub Commands: Commands = SepBy<Sp<Command>, ";"> => Commands(<>);
 
 // Command
 pub Command: Command = {

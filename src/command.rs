@@ -6,13 +6,14 @@ use anyhow::{anyhow, Context};
 use candid::{parser::configs::Configs, parser::value::IDLValue, Principal, TypeEnv};
 use ic_agent::Agent;
 use pretty_assertions::{assert_eq, assert_ne};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use terminal_size::{terminal_size, Width};
 
 #[derive(Debug, Clone)]
-pub struct Commands(pub Vec<Command>);
+pub struct Commands(pub Vec<(Command, Range<usize>)>);
 #[derive(Debug, Clone)]
 pub enum Command {
     Config(String),
@@ -189,8 +190,8 @@ impl Command {
                 }
                 let cmds = pretty_parse::<Commands>(&file, &script)?;
                 helper.base_path = path.parent().unwrap().to_path_buf();
-                for cmd in cmds.0.into_iter() {
-                    //println!("> {:?}", cmd);
+                for (cmd, pos) in cmds.0.into_iter() {
+                    println!("> {}", &script[pos]);
                     cmd.run(helper)?;
                 }
                 helper.base_path = old_base;
