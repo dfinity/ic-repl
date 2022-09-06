@@ -45,7 +45,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         None
     };
     let url = match replica.as_str() {
-        "local" => "http://localhost:8000/",
+        "local" => "http://localhost:4943/",
         "ic" => "https://ic0.app",
         url => url,
     };
