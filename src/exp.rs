@@ -415,10 +415,12 @@ impl Method {
                     info.methods
                         .get(&self.method)
                         .or_else(|| {
-                            eprintln!(
-                                "Warning: cannot get type for {}.{}, use types infered from textual value",
-                                self.canister, self.method
-                            );
+                            if !self.method.starts_with("__") {
+                                eprintln!(
+                                    "Warning: cannot get type for {}.{}, use types infered from textual value",
+                                    self.canister, self.method
+                                );
+                            }
                             None
                         })
                         .map(|ty| (info.env.clone(), ty.clone()))
