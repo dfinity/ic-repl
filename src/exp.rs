@@ -228,6 +228,11 @@ impl Exp {
                     CallMode::Call => {
                         let method = method.unwrap(); // okay to unwrap from parser
                         let info = opt_info.unwrap();
+                        let ok_to_profile = ok_to_profile(helper, &info);
+                        let mut before_cost = 0;
+                        if ok_to_profile.is_some() {
+                            before_cost = get_cycles(&helper.agent, &info.canister_id)?;
+                        }
                         let res = call(
                             &helper.agent,
                             &info.canister_id,
@@ -236,19 +241,11 @@ impl Exp {
                             &info.signature,
                             &helper.offline,
                         )?;
-                        if helper.offline.is_none() {
-                            if let Some(names) = info.profiling {
-                                let mut ok_to_profile = true;
-                                if let Some((_, func)) = info.signature {
-                                    if func.is_query() {
-                                        ok_to_profile = false;
-                                    }
-                                }
-                                if ok_to_profile {
-                                    let title = format!("{}.{}", method.canister, method.method);
-                                    get_profiling(&helper.agent, &info.canister_id, &names, title)?;
-                                }
-                            }
+                        if let Some(names) = ok_to_profile {
+                            let after_cost = get_cycles(&helper.agent, &info.canister_id)?;
+                            println!("Cost: {} Wasm instructions", after_cost - before_cost);
+                            let title = format!("{}.{}", method.canister, method.method);
+                            get_profiling(&helper.agent, &info.canister_id, names, title)?;
                         }
                         args_to_value(res)
                     }
@@ -509,6 +506,34 @@ fn pause() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn ok_to_profile<'a>(
+    helper: &'a MyHelper,
+    info: &'a MethodInfo,
+) -> Option<&'a BTreeMap<u16, String>> {
+    if helper.offline.is_none() {
+        let names = info.profiling.as_ref()?;
+        if info.signature.as_ref()?.1.is_query() {
+            None
+        } else {
+            Some(names)
+        }
+    } else {
+        None
+    }
+}
+
+#[tokio::main]
+async fn get_cycles(agent: &Agent, canister_id: &Principal) -> anyhow::Result<i64> {
+    use candid::{Decode, Encode};
+    let mut builder = agent.query(canister_id, "__get_cycles");
+    let bytes = builder
+        .with_arg(Encode!()?)
+        .with_effective_canister_id(*canister_id)
+        .call()
+        .await?;
+    Ok(Decode!(&bytes, i64)?)
+}
+
 #[tokio::main]
 async fn get_profiling(
     agent: &Agent,
@@ -524,7 +549,9 @@ async fn get_profiling(
         .call()
         .await?;
     let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
-    render_profiling(pairs, names, title)?;
+    if !pairs.is_empty() {
+        render_profiling(pairs, names, title)?;
+    }
     Ok(())
 }
 
@@ -539,7 +566,7 @@ fn render_profiling(
     let mut stack = Vec::new();
     let mut prefix = Vec::new();
     let mut result = String::new();
-    let mut total = 0;
+    let mut _total = 0;
     for (id, count) in input.into_iter() {
         if id >= 0 {
             stack.push((id, count, 0));
@@ -561,7 +588,7 @@ fn render_profiling(
                     if let Some((parent, parent_cost, children_cost)) = stack.pop() {
                         stack.push((parent, parent_cost, children_cost + cost));
                     } else {
-                        total += cost;
+                        _total += cost;
                     }
                     //println!("{} {}", frame, cost - children);
                     writeln!(&mut result, "{} {}", frame, cost - children)?;
@@ -572,7 +599,7 @@ fn render_profiling(
     if !stack.is_empty() {
         eprintln!("A trap occured or trace is too large");
     }
-    println!("Cost: {} Wasm instructions", total);
+    //println!("Cost: {} Wasm instructions", total);
     let mut opt = Options::default();
     opt.count_name = "instructions".to_string();
     opt.title = title;
