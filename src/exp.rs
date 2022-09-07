@@ -144,6 +144,7 @@ impl Exp {
                             let blob = std::fs::read(&path)
                                 .with_context(|| format!("Cannot read {:?}", path))?;
                             let mut m = walrus::Module::from_buffer(&blob)?;
+                            ic_wasm::shrink::shrink(&mut m);
                             ic_wasm::instrumentation::instrument(&mut m);
                             IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
                         }
