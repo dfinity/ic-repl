@@ -159,6 +159,30 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("wasm_profiling expects file path")),
                     },
+                    "flamegraph" => match args.as_slice() {
+                        [IDLValue::Principal(cid), IDLValue::Text(title), IDLValue::Text(file)] => {
+                            let mut map = helper.canister_map.borrow_mut();
+                            let names = match map.get(&helper.agent, cid) {
+                                Ok(crate::helper::CanisterInfo {
+                                    profiling: Some(names),
+                                    ..
+                                }) => names,
+                                _ => return Err(anyhow!("{} is not instrumented", cid)),
+                            };
+                            let file = if !file.ends_with(".svg") {
+                                file.to_string() + ".svg"
+                            } else {
+                                file.to_string()
+                            };
+                            get_profiling(&helper.agent, cid, names, title, &file)?;
+                            IDLValue::Null
+                        }
+                        _ => {
+                            return Err(anyhow!(
+                                "flamegraph expects (canister id, title name, svg file name)"
+                            ))
+                        }
+                    },
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),
                         Some((formal_args, body)) => {
@@ -239,10 +263,11 @@ impl Exp {
                         let method = method.unwrap(); // okay to unwrap from parser
                         let info = opt_info.unwrap();
                         let ok_to_profile = ok_to_profile(helper, &info);
-                        let mut before_cost = 0;
-                        if ok_to_profile.is_some() {
-                            before_cost = get_cycles(&helper.agent, &info.canister_id)?;
-                        }
+                        let before_cost = if ok_to_profile {
+                            get_cycles(&helper.agent, &info.canister_id)?
+                        } else {
+                            0
+                        };
                         let res = call(
                             &helper.agent,
                             &info.canister_id,
@@ -251,11 +276,9 @@ impl Exp {
                             &info.signature,
                             &helper.offline,
                         )?;
-                        if let Some(names) = ok_to_profile {
+                        if ok_to_profile {
                             let cost = get_cycles(&helper.agent, &info.canister_id)? - before_cost;
                             println!("Cost: {} Wasm instructions", cost);
-                            let title = format!("{}.{}", method.canister, method.method);
-                            get_profiling(&helper.agent, &info.canister_id, names, title)?;
                             let cost = IDLValue::Record(vec![IDLField {
                                 id: Label::Named("__cost".to_string()),
                                 val: IDLValue::Int64(cost),
@@ -525,20 +548,10 @@ fn pause() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn ok_to_profile<'a>(
-    helper: &'a MyHelper,
-    info: &'a MethodInfo,
-) -> Option<&'a BTreeMap<u16, String>> {
-    if helper.offline.is_none() {
-        let names = info.profiling.as_ref()?;
-        if info.signature.as_ref()?.1.is_query() {
-            None
-        } else {
-            Some(names)
-        }
-    } else {
-        None
-    }
+fn ok_to_profile<'a>(helper: &'a MyHelper, info: &'a MethodInfo) -> bool {
+    helper.offline.is_none()
+        && info.profiling.is_some()
+        && info.signature.as_ref().map(|s| s.1.is_query()) != Some(true)
 }
 
 #[tokio::main]
@@ -558,7 +571,8 @@ async fn get_profiling(
     agent: &Agent,
     canister_id: &Principal,
     names: &BTreeMap<u16, String>,
-    title: String,
+    title: &str,
+    filename: &str,
 ) -> anyhow::Result<()> {
     use candid::{Decode, Encode};
     let mut builder = agent.query(canister_id, "__get_profiling");
@@ -569,16 +583,16 @@ async fn get_profiling(
         .await?;
     let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
     if !pairs.is_empty() {
-        render_profiling(pairs, names, title)?;
+        render_profiling(pairs, names, title, filename)?;
     }
     Ok(())
 }
 
-static mut SVG_COUNTER: u32 = 0;
 fn render_profiling(
     input: Vec<(i32, i64)>,
     names: &BTreeMap<u16, String>,
-    title: String,
+    title: &str,
+    filename: &str,
 ) -> anyhow::Result<()> {
     use inferno::flamegraph::{from_reader, Options};
     use std::fmt::Write;
@@ -621,15 +635,11 @@ fn render_profiling(
     //println!("Cost: {} Wasm instructions", total);
     let mut opt = Options::default();
     opt.count_name = "instructions".to_string();
-    opt.title = title;
+    opt.title = title.to_string();
     opt.image_width = Some(1024);
     opt.flame_chart = true;
     opt.no_sort = true;
     let reader = std::io::Cursor::new(result);
-    let filename = unsafe {
-        SVG_COUNTER += 1;
-        format!("graph_{}.svg", SVG_COUNTER)
-    };
     println!("Flamegraph written to {}", filename);
     let mut writer = std::fs::File::create(&filename)?;
     from_reader(&mut opt, reader, &mut writer)?;

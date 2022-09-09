@@ -62,7 +62,7 @@ impl Command {
             Command::Let(id, val) => {
                 let is_call = val.is_call();
                 let v = val.eval(helper)?;
-                bind_value(helper, id, v, is_call);
+                bind_value(helper, id, v, is_call, false);
             }
             Command::Func { name, args, body } => {
                 helper.func_env.0.insert(name, (args, body));
@@ -97,7 +97,7 @@ impl Command {
                 let time = Instant::now();
                 let v = val.eval(helper)?;
                 let duration = time.elapsed();
-                bind_value(helper, "_".to_string(), v, is_call);
+                bind_value(helper, "_".to_string(), v, is_call, true);
                 let width = if let Some((Width(w), _)) = terminal_size() {
                     w as usize
                 } else {
@@ -234,19 +234,19 @@ fn get_dfx_hsm_pin() -> Result<String, String> {
     })
 }
 
-fn bind_value(helper: &mut MyHelper, id: String, v: IDLValue, is_call: bool) {
+fn bind_value(helper: &mut MyHelper, id: String, v: IDLValue, is_call: bool, display: bool) {
     if is_call {
         let (v, cost) = may_extract_profiling(v);
         if let Some(cost) = cost {
             let cost_id = format!("__cost_{}", id);
             helper.env.0.insert(cost_id, IDLValue::Int64(cost));
         }
-        if id == "_" {
+        if display {
             println!("{}", v);
         }
         helper.env.0.insert(id, v);
     } else {
-        if id == "_" {
+        if display {
             println!("{}", v);
         }
         helper.env.0.insert(id, v);
