@@ -183,28 +183,11 @@ impl Exp {
                             ))
                         }
                     },
-                    "text_concat" => {
+                    "stringify" => {
                         use std::fmt::Write;
                         let mut res = String::new();
                         for arg in args {
-                            let string = match arg {
-                                IDLValue::Text(str) => str,
-                                IDLValue::Number(n) => n.to_string(),
-                                IDLValue::Int64(n) => n.to_string(),
-                                IDLValue::Int32(n) => n.to_string(),
-                                IDLValue::Int16(n) => n.to_string(),
-                                IDLValue::Int8(n) => n.to_string(),
-                                IDLValue::Nat64(n) => n.to_string(),
-                                IDLValue::Nat32(n) => n.to_string(),
-                                IDLValue::Nat16(n) => n.to_string(),
-                                IDLValue::Nat8(n) => n.to_string(),
-                                IDLValue::Nat(n) => n.to_string(),
-                                IDLValue::Int(n) => n.to_string(),
-                                IDLValue::Principal(id) => id.to_string(),
-                                IDLValue::Bool(b) => b.to_string(),
-                                _ => return Err(anyhow!("Cannot stringify {}", arg)),
-                            };
-                            write!(&mut res, "{}", string)?;
+                            write!(&mut res, "{}", crate::utils::stringify(&arg)?)?;
                         }
                         IDLValue::Text(res)
                     }
