@@ -1,5 +1,5 @@
 use super::error::pretty_parse;
-use super::exp::{str_to_principal, Exp};
+use super::exp::{may_extract_profiling, str_to_principal, Exp};
 use super::helper::{did_to_canister_info, fetch_metadata, MyHelper};
 use super::token::{ParserError, Tokenizer};
 use anyhow::{anyhow, Context};
@@ -60,8 +60,9 @@ impl Command {
                 helper.env.0.insert(id, IDLValue::Principal(canister_id));
             }
             Command::Let(id, val) => {
+                let is_call = val.is_call();
                 let v = val.eval(helper)?;
-                helper.env.0.insert(id, v);
+                bind_value(helper, id, v, is_call);
             }
             Command::Func { name, args, body } => {
                 helper.func_env.0.insert(name, (args, body));
@@ -92,11 +93,11 @@ impl Command {
             }
             Command::Config(conf) => helper.config = Configs::from_dhall(&conf)?,
             Command::Show(val) => {
+                let is_call = val.is_call();
                 let time = Instant::now();
                 let v = val.eval(helper)?;
                 let duration = time.elapsed();
-                println!("{}", v);
-                helper.env.0.insert("_".to_string(), v);
+                bind_value(helper, "_".to_string(), v, is_call);
                 let width = if let Some((Width(w), _)) = terminal_size() {
                     w as usize
                 } else {
@@ -231,4 +232,23 @@ fn get_dfx_hsm_pin() -> Result<String, String> {
             .context("No DFX_HSM_PIN environment variable and cannot read HSM PIN from tty")
             .map_err(|e| e.to_string())
     })
+}
+
+fn bind_value(helper: &mut MyHelper, id: String, v: IDLValue, is_call: bool) {
+    if is_call {
+        let (v, cost) = may_extract_profiling(v);
+        if let Some(cost) = cost {
+            let cost_id = format!("__cost_{}", id);
+            helper.env.0.insert(cost_id, IDLValue::Int64(cost));
+        }
+        if id == "_" {
+            println!("{}", v);
+        }
+        helper.env.0.insert(id, v);
+    } else {
+        if id == "_" {
+            println!("{}", v);
+        }
+        helper.env.0.insert(id, v);
+    }
 }

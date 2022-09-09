@@ -70,6 +70,15 @@ impl Selector {
     }
 }
 impl Exp {
+    pub fn is_call(&self) -> bool {
+        matches!(
+            self,
+            Exp::Call {
+                mode: CallMode::Call,
+                ..
+            }
+        )
+    }
     pub fn eval(self, helper: &MyHelper) -> Result<IDLValue> {
         Ok(match self {
             Exp::Path(id, path) => {
@@ -243,12 +252,19 @@ impl Exp {
                             &helper.offline,
                         )?;
                         if let Some(names) = ok_to_profile {
-                            let after_cost = get_cycles(&helper.agent, &info.canister_id)?;
-                            println!("Cost: {} Wasm instructions", after_cost - before_cost);
+                            let cost = get_cycles(&helper.agent, &info.canister_id)? - before_cost;
+                            println!("Cost: {} Wasm instructions", cost);
                             let title = format!("{}.{}", method.canister, method.method);
                             get_profiling(&helper.agent, &info.canister_id, names, title)?;
+                            let cost = IDLValue::Record(vec![IDLField {
+                                id: Label::Named("__cost".to_string()),
+                                val: IDLValue::Int64(cost),
+                            }]);
+                            let res = IDLArgs::new(&[args_to_value(res), cost]);
+                            args_to_value(res)
+                        } else {
+                            args_to_value(res)
                         }
-                        args_to_value(res)
                     }
                     CallMode::Proxy(id) => {
                         let method = method.unwrap();
@@ -732,5 +748,27 @@ fn args_to_value(mut args: IDLArgs) -> IDLValue {
             }
             IDLValue::Record(fs)
         }
+    }
+}
+
+pub fn may_extract_profiling(result: IDLValue) -> (IDLValue, Option<i64>) {
+    match result {
+        IDLValue::Record(ref fs) => match fs.as_slice() {
+            [IDLField {
+                id: Label::Id(0),
+                val,
+            }, IDLField {
+                id: Label::Id(1),
+                val: IDLValue::Record(fs),
+            }] => match fs.as_slice() {
+                [IDLField {
+                    id: Label::Named(lab),
+                    val: IDLValue::Int64(cost),
+                }] if lab == "__cost" => (val.clone(), Some(*cost)),
+                _ => (result, None),
+            },
+            _ => (result, None),
+        },
+        _ => (result, None),
     }
 }
