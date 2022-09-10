@@ -183,6 +183,17 @@ impl Exp {
                             ))
                         }
                     },
+                    "output" => match args.as_slice() {
+                        [IDLValue::Text(file), IDLValue::Text(content)] => {
+                            use std::fs::OpenOptions;
+                            use std::io::Write;
+                            let mut file =
+                                OpenOptions::new().append(true).create(true).open(file)?;
+                            file.write_all(content.as_bytes())?;
+                            IDLValue::Text(content.to_string())
+                        }
+                        _ => return Err(anyhow!("wasm_profiling expects (file path, content)")),
+                    },
                     "stringify" => {
                         use std::fmt::Write;
                         let mut res = String::new();
