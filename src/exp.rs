@@ -1,6 +1,6 @@
-use super::command::resolve_path;
 use super::helper::{MyHelper, OfflineOutput};
 use super::token::{ParserError, Tokenizer};
+use super::utils::{args_to_value, get_effective_canister_id, resolve_path, str_to_principal};
 use anyhow::{anyhow, Context, Result};
 use candid::{
     parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
@@ -174,7 +174,13 @@ impl Exp {
                             } else {
                                 file.to_string()
                             };
-                            get_profiling(&helper.agent, cid, names, title, &file)?;
+                            crate::profiling::get_profiling(
+                                &helper.agent,
+                                cid,
+                                names,
+                                title,
+                                &file,
+                            )?;
                             IDLValue::Null
                         }
                         _ => {
@@ -279,6 +285,7 @@ impl Exp {
                         IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect())
                     }
                     CallMode::Call => {
+                        use crate::profiling::{get_cycles, ok_to_profile};
                         let method = method.unwrap(); // okay to unwrap from parser
                         let info = opt_info.unwrap();
                         let ok_to_profile = ok_to_profile(helper, &info);
@@ -432,19 +439,9 @@ impl std::str::FromStr for Exp {
         super::grammar::ExpParser::new().parse(lexer)
     }
 }
-pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
-    let try_id = Principal::from_text(id);
-    Ok(match try_id {
-        Ok(id) => id,
-        Err(_) => match helper.env.0.get(id) {
-            Some(IDLValue::Principal(id)) => *id,
-            _ => return Err(anyhow!("{} is not a canister id", id)),
-        },
-    })
-}
 
 #[derive(Debug)]
-struct MethodInfo {
+pub struct MethodInfo {
     pub canister_id: Principal,
     pub signature: Option<(TypeEnv, Function)>,
     pub profiling: Option<BTreeMap<u16, String>>,
@@ -494,177 +491,6 @@ impl Method {
     }
 }
 
-#[derive(serde::Serialize)]
-struct Ingress {
-    call_type: String,
-    request_id: Option<String>,
-    content: String,
-}
-#[derive(serde::Serialize)]
-struct RequestStatus {
-    canister_id: Principal,
-    request_id: String,
-    content: String,
-}
-#[derive(serde::Serialize)]
-struct IngressWithStatus {
-    ingress: Ingress,
-    request_status: RequestStatus,
-}
-static mut PNG_COUNTER: u32 = 0;
-fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()> {
-    match format {
-        OfflineOutput::Json => println!("{}", json),
-        _ => {
-            use libflate::gzip;
-            use qrcode::{render::unicode, QrCode};
-            use std::io::Write;
-            eprintln!("json length: {}", json.len());
-            let mut encoder = gzip::Encoder::new(Vec::new())?;
-            encoder.write_all(json.as_bytes())?;
-            let zipped = encoder.finish().into_result()?;
-            let config = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
-                base64::STANDARD_NO_PAD
-            } else {
-                base64::URL_SAFE_NO_PAD
-            };
-            let base64 = base64::encode_config(&zipped, config);
-            eprintln!("base64 length: {}", base64.len());
-            let msg = match format {
-                OfflineOutput::Ascii(url) | OfflineOutput::Png(url) => url.to_owned() + &base64,
-                _ => base64,
-            };
-            let code = QrCode::new(&msg)?;
-            match format {
-                OfflineOutput::Ascii(_) | OfflineOutput::AsciiNoUrl => {
-                    let img = code.render::<unicode::Dense1x2>().build();
-                    println!("{}", img);
-                    pause()?;
-                }
-                OfflineOutput::Png(_) | OfflineOutput::PngNoUrl => {
-                    let img = code.render::<image::Luma<u8>>().build();
-                    let filename = unsafe {
-                        PNG_COUNTER += 1;
-                        format!("msg{}.png", PNG_COUNTER)
-                    };
-                    img.save(&filename)?;
-                    println!("QR code saved to {}", filename);
-                }
-                _ => unreachable!(),
-            }
-        }
-    };
-    Ok(())
-}
-
-fn pause() -> anyhow::Result<()> {
-    use std::io::{Read, Write};
-    let mut stdin = std::io::stdin();
-    let mut stdout = std::io::stdout();
-    eprint!("Press [enter] to continue...");
-    stdout.flush()?;
-    let _ = stdin.read(&mut [0u8])?;
-    Ok(())
-}
-
-fn ok_to_profile<'a>(helper: &'a MyHelper, info: &'a MethodInfo) -> bool {
-    helper.offline.is_none()
-        && info.profiling.is_some()
-        && info.signature.as_ref().map(|s| s.1.is_query()) != Some(true)
-}
-
-#[tokio::main]
-async fn get_cycles(agent: &Agent, canister_id: &Principal) -> anyhow::Result<i64> {
-    use candid::{Decode, Encode};
-    let mut builder = agent.query(canister_id, "__get_cycles");
-    let bytes = builder
-        .with_arg(Encode!()?)
-        .with_effective_canister_id(*canister_id)
-        .call()
-        .await?;
-    Ok(Decode!(&bytes, i64)?)
-}
-
-#[tokio::main]
-async fn get_profiling(
-    agent: &Agent,
-    canister_id: &Principal,
-    names: &BTreeMap<u16, String>,
-    title: &str,
-    filename: &str,
-) -> anyhow::Result<()> {
-    use candid::{Decode, Encode};
-    let mut builder = agent.query(canister_id, "__get_profiling");
-    let bytes = builder
-        .with_arg(Encode!()?)
-        .with_effective_canister_id(*canister_id)
-        .call()
-        .await?;
-    let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
-    if !pairs.is_empty() {
-        render_profiling(pairs, names, title, filename)?;
-    }
-    Ok(())
-}
-
-fn render_profiling(
-    input: Vec<(i32, i64)>,
-    names: &BTreeMap<u16, String>,
-    title: &str,
-    filename: &str,
-) -> anyhow::Result<()> {
-    use inferno::flamegraph::{from_reader, Options};
-    use std::fmt::Write;
-    let mut stack = Vec::new();
-    let mut prefix = Vec::new();
-    let mut result = String::new();
-    let mut _total = 0;
-    for (id, count) in input.into_iter() {
-        if id >= 0 {
-            stack.push((id, count, 0));
-            let name = match names.get(&(id as u16)) {
-                Some(name) => name.clone(),
-                None => "func_".to_string() + &id.to_string(),
-            };
-            prefix.push(name);
-        } else {
-            match stack.pop() {
-                None => return Err(anyhow!("pop empty stack")),
-                Some((start_id, start, children)) => {
-                    if start_id != -id {
-                        return Err(anyhow!("func id mismatch"));
-                    }
-                    let cost = count - start;
-                    let frame = prefix.join(";");
-                    prefix.pop().unwrap();
-                    if let Some((parent, parent_cost, children_cost)) = stack.pop() {
-                        stack.push((parent, parent_cost, children_cost + cost));
-                    } else {
-                        _total += cost;
-                    }
-                    //println!("{} {}", frame, cost - children);
-                    writeln!(&mut result, "{} {}", frame, cost - children)?;
-                }
-            }
-        }
-    }
-    if !stack.is_empty() {
-        eprintln!("A trap occured or trace is too large");
-    }
-    //println!("Cost: {} Wasm instructions", total);
-    let mut opt = Options::default();
-    opt.count_name = "instructions".to_string();
-    opt.title = title.to_string();
-    opt.image_width = Some(1024);
-    opt.flame_chart = true;
-    opt.no_sort = true;
-    let reader = std::io::Cursor::new(result);
-    println!("Flamegraph written to {}", filename);
-    let mut writer = std::fs::File::create(&filename)?;
-    from_reader(&mut opt, reader, &mut writer)?;
-    Ok(())
-}
-
 #[tokio::main]
 async fn call(
     agent: &Agent,
@@ -674,6 +500,7 @@ async fn call(
     opt_func: &Option<(TypeEnv, Function)>,
     offline: &Option<OfflineOutput>,
 ) -> anyhow::Result<IDLArgs> {
+    use crate::offline::*;
     let effective_id = get_effective_canister_id(*canister_id, method, args)?;
     let is_query = opt_func
         .as_ref()
@@ -732,72 +559,4 @@ async fn call(
         IDLArgs::from_bytes(&bytes)?
     };
     Ok(res)
-}
-
-fn get_effective_canister_id(
-    canister_id: Principal,
-    method: &str,
-    args: &[u8],
-) -> anyhow::Result<Principal> {
-    use candid::{CandidType, Decode, Deserialize};
-    if canister_id == Principal::management_canister() {
-        match method {
-            "create_canister" | "raw_rand" => Err(anyhow!(
-                "{} can only be called via inter-canister call.",
-                method
-            )),
-            "provisional_create_canister_with_cycles" => Ok(canister_id),
-            _ => {
-                #[derive(CandidType, Deserialize)]
-                struct Arg {
-                    canister_id: Principal,
-                }
-                let args = Decode!(args, Arg).map_err(|_| {
-                    anyhow!("{} can only be called via inter-canister call.", method)
-                })?;
-                Ok(args.canister_id)
-            }
-        }
-    } else {
-        Ok(canister_id)
-    }
-}
-
-fn args_to_value(mut args: IDLArgs) -> IDLValue {
-    match args.args.len() {
-        0 => IDLValue::Null,
-        1 => args.args.pop().unwrap(),
-        len => {
-            let mut fs = Vec::with_capacity(len);
-            for (i, v) in args.args.into_iter().enumerate() {
-                fs.push(IDLField {
-                    id: Label::Id(i as u32),
-                    val: v,
-                });
-            }
-            IDLValue::Record(fs)
-        }
-    }
-}
-
-pub fn may_extract_profiling(result: IDLValue) -> (IDLValue, Option<i64>) {
-    match result {
-        IDLValue::Record(ref fs) => match fs.as_slice() {
-            [IDLField {
-                id: Label::Id(0),
-                val,
-            }, IDLField {
-                id: Label::Id(1),
-                val: IDLValue::Record(fs),
-            }] => match fs.as_slice() {
-                [IDLField {
-                    id: Label::Named(lab),
-                    val: IDLValue::Int64(cost),
-                }] if lab == "__cost" => (val.clone(), Some(*cost)),
-                _ => (result, None),
-            },
-            _ => (result, None),
-        },
-        _ => (result, None),
-    }
 }

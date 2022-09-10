@@ -1,13 +1,13 @@
 use super::error::pretty_parse;
-use super::exp::{may_extract_profiling, str_to_principal, Exp};
+use super::exp::Exp;
 use super::helper::{did_to_canister_info, fetch_metadata, MyHelper};
 use super::token::{ParserError, Tokenizer};
+use super::utils::{get_dfx_hsm_pin, resolve_path, str_to_principal};
 use anyhow::{anyhow, Context};
 use candid::{parser::configs::Configs, parser::value::IDLValue, Principal, TypeEnv};
 use ic_agent::Agent;
 use pretty_assertions::{assert_eq, assert_ne};
 use std::ops::Range;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use terminal_size::{terminal_size, Width};
@@ -217,26 +217,9 @@ impl std::str::FromStr for Commands {
     }
 }
 
-pub fn resolve_path(base: &Path, file: &str) -> PathBuf {
-    let file = PathBuf::from(shellexpand::tilde(file).into_owned());
-    if file.is_absolute() {
-        file
-    } else {
-        base.join(file)
-    }
-}
-
-fn get_dfx_hsm_pin() -> Result<String, String> {
-    std::env::var("DFX_HSM_PIN").or_else(|_| {
-        rpassword::prompt_password("HSM PIN: ")
-            .context("No DFX_HSM_PIN environment variable and cannot read HSM PIN from tty")
-            .map_err(|e| e.to_string())
-    })
-}
-
 fn bind_value(helper: &mut MyHelper, id: String, v: IDLValue, is_call: bool, display: bool) {
     if is_call {
-        let (v, cost) = may_extract_profiling(v);
+        let (v, cost) = crate::profiling::may_extract_profiling(v);
         if let Some(cost) = cost {
             let cost_id = format!("__cost_{}", id);
             helper.env.0.insert(cost_id, IDLValue::Int64(cost));

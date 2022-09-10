@@ -1,5 +1,6 @@
-use crate::exp::{str_to_principal, Exp};
+use crate::exp::Exp;
 use crate::token::{Token, Tokenizer};
+use crate::utils::{random_value, str_to_principal};
 use ansi_term::Color;
 use candid::{
     check_prog,
@@ -7,7 +8,7 @@ use candid::{
     parser::value::{IDLField, IDLValue, VariantValue},
     pretty_parse,
     types::{Function, Label, Type},
-    Decode, Encode, IDLArgs, IDLProg, Principal, TypeEnv,
+    Decode, Encode, IDLProg, Principal, TypeEnv,
 };
 use ic_agent::{Agent, Identity};
 use rustyline::completion::{extract_word, Completer, FilenameCompleter, Pair};
@@ -383,33 +384,6 @@ impl Validator for MyHelper {
     fn validate_while_typing(&self) -> bool {
         self.validator.validate_while_typing()
     }
-}
-
-fn random_value(
-    env: &TypeEnv,
-    tys: &[Type],
-    given_args: usize,
-    config: &Configs,
-) -> candid::Result<String> {
-    use rand::Rng;
-    use std::fmt::Write;
-    let mut rng = rand::thread_rng();
-    let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
-    let result = IDLArgs::any(&seed, config, env, tys)?;
-    Ok(if given_args > 0 {
-        if given_args <= tys.len() {
-            let mut res = String::new();
-            for v in result.args[given_args..].iter() {
-                write!(&mut res, ", {}", v).map_err(|e| anyhow::anyhow!("{}", e))?;
-            }
-            res.push(')');
-            res
-        } else {
-            "".to_owned()
-        }
-    } else {
-        format!("{}", result)
-    })
 }
 
 #[tokio::main]

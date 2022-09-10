@@ -10,6 +10,8 @@ mod error;
 mod exp;
 mod grammar;
 mod helper;
+mod offline;
+mod profiling;
 mod token;
 mod utils;
 use crate::command::Command;
