@@ -28,7 +28,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
  | <id> ( <exp>,* )                                // function application
 <var> := 
  | <id>                  // variable name 
- | _                     // previous eval of exp is bind to `_` 
+ | _                     // previous eval of exp is bind to `_`
 <selector> :=
  | ?                     // select opt value
  | . <name>              // select field name from record or variant value
@@ -48,7 +48,10 @@ We also provide some built-in functions:
 * account(principal): convert principal to account id.
 * neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
 * file(path): load external file as a blob value.
-* wasm_profiling(path): load Wasm module, instrument the code and store as a blob value.
+* stringify(exp1, exp2, exp3, ...): Convert all expressions to string and concat. Only supports primitive types.
+* output(path, content): Append text content to file path.
+* wasm_profiling(path): load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`.
+* flamegraph(canister_id, title, filename): generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`.
 
 ## Examples
 
