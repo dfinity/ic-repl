@@ -1,4 +1,5 @@
 use super::command::resolve_path;
+use super::error::pretty_parse;
 use super::helper::{MyHelper, OfflineOutput};
 use super::token::{ParserError, Tokenizer};
 use anyhow::{anyhow, Context, Result};
@@ -261,8 +262,7 @@ let _ = decode as "{canister}".{method} _.Ok.return;
                             canister = canister_id,
                             method = method.method
                         );
-                        let cmds =
-                            crate::pretty_parse::<crate::command::Commands>("forward_call", &code)?;
+                        let cmds = pretty_parse::<crate::command::Commands>("forward_call", &code)?;
                         for cmd in cmds.0.into_iter() {
                             cmd.run(&mut env)?;
                         }
@@ -314,7 +314,7 @@ pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValu
     }
     let (head, tail) = (&path[0], &path[1..]);
     match (value, head) {
-        (IDLValue::Opt(opt), Selector::Field(f)) if f == "?" => return project(&*opt, tail),
+        (IDLValue::Opt(opt), Selector::Field(f)) if f == "?" => return project(opt, tail),
         (IDLValue::Vec(vs), Selector::Index(idx)) => {
             let idx = *idx as usize;
             if idx < vs.len() {
@@ -334,7 +334,7 @@ pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValu
         }
         _ => (),
     }
-    return Err(anyhow!("{:?} cannot be applied to {}", head, value));
+    Err(anyhow!("{:?} cannot be applied to {}", head, value))
 }
 
 impl std::str::FromStr for Exp {
