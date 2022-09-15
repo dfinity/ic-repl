@@ -74,6 +74,8 @@ pub enum Token {
     Config,
     #[token("let")]
     Let,
+    #[token("file")]
+    File,
     #[token("assert")]
     Assert,
     #[token("identity")]

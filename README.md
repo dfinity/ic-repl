@@ -16,11 +16,12 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
  | <exp>                                     // show the value of <exp>
  | assert <exp> <binop> <exp>                // assertion
  | fetch <name> <text>                       // fetch the HTTP endpoint of `canister/<canister_id>/<name>`
- | identity <id> (<text> | record { slot_index = <nat>; key_id = <text> })?   // switch to identity <id>, with optional pem file or HSM config
+ | identity <id> <text>?                     // switch to identity <id>, with optional pem file
  | function <id> ( <id>,* ) { <command>;* }  // define a function
 <exp> := 
  | <candid val>                                    // any candid value
  | <var> <selector>*                               // variable with optional selectors
+ | file <text>                                     // load external file as a blob value
  | fail <exp>                                      // convert error message as text
  | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
  | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value. canister.__init_args represents init args
@@ -28,7 +29,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
  | <id> ( <exp>,* )                                // function application
 <var> := 
  | <id>                  // variable name 
- | _                     // previous eval of exp is bind to `_`
+ | _                     // previous eval of exp is bind to `_` 
 <selector> :=
  | ?                     // select opt value
  | . <name>              // select field name from record or variant value
@@ -44,14 +45,9 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
 Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
 You cannot define recursive functions, as there is no control flow in the language.
 
-We also provide some built-in functions:
+We also provide built-in functions for the ledger account:
 * account(principal): convert principal to account id.
 * neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
-* file(path): load external file as a blob value.
-* stringify(exp1, exp2, exp3, ...): Convert all expressions to string and concat. Only supports primitive types.
-* output(path, content): Append text content to file path.
-* wasm_profiling(path): load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`.
-* flamegraph(canister_id, title, filename): generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`.
 
 ## Examples
 
@@ -74,10 +70,10 @@ assert _ == result;
 // nns and ledger canisters are auto-imported if connected to the mainnet
 call nns.get_pending_proposals()
 identity private "./private.pem";
-call ledger.account_balance(record { account = account(private) });
+call ledger.account_balance_dfx(record { account = account(private) });
 
 function transfer(to, amount, memo) {
-  call ledger.transfer(
+  call ledger.send_dfx(
     record {
       to = to;
       fee = record { e8s = 10_000 };
@@ -115,7 +111,7 @@ function deploy(wasm) {
 };
 
 identity alice;
-let id = deploy(file("greet.wasm"));
+let id = deploy(file "greet.wasm");
 let status = call ic.canister_status(id);
 assert status.settings ~= record { controllers = vec { alice } };
 assert status.module_hash? == blob "...";
@@ -143,7 +139,7 @@ let id = _.Ok.canister_id;
 call as wallet ic.install_code(
   record {
     arg = encode ();
-    wasm_module = file("${WASM_FILE}");
+    wasm_module = file "${WASM_FILE}";
     mode = variant { install };
     canister_id = id;
   },

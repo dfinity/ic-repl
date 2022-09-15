@@ -15,7 +15,7 @@ function deploy(wasm) {
 };
 
 identity alice;
-let id = deploy(file("greet.wasm"));
+let id = deploy(file "greet.wasm");
 let status = call ic.canister_status(id);
 assert status.settings ~= record { controllers = vec { alice } };
 assert status.module_hash? == blob "\d8\d1\d3;\a3\a65\a6\a6\c8!\06\12\d2\da\9dZ\e4v\8d\27\bd\05\9d\cc\1a\df\cb \01u\dc";

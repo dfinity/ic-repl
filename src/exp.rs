@@ -1,7 +1,7 @@
+use super::command::resolve_path;
 use super::error::pretty_parse;
 use super::helper::{MyHelper, OfflineOutput};
 use super::token::{ParserError, Tokenizer};
-use super::utils::{args_to_value, get_effective_canister_id, resolve_path, str_to_principal};
 use anyhow::{anyhow, Context, Result};
 use candid::{
     parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
@@ -9,11 +9,11 @@ use candid::{
     Principal, TypeEnv,
 };
 use ic_agent::Agent;
-use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
 pub enum Exp {
     Path(String, Vec<Selector>),
+    Blob(String),
     AnnVal(Box<Exp>, Type),
     Call {
         method: Option<Method>,
@@ -71,15 +71,6 @@ impl Selector {
     }
 }
 impl Exp {
-    pub fn is_call(&self) -> bool {
-        matches!(
-            self,
-            Exp::Call {
-                mode: CallMode::Call,
-                ..
-            }
-        )
-    }
     pub fn eval(self, helper: &MyHelper) -> Result<IDLValue> {
         Ok(match self {
             Exp::Path(id, path) => {
@@ -89,6 +80,15 @@ impl Exp {
                     .get(&id)
                     .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
                 project(v, &path)?.clone()
+            }
+            Exp::Blob(file) => {
+                let path = resolve_path(&helper.base_path, &file);
+                let blob: Vec<IDLValue> = std::fs::read(&path)
+                    .with_context(|| format!("Cannot read {:?}", path))?
+                    .into_iter()
+                    .map(IDLValue::Nat8)
+                    .collect();
+                IDLValue::Vec(blob)
             }
             Exp::AnnVal(v, ty) => {
                 let arg = v.eval(helper)?;
@@ -107,107 +107,34 @@ impl Exp {
                     args.push(e.eval(helper)?);
                 }
                 match func.as_str() {
-                    "account" => match args.as_slice() {
-                        [IDLValue::Principal(principal)] => {
-                            let account = AccountIdentifier::new(*principal, None);
-                            IDLValue::Vec(
-                                account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
-                            )
+                    "account" => {
+                        if args.len() != 1 {
+                            return Err(anyhow!("Expects one argument"));
                         }
-                        _ => return Err(anyhow!("account expects principal")),
-                    },
-                    "neuron_account" => match args.as_slice() {
-                        [IDLValue::Principal(principal), nonce] => {
-                            let nonce = match nonce {
-                                IDLValue::Number(nonce) => nonce.parse::<u64>()?,
-                                IDLValue::Nat64(nonce) => *nonce,
-                                _ => {
-                                    return Err(anyhow!(
-                                        "neuron_account expects (principal, nonce)"
-                                    ))
-                                }
-                            };
-                            let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
-                            let subaccount = get_neuron_subaccount(principal, nonce);
-                            let account = AccountIdentifier::new(nns, Some(subaccount));
-                            IDLValue::Vec(
-                                account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
-                            )
+                        if let IDLValue::Principal(principal) = args[0] {
+                            let account = AccountIdentifier::new(principal, None);
+                            IDLValue::Text(account.to_hex())
+                        } else {
+                            return Err(anyhow!("Wrong argument type"));
                         }
-                        _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
-                    },
-                    "file" => match args.as_slice() {
-                        [IDLValue::Text(file)] => {
-                            let path = resolve_path(&helper.base_path, file);
-                            let blob: Vec<IDLValue> = std::fs::read(&path)
-                                .with_context(|| format!("Cannot read {:?}", path))?
-                                .into_iter()
-                                .map(IDLValue::Nat8)
-                                .collect();
-                            IDLValue::Vec(blob)
+                    }
+                    "neuron_account" => {
+                        if args.len() != 2 {
+                            return Err(anyhow!("Expects two arguments"));
                         }
-                        _ => return Err(anyhow!("file expects file path")),
-                    },
-                    "wasm_profiling" => match args.as_slice() {
-                        [IDLValue::Text(file)] => {
-                            let path = resolve_path(&helper.base_path, file);
-                            let blob = std::fs::read(&path)
-                                .with_context(|| format!("Cannot read {:?}", path))?;
-                            let mut m = walrus::Module::from_buffer(&blob)?;
-                            ic_wasm::shrink::shrink(&mut m);
-                            ic_wasm::instrumentation::instrument(&mut m);
-                            IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
-                        }
-                        _ => return Err(anyhow!("wasm_profiling expects file path")),
-                    },
-                    "flamegraph" => match args.as_slice() {
-                        [IDLValue::Principal(cid), IDLValue::Text(title), IDLValue::Text(file)] => {
-                            let mut map = helper.canister_map.borrow_mut();
-                            let names = match map.get(&helper.agent, cid) {
-                                Ok(crate::helper::CanisterInfo {
-                                    profiling: Some(names),
-                                    ..
-                                }) => names,
-                                _ => return Err(anyhow!("{} is not instrumented", cid)),
-                            };
-                            let file = if !file.ends_with(".svg") {
-                                file.to_string() + ".svg"
-                            } else {
-                                file.to_string()
-                            };
-                            crate::profiling::get_profiling(
-                                &helper.agent,
-                                cid,
-                                names,
-                                title,
-                                &file,
-                            )?;
-                            IDLValue::Null
-                        }
-                        _ => {
-                            return Err(anyhow!(
-                                "flamegraph expects (canister id, title name, svg file name)"
-                            ))
-                        }
-                    },
-                    "output" => match args.as_slice() {
-                        [IDLValue::Text(file), IDLValue::Text(content)] => {
-                            use std::fs::OpenOptions;
-                            use std::io::Write;
-                            let mut file =
-                                OpenOptions::new().append(true).create(true).open(file)?;
-                            file.write_all(content.as_bytes())?;
-                            IDLValue::Text(content.to_string())
-                        }
-                        _ => return Err(anyhow!("wasm_profiling expects (file path, content)")),
-                    },
-                    "stringify" => {
-                        use std::fmt::Write;
-                        let mut res = String::new();
-                        for arg in args {
-                            write!(&mut res, "{}", crate::utils::stringify(&arg)?)?;
-                        }
-                        IDLValue::Text(res)
+                        let (principal, nonce) = match (&args[0], &args[1]) {
+                            (IDLValue::Principal(principal), IDLValue::Number(nonce)) => {
+                                (principal, nonce.parse::<u64>()?)
+                            }
+                            (IDLValue::Principal(principal), IDLValue::Nat64(nonce)) => {
+                                (principal, *nonce)
+                            }
+                            (_, _) => return Err(anyhow!("Wrong argument type")),
+                        };
+                        let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
+                        let subaccount = get_neuron_subaccount(principal, nonce);
+                        let account = AccountIdentifier::new(nns, Some(subaccount));
+                        IDLValue::Text(account.to_hex())
                     }
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),
@@ -250,8 +177,8 @@ impl Exp {
                 };
                 let args = match method {
                     Some(method) => {
-                        let info = method.get_info(helper)?;
-                        if let Some((env, func)) = info.signature {
+                        let (_, func) = method.get_info(helper)?;
+                        if let Some((env, func)) = func {
                             IDLArgs::from_bytes_with_types(&bytes, &env, &func.rets)?
                         } else {
                             IDLArgs::from_bytes(&bytes)?
@@ -267,16 +194,12 @@ impl Exp {
                     res.push(arg.eval(helper)?);
                 }
                 let args = IDLArgs { args: res };
-                let opt_info = if let Some(method) = &method {
+                let opt_func = if let Some(method) = &method {
                     Some(method.get_info(helper)?)
                 } else {
                     None
                 };
-                let bytes = if let Some(MethodInfo {
-                    signature: Some((env, func)),
-                    ..
-                }) = &opt_info
-                {
+                let bytes = if let Some((_, Some((env, func)))) = &opt_func {
                     args.to_bytes_with_types(env, &func.args)?
                 } else {
                     args.to_bytes()?
@@ -286,35 +209,17 @@ impl Exp {
                         IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect())
                     }
                     CallMode::Call => {
-                        use crate::profiling::{get_cycles, ok_to_profile};
                         let method = method.unwrap(); // okay to unwrap from parser
-                        let info = opt_info.unwrap();
-                        let ok_to_profile = ok_to_profile(helper, &info);
-                        let before_cost = if ok_to_profile {
-                            get_cycles(&helper.agent, &info.canister_id)?
-                        } else {
-                            0
-                        };
+                        let (canister_id, opt_func) = opt_func.unwrap();
                         let res = call(
                             &helper.agent,
-                            &info.canister_id,
+                            &canister_id,
                             &method.method,
                             &bytes,
-                            &info.signature,
+                            &opt_func,
                             &helper.offline,
                         )?;
-                        if ok_to_profile {
-                            let cost = get_cycles(&helper.agent, &info.canister_id)? - before_cost;
-                            println!("Cost: {} Wasm instructions", cost);
-                            let cost = IDLValue::Record(vec![IDLField {
-                                id: Label::Named("__cost".to_string()),
-                                val: IDLValue::Int64(cost),
-                            }]);
-                            let res = IDLArgs::new(&[args_to_value(res), cost]);
-                            args_to_value(res)
-                        } else {
-                            args_to_value(res)
-                        }
+                        args_to_value(res)
                     }
                     CallMode::Proxy(id) => {
                         let method = method.unwrap();
@@ -358,7 +263,7 @@ let _ = decode as "{canister}".{method} _.Ok.return;
                             method = method.method
                         );
                         let cmds = pretty_parse::<crate::command::Commands>("forward_call", &code)?;
-                        for (cmd, _) in cmds.0.into_iter() {
+                        for cmd in cmds.0.into_iter() {
                             cmd.run(&mut env)?;
                         }
                         env.env.0.get("_").unwrap().clone()
@@ -439,56 +344,120 @@ impl std::str::FromStr for Exp {
         super::grammar::ExpParser::new().parse(lexer)
     }
 }
-
-#[derive(Debug)]
-pub struct MethodInfo {
-    pub canister_id: Principal,
-    pub signature: Option<(TypeEnv, Function)>,
-    pub profiling: Option<BTreeMap<u16, String>>,
+pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
+    let try_id = Principal::from_text(id);
+    Ok(match try_id {
+        Ok(id) => id,
+        Err(_) => match helper.env.0.get(id) {
+            Some(IDLValue::Principal(id)) => *id,
+            _ => return Err(anyhow!("{} is not a canister id", id)),
+        },
+    })
+}
+fn get_type(
+    canister_id: Principal,
+    method: &str,
+    helper: &MyHelper,
+) -> Option<(TypeEnv, Function)> {
+    let agent = &helper.agent;
+    let mut map = helper.canister_map.borrow_mut();
+    let info = map.get(agent, &canister_id).ok()?;
+    let func = if method == "__init_args" {
+        Function {
+            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
+            rets: Vec::new(),
+            modes: Vec::new(),
+        }
+    } else {
+        info.methods.get(method)?.clone()
+    };
+    Some((info.env.clone(), func))
 }
 impl Method {
-    fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
+    fn get_info(&self, helper: &MyHelper) -> Result<(Principal, Option<(TypeEnv, Function)>)> {
         let canister_id = str_to_principal(&self.canister, helper)?;
-        let agent = &helper.agent;
-        let mut map = helper.canister_map.borrow_mut();
-        Ok(match map.get(agent, &canister_id) {
-            Err(_) => MethodInfo {
-                canister_id,
-                signature: None,
-                profiling: None,
-            },
-            Ok(info) => {
-                let signature = if self.method == "__init_args" {
-                    Some((
-                        info.env.clone(),
-                        Function {
-                            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
-                            rets: Vec::new(),
-                            modes: Vec::new(),
-                        },
-                    ))
-                } else {
-                    info.methods
-                        .get(&self.method)
-                        .or_else(|| {
-                            if !self.method.starts_with("__") {
-                                eprintln!(
-                                    "Warning: cannot get type for {}.{}, use types infered from textual value",
-                                    self.canister, self.method
-                                );
-                            }
-                            None
-                        })
-                        .map(|ty| (info.env.clone(), ty.clone()))
-                };
-                MethodInfo {
-                    canister_id,
-                    signature,
-                    profiling: info.profiling.clone(),
-                }
-            }
-        })
+        let func = get_type(canister_id, &self.method, helper);
+        if func.is_none() {
+            eprintln!(
+                "Warning: cannot get type for {}.{}, use types infered from textual value",
+                self.canister, self.method
+            );
+        }
+        Ok((canister_id, func))
     }
+}
+
+#[derive(serde::Serialize)]
+struct Ingress {
+    call_type: String,
+    request_id: Option<String>,
+    content: String,
+}
+#[derive(serde::Serialize)]
+struct RequestStatus {
+    canister_id: Principal,
+    request_id: String,
+    content: String,
+}
+#[derive(serde::Serialize)]
+struct IngressWithStatus {
+    ingress: Ingress,
+    request_status: RequestStatus,
+}
+static mut PNG_COUNTER: u32 = 0;
+fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()> {
+    match format {
+        OfflineOutput::Json => println!("{}", json),
+        _ => {
+            use libflate::gzip;
+            use qrcode::{render::unicode, QrCode};
+            use std::io::Write;
+            eprintln!("json length: {}", json.len());
+            let mut encoder = gzip::Encoder::new(Vec::new())?;
+            encoder.write_all(json.as_bytes())?;
+            let zipped = encoder.finish().into_result()?;
+            let config = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
+                base64::STANDARD_NO_PAD
+            } else {
+                base64::URL_SAFE_NO_PAD
+            };
+            let base64 = base64::encode_config(&zipped, config);
+            eprintln!("base64 length: {}", base64.len());
+            let msg = match format {
+                OfflineOutput::Ascii(url) | OfflineOutput::Png(url) => url.to_owned() + &base64,
+                _ => base64,
+            };
+            let code = QrCode::new(&msg)?;
+            match format {
+                OfflineOutput::Ascii(_) | OfflineOutput::AsciiNoUrl => {
+                    let img = code.render::<unicode::Dense1x2>().build();
+                    println!("{}", img);
+                    pause()?;
+                }
+                OfflineOutput::Png(_) | OfflineOutput::PngNoUrl => {
+                    let img = code.render::<image::Luma<u8>>().build();
+                    let filename = unsafe {
+                        PNG_COUNTER += 1;
+                        format!("msg{}.png", PNG_COUNTER)
+                    };
+                    img.save(&filename)?;
+                    println!("QR code saved to {}", filename);
+                }
+                _ => unreachable!(),
+            }
+        }
+    };
+    Ok(())
+}
+
+fn pause() -> anyhow::Result<()> {
+    use std::io::{Read, Write};
+    let mut stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+    eprint!("Press [enter] to continue...");
+    stdout.flush()?;
+    let _ = stdin.read(&mut [0u8])?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -500,7 +469,6 @@ async fn call(
     opt_func: &Option<(TypeEnv, Function)>,
     offline: &Option<OfflineOutput>,
 ) -> anyhow::Result<IDLArgs> {
-    use crate::offline::*;
     let effective_id = get_effective_canister_id(*canister_id, method, args)?;
     let is_query = opt_func
         .as_ref()
@@ -559,4 +527,48 @@ async fn call(
         IDLArgs::from_bytes(&bytes)?
     };
     Ok(res)
+}
+
+fn get_effective_canister_id(
+    canister_id: Principal,
+    method: &str,
+    args: &[u8],
+) -> anyhow::Result<Principal> {
+    use candid::{CandidType, Decode, Deserialize};
+    if canister_id == Principal::management_canister() {
+        match method {
+            "create_canister" | "raw_rand" => Err(anyhow!(
+                "{} can only be called via inter-canister call.",
+                method
+            )),
+            "provisional_create_canister_with_cycles" => Ok(canister_id),
+            _ => {
+                #[derive(CandidType, Deserialize)]
+                struct Arg {
+                    canister_id: Principal,
+                }
+                let args = Decode!(args, Arg)?;
+                Ok(args.canister_id)
+            }
+        }
+    } else {
+        Ok(canister_id)
+    }
+}
+
+fn args_to_value(mut args: IDLArgs) -> IDLValue {
+    match args.args.len() {
+        0 => IDLValue::Null,
+        1 => args.args.pop().unwrap(),
+        len => {
+            let mut fs = Vec::with_capacity(len);
+            for (i, v) in args.args.into_iter().enumerate() {
+                fs.push(IDLField {
+                    id: Label::Id(i as u32),
+                    val: v,
+                });
+            }
+            IDLValue::Record(fs)
+        }
+    }
 }

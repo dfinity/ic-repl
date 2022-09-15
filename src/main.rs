@@ -1,5 +1,4 @@
 use ansi_term::Color;
-use clap::Parser;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
@@ -10,10 +9,7 @@ mod error;
 mod exp;
 mod grammar;
 mod helper;
-mod offline;
-mod profiling;
 mod token;
-mod utils;
 use crate::command::Command;
 use crate::error::pretty_parse;
 use crate::helper::{MyHelper, OfflineOutput};
@@ -107,22 +103,23 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Parser)]
-#[clap(version, author)]
+use structopt::StructOpt;
+#[derive(StructOpt)]
+#[structopt(global_settings = &[structopt::clap::AppSettings::ColoredHelp, structopt::clap::AppSettings::DeriveDisplayOrder])]
 struct Opts {
-    #[clap(short, long)]
+    #[structopt(short, long)]
     /// Specifies replica URL, possible values: local, ic, URL
     replica: Option<String>,
-    #[clap(short, long, conflicts_with("replica"))]
+    #[structopt(short, long, conflicts_with("replica"))]
     /// Offline mode to be run in air-gap machines
     offline: bool,
-    #[clap(short, long, requires("offline"), possible_values = &["ascii", "json", "png", "ascii_no_url", "png_no_url"])]
+    #[structopt(short, long, requires("offline"), possible_values = &["ascii", "json", "png", "ascii_no_url", "png_no_url"])]
     /// Offline output format
     format: Option<String>,
-    #[clap(short, long, requires("offline"))]
+    #[structopt(short, long, requires("offline"))]
     /// Offline URL embeded in the QR code, only used in ascii or png format. Default value: "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg="
     url: Option<String>,
-    #[clap(short, long)]
+    #[structopt(short, long)]
     /// Specifies config file for Candid random value generation
     config: Option<String>,
     /// ic-repl script file
@@ -130,6 +127,6 @@ struct Opts {
 }
 
 fn main() -> anyhow::Result<()> {
-    let opts = Opts::parse();
+    let opts = Opts::from_args();
     repl(opts)
 }

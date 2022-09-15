@@ -25,5 +25,5 @@ function deploy(wallet, wasm, cycle) {
 };
 
 import wallet = "${WALLET_ID:-rwlgt-iiaaa-aaaaa-aaaaa-cai}" as "wallet.did";
-let id = deploy(wallet, file("greet.wasm"), 1_000_000);
+let id = deploy(wallet, file "greet.wasm", 1_000_000);
 call id.greet("test");

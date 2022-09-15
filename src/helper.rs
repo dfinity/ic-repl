@@ -1,6 +1,5 @@
-use crate::exp::Exp;
+use crate::exp::{str_to_principal, Exp};
 use crate::token::{Token, Tokenizer};
-use crate::utils::{random_value, str_to_principal};
 use ansi_term::Color;
 use candid::{
     check_prog,
@@ -8,7 +7,7 @@ use candid::{
     parser::value::{IDLField, IDLValue, VariantValue},
     pretty_parse,
     types::{Function, Label, Type},
-    Decode, Encode, IDLProg, Principal, TypeEnv,
+    Decode, Encode, IDLArgs, IDLProg, Principal, TypeEnv,
 };
 use ic_agent::{Agent, Identity};
 use rustyline::completion::{extract_word, Completer, FilenameCompleter, Pair};
@@ -32,12 +31,11 @@ pub struct IdentityMap(pub BTreeMap<String, Arc<dyn Identity>>);
 pub struct Env(pub BTreeMap<String, IDLValue>);
 #[derive(Default, Clone)]
 pub struct FuncEnv(pub BTreeMap<String, (Vec<String>, Vec<crate::command::Command>)>);
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CanisterInfo {
     pub env: TypeEnv,
     pub methods: BTreeMap<String, Function>,
     pub init: Option<Vec<Type>>,
-    pub profiling: Option<BTreeMap<u16, String>>,
 }
 #[derive(Clone)]
 pub enum OfflineOutput {
@@ -50,7 +48,7 @@ pub enum OfflineOutput {
 impl CanisterMap {
     pub fn get(&mut self, agent: &Agent, id: &Principal) -> anyhow::Result<&CanisterInfo> {
         if !self.0.contains_key(id) {
-            let info = fetch_actor(agent, *id)?;
+            let info = fetch_actor(agent, id)?;
             self.0.insert(*id, info);
         }
         Ok(self.0.get(id).unwrap())
@@ -141,21 +139,19 @@ impl MyHelper {
         self.preload_canister(
             "ic".to_string(),
             Principal::from_text("aaaaa-aa")?,
-            Some(include_str!("ic.did")),
+            include_str!("ic.did"),
         )?;
         if self.agent_url == "https://ic0.app" {
+            // TODO remove when nns supports the tmp_hack method
             self.preload_canister(
                 "nns".to_string(),
                 Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?,
-                // only load did file in offline mode
-                self.offline
-                    .as_ref()
-                    .map(|_| include_str!("governance.did")),
+                include_str!("governance.did"),
             )?;
             self.preload_canister(
                 "ledger".to_string(),
                 Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?,
-                self.offline.as_ref().map(|_| include_str!("ledger.did")),
+                include_str!("ledger.did"),
             )?;
         }
         Ok(())
@@ -164,14 +160,12 @@ impl MyHelper {
         &mut self,
         name: String,
         id: Principal,
-        did_file: Option<&str>,
+        did_file: &str,
     ) -> anyhow::Result<()> {
         let mut canister_map = self.canister_map.borrow_mut();
-        if let Some(did_file) = did_file {
-            canister_map
-                .0
-                .insert(id, did_to_canister_info(&name, did_file, None)?);
-        }
+        canister_map
+            .0
+            .insert(id, did_to_canister_info(&name, did_file)?);
         self.env.0.insert(name, IDLValue::Principal(id));
         Ok(())
     }
@@ -386,46 +380,44 @@ impl Validator for MyHelper {
     }
 }
 
-#[tokio::main]
-async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<CanisterInfo> {
-    let response = fetch_metadata_(agent, canister_id, "metadata/candid:service").await;
-    let profiling = fetch_metadata_(agent, canister_id, "metadata/name")
-        .await
-        .ok()
-        .as_ref()
-        .and_then(|bytes| Decode!(bytes, BTreeMap<u16, String>).ok());
-    let candid = match response {
-        Ok(blob) => std::str::from_utf8(&blob)?.to_owned(),
-        Err(_) => {
-            let response = agent
-                .query(&canister_id, "__get_candid_interface_tmp_hack")
-                .with_arg(&Encode!()?)
-                .call()
-                .await;
-            match response {
-                Ok(response) => Decode!(&response, String)?,
-                Err(_) => {
-                    return Ok(CanisterInfo {
-                        env: Default::default(),
-                        methods: Default::default(),
-                        init: None,
-                        profiling,
-                    })
-                }
+fn random_value(
+    env: &TypeEnv,
+    tys: &[Type],
+    given_args: usize,
+    config: &Configs,
+) -> candid::Result<String> {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
+    let result = IDLArgs::any(&seed, config, env, tys)?;
+    Ok(if given_args > 0 {
+        if given_args <= tys.len() {
+            let mut res = String::new();
+            for v in result.args[given_args..].iter() {
+                res.push_str(&format!(", {}", v));
             }
+            res.push(')');
+            res
+        } else {
+            "".to_owned()
         }
-    };
-    did_to_canister_info(&format!("did file for {}", canister_id), &candid, profiling)
+    } else {
+        format!("{}", result)
+    })
+}
+
+#[tokio::main]
+async fn fetch_actor(agent: &Agent, canister_id: &Principal) -> anyhow::Result<CanisterInfo> {
+    let response = agent
+        .query(canister_id, "__get_candid_interface_tmp_hack")
+        .with_arg(&Encode!()?)
+        .call()
+        .await?;
+    let response = Decode!(&response, String)?;
+    did_to_canister_info(&format!("did file for {}", canister_id), &response)
 }
 #[tokio::main]
 pub async fn fetch_metadata(
-    agent: &Agent,
-    canister_id: Principal,
-    sub_paths: &str,
-) -> anyhow::Result<Vec<u8>> {
-    fetch_metadata_(agent, canister_id, sub_paths).await
-}
-async fn fetch_metadata_(
     agent: &Agent,
     canister_id: Principal,
     sub_paths: &str,
@@ -439,11 +431,7 @@ async fn fetch_metadata_(
     Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
 
-pub fn did_to_canister_info(
-    name: &str,
-    did: &str,
-    profiling: Option<BTreeMap<u16, String>>,
-) -> anyhow::Result<CanisterInfo> {
+pub fn did_to_canister_info(name: &str, did: &str) -> anyhow::Result<CanisterInfo> {
     let ast = pretty_parse::<IDLProg>(name, did)?;
     let mut env = TypeEnv::new();
     let actor = check_prog(&mut env, &ast)?.unwrap();
@@ -456,12 +444,7 @@ pub fn did_to_canister_info(
         })
         .collect();
     let init = find_init_args(&env, &actor);
-    Ok(CanisterInfo {
-        env,
-        methods,
-        init,
-        profiling,
-    })
+    Ok(CanisterInfo { env, methods, init })
 }
 
 fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
