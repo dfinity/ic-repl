@@ -3,10 +3,10 @@ name = "ic-repl"
 version = "0.3.4"
 authors = ["DFINITY Team"]
 edition = "2018"
-default-run = "main"
+default-run = "ic-repl"
 
 [[bin]]
-name = "main"
+name = "ic-repl"
 path = "src/main.rs"
 doc = false
 
