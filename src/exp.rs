@@ -1,3 +1,4 @@
+use super::error::pretty_parse;
 use super::helper::{MyHelper, OfflineOutput};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{args_to_value, get_effective_canister_id, resolve_path, str_to_principal};
@@ -356,8 +357,7 @@ let _ = decode as "{canister}".{method} _.Ok.return;
                             canister = canister_id,
                             method = method.method
                         );
-                        let cmds =
-                            crate::pretty_parse::<crate::command::Commands>("forward_call", &code)?;
+                        let cmds = pretty_parse::<crate::command::Commands>("forward_call", &code)?;
                         for (cmd, _) in cmds.0.into_iter() {
                             cmd.run(&mut env)?;
                         }
