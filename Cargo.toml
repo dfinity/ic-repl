@@ -14,7 +14,7 @@ doc = false
 lalrpop = "0.19"
 
 [dependencies]
-candid = { version = "0.7.16", features = ["random"] }
+candid = { version = "0.7", features = ["random"] }
 rustyline = "8.2"
 rustyline-derive = "0.4"
 ansi_term = "0.12"
@@ -25,8 +25,8 @@ codespan-reporting = "0.11"
 pretty = "0.10.0"
 pem = "1.0"
 shellexpand = "2.1"
-ic-agent = "0.20.0"
-ic-identity-hsm = "0.20.0"
+ic-agent = "0.20.1"
+ic-identity-hsm = "0.20.1"
 ic-wasm = "0.1"
 inferno = "0.11"
 walrus = "0.19"
