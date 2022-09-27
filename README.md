@@ -48,6 +48,7 @@ We also provide some built-in functions:
 * account(principal): convert principal to account id.
 * neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
 * file(path): load external file as a blob value.
+* gzip(blob): gzip a blob value.
 * stringify(exp1, exp2, exp3, ...): Convert all expressions to string and concat. Only supports primitive types.
 * output(path, content): Append text content to file path.
 * wasm_profiling(path): load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`.
@@ -149,6 +150,30 @@ call as wallet ic.install_code(
   },
 );
 call id.greet("test");
+```
+
+### profiling.sh
+```
+#!/usr/bin/ic-repl
+import "install.sh";
+
+let file = "result.md";
+output(file, "# profiling result\n\n");
+output(file, "|generate|get|put|\n|--:|--:|--:|\n");
+
+let cid = deploy(gzip(wasm_profiling("hashmap.wasm")));
+call cid.__toggle_tracing();   // Disable flamegraph tracing
+call cid.generate(50000);
+output(file, stringify(__cost__, "|"));
+
+call cid.__toggle_tracing();   // Enable flamegraph tracing
+call cid.batch_get(50);
+flamegraph(cid, "hashmap.get(50)", "get");
+output(file, stringify("[", __cost__, "](get.svg)|"));
+
+let put = call cid.batch_put(50);
+flamegraph(cid, "hashmap.put(50)", "put.svg");
+output(file, stringify("[", __cost_put, "](put.svg)|\n"));
 ```
 
 ## Derived forms

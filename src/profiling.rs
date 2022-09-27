@@ -45,6 +45,8 @@ pub async fn get_profiling(
     let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
     if !pairs.is_empty() {
         render_profiling(pairs, names, title, filename)?;
+    } else {
+        eprintln!("empty trace");
     }
     Ok(())
 }
