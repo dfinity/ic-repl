@@ -148,6 +148,24 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("file expects file path")),
                     },
+                    "gzip" => match args.as_slice() {
+                        [IDLValue::Vec(blob)] => {
+                            use libflate::gzip::Encoder;
+                            use std::io::Write;
+                            let blob: Vec<u8> = blob
+                                .iter()
+                                .filter_map(|v| match v {
+                                    IDLValue::Nat8(n) => Some(*n),
+                                    _ => None,
+                                })
+                                .collect();
+                            let mut encoder = Encoder::new(Vec::with_capacity(blob.len()))?;
+                            encoder.write_all(&blob)?;
+                            let result = encoder.finish().into_result()?;
+                            IDLValue::Vec(result.into_iter().map(IDLValue::Nat8).collect())
+                        }
+                        _ => return Err(anyhow!("gzip expects blob")),
+                    },
                     "wasm_profiling" => match args.as_slice() {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);
