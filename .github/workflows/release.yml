@@ -51,7 +51,7 @@ jobs:
       with:
         use-cross: true
         command: build
-        args: --target arm-unknown-linux-gnueabihf --features static-ssl --release --locked
+        args: --target arm-unknown-linux-gnueabihf --release --locked
     - name: Upload binaries to release
       uses: svenstaro/upload-release-action@v2
       with:

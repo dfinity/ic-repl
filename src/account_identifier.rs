@@ -6,8 +6,8 @@
 #![allow(clippy::all)]
 
 use candid::{CandidType, Principal};
-use openssl::sha::Sha224;
 use serde::{de, de::Error, Deserialize, Serialize};
+use sha2::{Digest, Sha224, Sha256};
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -37,7 +37,7 @@ impl AccountIdentifier {
         hash.update(&sub_account.0[..]);
 
         AccountIdentifier {
-            hash: hash.finish(),
+            hash: hash.finalize().into(),
         }
     }
 
@@ -185,11 +185,10 @@ impl TryFrom<&[u8]> for Subaccount {
 // This function _must_ correspond to how the governance canister computes the
 // subaccount.
 pub fn get_neuron_subaccount(controller: &Principal, nonce: u64) -> Subaccount {
-    use openssl::sha::Sha256;
     let mut data = Sha256::new();
     data.update(&[0x0c]);
     data.update(b"neuron-stake");
     data.update(controller.as_slice());
     data.update(&nonce.to_be_bytes());
-    Subaccount(data.finish())
+    Subaccount(data.finalize().into())
 }
