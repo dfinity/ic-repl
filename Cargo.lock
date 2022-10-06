@@ -1161,7 +1161,8 @@ dependencies = [
 [[package]]
 name = "ic-wasm"
 version = "0.3.0"
-source = "git+https://github.com/dfinity/ic-wasm?branch=undo-walrus#e1f7a6100482e4aa06cdaed74964613caf34f23c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a61da10f997c0f98b94650ad9bed0382f69025c4d273ebfb55d3dee5e29edfcf"
 dependencies = [
  "anyhow",
  "candid",

@@ -27,7 +27,7 @@ pem = "1.0"
 shellexpand = "2.1"
 ic-agent = "0.21"
 ic-identity-hsm = "0.21"
-ic-wasm = { git = "https://github.com/dfinity/ic-wasm", branch = "undo-walrus" }
+ic-wasm = "0.3"
 inferno = "0.11"
 tokio = { version = "1.20.0", features = ["full"] }
 garcon = "0.2.3"
