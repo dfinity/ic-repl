@@ -171,7 +171,7 @@ impl Exp {
                             let path = resolve_path(&helper.base_path, file);
                             let blob = std::fs::read(&path)
                                 .with_context(|| format!("Cannot read {:?}", path))?;
-                            let mut m = walrus::Module::from_buffer(&blob)?;
+                            let mut m = ic_wasm::utils::parse_wasm(&blob, false)?;
                             ic_wasm::shrink::shrink(&mut m);
                             ic_wasm::instrumentation::instrument(&mut m);
                             IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
