@@ -1,6 +1,7 @@
 use crate::helper::MyHelper;
 use anyhow::{anyhow, Context, Result};
 use candid::parser::configs::Configs;
+use candid::parser::pretty::number_to_string;
 use candid::parser::value::{IDLArgs, IDLField, IDLValue};
 use candid::types::{Label, Type};
 use candid::Principal;
@@ -11,17 +12,19 @@ use std::path::{Path, PathBuf};
 pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<str>> {
     Ok(match v {
         IDLValue::Text(str) => Cow::Borrowed(str),
-        IDLValue::Number(n) => Cow::Owned(n.to_string()),
-        IDLValue::Int64(n) => Cow::Owned(n.to_string()),
-        IDLValue::Int32(n) => Cow::Owned(n.to_string()),
-        IDLValue::Int16(n) => Cow::Owned(n.to_string()),
-        IDLValue::Int8(n) => Cow::Owned(n.to_string()),
-        IDLValue::Nat64(n) => Cow::Owned(n.to_string()),
-        IDLValue::Nat32(n) => Cow::Owned(n.to_string()),
-        IDLValue::Nat16(n) => Cow::Owned(n.to_string()),
-        IDLValue::Nat8(n) => Cow::Owned(n.to_string()),
-        IDLValue::Nat(n) => Cow::Owned(n.to_string()),
-        IDLValue::Int(n) => Cow::Owned(n.to_string()),
+        IDLValue::Number(_)
+        | IDLValue::Int64(_)
+        | IDLValue::Int32(_)
+        | IDLValue::Int16(_)
+        | IDLValue::Int8(_)
+        | IDLValue::Int(_)
+        | IDLValue::Nat64(_)
+        | IDLValue::Nat32(_)
+        | IDLValue::Nat16(_)
+        | IDLValue::Nat8(_)
+        | IDLValue::Nat(_)
+        | IDLValue::Float32(_)
+        | IDLValue::Float64(_) => Cow::Owned(number_to_string(v)),
         IDLValue::Principal(id) => Cow::Owned(id.to_string()),
         IDLValue::Bool(b) => Cow::Owned(b.to_string()),
         _ => return Err(anyhow!("Cannot stringify {}", v)),
