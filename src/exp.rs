@@ -61,12 +61,15 @@ pub struct Field {
 pub enum Selector {
     Index(u64),
     Field(String),
+    Option,
+    Map(String),
 }
 impl Selector {
     fn to_label(&self) -> Label {
         match self {
             Selector::Index(idx) => Label::Id(*idx as u32),
             Selector::Field(name) => Label::Named(name.to_string()),
+            _ => unreachable!(),
         }
     }
 }
@@ -87,8 +90,9 @@ impl Exp {
                     .env
                     .0
                     .get(&id)
-                    .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
-                project(v, &path)?.clone()
+                    .ok_or_else(|| anyhow!("Undefined variable {}", id))?
+                    .clone();
+                project(helper, v, &path)?
             }
             Exp::AnnVal(v, ty) => {
                 let arg = v.eval(helper)?;
@@ -421,33 +425,55 @@ let _ = decode as "{canister}".{method} _.Ok.return;
     }
 }
 
-pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValue> {
+pub fn project(helper: &MyHelper, value: IDLValue, path: &[Selector]) -> Result<IDLValue> {
     if path.is_empty() {
         return Ok(value);
     }
     let (head, tail) = (&path[0], &path[1..]);
     match (value, head) {
-        (IDLValue::Opt(opt), Selector::Field(f)) if f == "?" => return project(opt, tail),
-        (IDLValue::Vec(vs), Selector::Index(idx)) => {
+        (IDLValue::Opt(opt), Selector::Option) => project(helper, *opt, tail),
+        (IDLValue::Vec(mut vs), Selector::Index(idx)) => {
             let idx = *idx as usize;
             if idx < vs.len() {
-                return project(&vs[idx], tail);
+                project(helper, vs.swap_remove(idx), tail)
+            } else {
+                Err(anyhow!("{} out of bound {}", idx, vs.len()))
             }
         }
-        (IDLValue::Record(fs), field) => {
+        (IDLValue::Vec(vs), Selector::Map(func)) => {
+            let mut new_helper = helper.spawn();
+            let mut res = Vec::with_capacity(vs.len());
+            for v in vs.into_iter() {
+                new_helper.env.0.insert(String::new(), v);
+                let arg = Exp::Path(String::new(), Vec::new());
+                let exp = Exp::Apply(func.to_string(), vec![arg]);
+                res.push(exp.eval(&new_helper)?);
+            }
+            project(helper, IDLValue::Vec(res), tail)
+        }
+        (IDLValue::Record(fs), field @ (Selector::Index(_) | Selector::Field(_))) => {
             let id = field.to_label();
-            if let Some(v) = fs.iter().find(|f| f.id == id) {
-                return project(&v.val, tail);
+            if let Some(v) = fs.into_iter().find(|f| f.id == id) {
+                return project(helper, v.val, tail);
             }
+            Err(anyhow!("record field {:?} not found", field))
         }
-        (IDLValue::Variant(VariantValue(f, _)), field) => {
+        (
+            IDLValue::Variant(VariantValue(f, _)),
+            field @ (Selector::Index(_) | Selector::Field(_)),
+        ) => {
             if field.to_label() == f.id {
-                return project(&f.val, tail);
+                project(helper, f.val, tail)
+            } else {
+                Err(anyhow!("variant field {:?} not found", field))
             }
         }
-        _ => (),
+        (value, head) => Err(anyhow!(
+            "selector {:?} cannot be applied to {}",
+            head,
+            value
+        )),
     }
-    Err(anyhow!("{:?} cannot be applied to {}", head, value))
 }
 
 impl std::str::FromStr for Exp {
