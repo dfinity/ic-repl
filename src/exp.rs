@@ -63,6 +63,7 @@ pub enum Selector {
     Field(String),
     Option,
     Map(String),
+    Filter(String),
 }
 impl Selector {
     fn to_label(&self) -> Label {
@@ -440,14 +441,20 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: &[Selector]) -> Result<
                 Err(anyhow!("{} out of bound {}", idx, vs.len()))
             }
         }
-        (IDLValue::Vec(vs), Selector::Map(func)) => {
+        (IDLValue::Vec(vs), head @ (Selector::Map(func) | Selector::Filter(func))) => {
             let mut new_helper = helper.spawn();
             let mut res = Vec::with_capacity(vs.len());
             for v in vs.into_iter() {
-                new_helper.env.0.insert(String::new(), v);
+                new_helper.env.0.insert(String::new(), v.clone());
                 let arg = Exp::Path(String::new(), Vec::new());
                 let exp = Exp::Apply(func.to_string(), vec![arg]);
-                res.push(exp.eval(&new_helper)?);
+                match (head, exp.eval(&new_helper)) {
+                    (Selector::Map(_), v) => res.push(v?),
+                    (Selector::Filter(_), Ok(IDLValue::Bool(false))) => (),
+                    (Selector::Filter(_), Ok(_)) => res.push(v),
+                    (Selector::Filter(_), Err(_)) => (),
+                    (_, _) => unreachable!(),
+                }
             }
             project(helper, IDLValue::Vec(res), tail)
         }
