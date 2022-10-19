@@ -64,6 +64,7 @@ pub enum Selector {
     Option,
     Map(String),
     Filter(String),
+    Fold(Exp, String),
 }
 impl Selector {
     fn to_label(&self) -> Label {
@@ -457,6 +458,20 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: &[Selector]) -> Result<
                 }
             }
             project(helper, IDLValue::Vec(res), tail)
+        }
+        (IDLValue::Vec(vs), Selector::Fold(init, func)) => {
+            let init = init.clone().eval(helper)?;
+            let mut new_helper = helper.spawn();
+            let mut acc = init;
+            for v in vs.into_iter() {
+                new_helper.env.0.insert(String::new(), v);
+                let arg = Exp::Path(String::new(), Vec::new());
+                new_helper.env.0.insert("_".to_string(), acc.clone());
+                let accu = Exp::Path("_".to_string(), Vec::new());
+                let exp = Exp::Apply(func.to_string(), vec![accu, arg]);
+                acc = exp.eval(&new_helper)?;
+            }
+            project(helper, acc, tail)
         }
         (IDLValue::Record(fs), field @ (Selector::Index(_) | Selector::Field(_))) => {
             let id = field.to_label();

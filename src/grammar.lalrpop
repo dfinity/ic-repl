@@ -115,6 +115,7 @@ Selector: Selector = {
        match (method.0.as_str(), args.as_slice()) {
          ("map", [Exp::Path(func, _x)]) if _x.is_empty() => Ok(Selector::Map(func.to_string())),
          ("filter", [Exp::Path(func, _x)]) if _x.is_empty() => Ok(Selector::Filter(func.to_string())),
+         ("fold", [init, Exp::Path(func, _x)]) if _x.is_empty() => Ok(Selector::Fold(init.clone(), func.to_string())),
          (_, _) => Err(error2("unknown method or wrong arguments", method.1)),
        }
      }
