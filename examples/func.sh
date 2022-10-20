@@ -14,3 +14,8 @@ assert x.map(f).fold("", f4) == "1,2,";
 let y = vec { variant { y = 1 }; variant { x = "error" }; variant { y = 2 } };
 assert y.filter(f3).map(f3) == vec {1;2};
 
+let z = record { opt 1;2;opt 3;opt 4 };
+function f5(x) { let _ = record { x[0]; x[1]? } };
+function f6(x) { let _ = x[1]? };
+assert z.filter(f6).map(f5) == record { 1; 2 = 3; 4 }; 
+

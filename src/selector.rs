@@ -2,7 +2,7 @@ use super::exp::Exp;
 use super::helper::MyHelper;
 use anyhow::{anyhow, Result};
 use candid::{
-    parser::value::{IDLValue, VariantValue},
+    parser::value::{IDLField, IDLValue, VariantValue},
     types::Label,
 };
 
@@ -37,22 +37,11 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: &[Selector]) -> Result<
                     return Err(anyhow!("{} out of bound {}", idx, vs.len()));
                 }
             }
-            (IDLValue::Vec(vs), head @ (Selector::Map(func) | Selector::Filter(func))) => {
-                let mut new_helper = helper.spawn();
-                let mut res = Vec::with_capacity(vs.len());
-                for v in vs.into_iter() {
-                    new_helper.env.0.insert(String::new(), v.clone());
-                    let arg = Exp::Path(String::new(), Vec::new());
-                    let exp = Exp::Apply(func.to_string(), vec![arg]);
-                    match (head, exp.eval(&new_helper)) {
-                        (Selector::Map(_), v) => res.push(v?),
-                        (Selector::Filter(_), Ok(IDLValue::Bool(false))) => (),
-                        (Selector::Filter(_), Ok(_)) => res.push(v),
-                        (Selector::Filter(_), Err(_)) => (),
-                        (_, _) => unreachable!(),
-                    }
-                }
-                result = IDLValue::Vec(res);
+            (IDLValue::Vec(vs), Selector::Map(func)) => {
+                result = IDLValue::Vec(map(helper, vs, func)?);
+            }
+            (IDLValue::Vec(vs), Selector::Filter(func)) => {
+                result = IDLValue::Vec(filter(helper, vs, func)?);
             }
             (IDLValue::Vec(vs), Selector::Fold(init, func)) => {
                 let init = init.clone().eval(helper)?;
@@ -67,6 +56,16 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: &[Selector]) -> Result<
                     acc = exp.eval(&new_helper)?;
                 }
                 result = acc;
+            }
+            (IDLValue::Record(fs), Selector::Map(func)) => {
+                let vs = from_fields(fs);
+                let res = map(helper, vs, func)?;
+                result = IDLValue::Record(to_field(res)?);
+            }
+            (IDLValue::Record(fs), Selector::Filter(func)) => {
+                let vs = from_fields(fs);
+                let res = filter(helper, vs, func)?;
+                result = IDLValue::Record(to_field(res)?);
             }
             (IDLValue::Record(fs), field @ (Selector::Index(_) | Selector::Field(_))) => {
                 let id = field.to_label();
@@ -96,4 +95,75 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: &[Selector]) -> Result<
         }
     }
     Ok(result)
+}
+
+fn from_fields(fs: Vec<IDLField>) -> Vec<IDLValue> {
+    fs.into_iter()
+        .map(|f| {
+            IDLValue::Record(vec![
+                IDLField {
+                    id: Label::Id(0),
+                    val: IDLValue::Text(format!("{}", f.id)),
+                },
+                IDLField {
+                    id: Label::Id(1),
+                    val: f.val,
+                },
+            ])
+        })
+        .collect()
+}
+
+fn to_field(from: Vec<IDLValue>) -> Result<Vec<IDLField>> {
+    let mut fs = Vec::with_capacity(from.len());
+    for v in from.into_iter() {
+        match v {
+            IDLValue::Record(f) => match &f[..] {
+                [IDLField {
+                    val: IDLValue::Text(key),
+                    ..
+                }, IDLField { val, .. }] => {
+                    let id = match key.parse::<u32>() {
+                        Ok(id) => Label::Id(id),
+                        Err(_) => Label::Named(key.to_string()),
+                    };
+                    fs.push(IDLField {
+                        id,
+                        val: val.clone(),
+                    })
+                }
+                _ => return Err(anyhow!("map doesn't return record {{ key; value }}")),
+            },
+            _ => return Err(anyhow!("map doesn't return record {{ key; value }}")),
+        }
+    }
+    Ok(fs)
+}
+
+fn map(helper: &MyHelper, vs: Vec<IDLValue>, func: &str) -> Result<Vec<IDLValue>> {
+    let mut new_helper = helper.spawn();
+    let mut res = Vec::with_capacity(vs.len());
+    for v in vs.into_iter() {
+        new_helper.env.0.insert(String::new(), v);
+        let arg = Exp::Path(String::new(), Vec::new());
+        let exp = Exp::Apply(func.to_string(), vec![arg]);
+        res.push(exp.eval(&new_helper)?);
+    }
+    Ok(res)
+}
+
+fn filter(helper: &MyHelper, vs: Vec<IDLValue>, func: &str) -> Result<Vec<IDLValue>> {
+    let mut new_helper = helper.spawn();
+    let mut res = Vec::with_capacity(vs.len());
+    for v in vs.into_iter() {
+        new_helper.env.0.insert(String::new(), v.clone());
+        let arg = Exp::Path(String::new(), Vec::new());
+        let exp = Exp::Apply(func.to_string(), vec![arg]);
+        match exp.eval(&new_helper) {
+            Ok(IDLValue::Bool(false)) => (),
+            Ok(_) => res.push(v),
+            Err(_) => (),
+        }
+    }
+    Ok(res)
 }
