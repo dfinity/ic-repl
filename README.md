@@ -203,6 +203,9 @@ decode as target_canister.method _.Ok.return
 
 ## Notes for Rust canisters
 
+> **Warning**
+> This is deprecated. `dfx` will embed the .did file as metadata in the canister.
+
 `ic-repl` relies on the `__get_candid_interface_tmp_hack` canister method to fetch the Candid interface. The default
 Rust CDK does not provide this method. You can do the following to enable this feature:
 
