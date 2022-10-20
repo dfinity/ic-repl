@@ -2,9 +2,12 @@ use super::error::pretty_parse;
 use super::helper::{MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
-use super::utils::{args_to_value, get_effective_canister_id, resolve_path, str_to_principal};
+use super::utils::{
+    args_to_value, get_effective_canister_id, resolve_path, str_to_principal, to_int,
+};
 use anyhow::{anyhow, Context, Result};
 use candid::{
+    parser::typing::check_unique,
     parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
     types::{Function, Label, Type},
     Principal, TypeEnv,
@@ -215,6 +218,42 @@ impl Exp {
                             write!(&mut res, "{}", crate::utils::stringify(&arg)?)?;
                         }
                         IDLValue::Text(res)
+                    }
+                    "concat" => match args.as_slice() {
+                        [IDLValue::Vec(s1), IDLValue::Vec(s2)] => {
+                            let mut res = Vec::from(s1.as_slice());
+                            res.extend_from_slice(s2);
+                            IDLValue::Vec(res)
+                        }
+                        [IDLValue::Text(s1), IDLValue::Text(s2)] => {
+                            IDLValue::Text(String::from(s1) + s2)
+                        }
+                        [IDLValue::Record(f1), IDLValue::Record(f2)] => {
+                            let mut fs = Vec::from(f1.as_slice());
+                            fs.extend_from_slice(f2);
+                            fs.sort_unstable_by_key(|IDLField { id, .. }| id.get_id());
+                            check_unique(fs.iter().map(|f| &f.id))?;
+                            IDLValue::Record(fs)
+                        }
+                        _ => return Err(anyhow!("concat expects two vec, record or text")),
+                    },
+                    "add" | "sub" | "mul" | "div" => {
+                        if args.len() == 2 {
+                            let v1 = to_int(&args[0])?;
+                            let v2 = to_int(&args[1])?;
+                            IDLValue::Number(
+                                match func.as_str() {
+                                    "add" => v1 + v2,
+                                    "sub" => v1 - v2,
+                                    "mul" => v1 * v2,
+                                    "div" => v1 / v2,
+                                    _ => unreachable!(),
+                                }
+                                .to_string(),
+                            )
+                        } else {
+                            return Err(anyhow!("add expects two numbers"));
+                        }
                     }
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),

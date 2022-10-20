@@ -2,6 +2,7 @@ use super::exp::Exp;
 use super::helper::MyHelper;
 use anyhow::{anyhow, Result};
 use candid::{
+    parser::typing::check_unique,
     parser::value::{IDLField, IDLValue, VariantValue},
     types::Label,
 };
@@ -60,6 +61,20 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
                 let vs = from_fields(fs);
                 result = fold(helper, init, vs, &func)?;
             }
+            (IDLValue::Text(s), Selector::Map(func)) => {
+                let vs = from_text(s);
+                let res = map(helper, vs, &func)?;
+                result = IDLValue::Text(to_text(res)?);
+            }
+            (IDLValue::Text(s), Selector::Filter(func)) => {
+                let vs = from_text(s);
+                let res = filter(helper, vs, &func)?;
+                result = IDLValue::Text(to_text(res)?);
+            }
+            (IDLValue::Text(s), Selector::Fold(init, func)) => {
+                let vs = from_text(s);
+                result = fold(helper, init, vs, &func)?;
+            }
             (IDLValue::Record(fs), field @ (Selector::Index(_) | Selector::Field(_))) => {
                 let id = field.to_label();
                 if let Some(v) = fs.into_iter().find(|f| f.id == id) {
@@ -106,7 +121,21 @@ fn from_fields(fs: Vec<IDLField>) -> Vec<IDLValue> {
         })
         .collect()
 }
-
+fn from_text(s: String) -> Vec<IDLValue> {
+    s.chars().map(|c| IDLValue::Text(c.to_string())).collect()
+}
+fn to_text(from: Vec<IDLValue>) -> Result<String> {
+    use std::fmt::Write;
+    let mut res = String::with_capacity(from.len());
+    for v in from.into_iter() {
+        if let IDLValue::Text(s) = v {
+            write!(&mut res, "{}", s)?;
+        } else {
+            return Err(anyhow!("expect function to return text"));
+        }
+    }
+    Ok(res)
+}
 fn to_field(from: Vec<IDLValue>) -> Result<Vec<IDLField>> {
     let mut fs = Vec::with_capacity(from.len());
     for v in from.into_iter() {
@@ -125,11 +154,13 @@ fn to_field(from: Vec<IDLValue>) -> Result<Vec<IDLField>> {
                         val: val.clone(),
                     })
                 }
-                _ => return Err(anyhow!("map doesn't return record {{ key; value }}")),
+                _ => return Err(anyhow!("expect function to return record {{ key; value }}")),
             },
-            _ => return Err(anyhow!("map doesn't return record {{ key; value }}")),
+            _ => return Err(anyhow!("expect function to return record {{ key; value }}")),
         }
     }
+    fs.sort_unstable_by_key(|IDLField { id, .. }| id.get_id());
+    check_unique(fs.iter().map(|f| &f.id))?;
     Ok(fs)
 }
 
