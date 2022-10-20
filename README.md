@@ -65,7 +65,8 @@ For `vec`, `record` or `text` value, we provide some built-in methods for value 
 * v.fold(init, func): combine all items in `v` by repeatedly apply `func(...func(func(init, v[0]), v[1])..., v[n-1])`.
 
 For `record` value, `v[i]` is represented as `record { key; value }` sorted by field id.
-for `text` value, `v[i]` is represented as a `text` value containing a single character.
+
+For `text` value, `v[i]` is represented as a `text` value containing a single character.
 
 ## Examples
 
