@@ -12,6 +12,7 @@ mod grammar;
 mod helper;
 mod offline;
 mod profiling;
+mod selector;
 mod token;
 mod utils;
 use crate::command::Command;

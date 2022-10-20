@@ -1,4 +1,5 @@
-use super::exp::{Field, Exp, Selector, Method, CallMode};
+use super::exp::{Field, Exp, Method, CallMode};
+use super::selector::Selector;
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
 use super::token::{Token, error2, LexicalError, Span};

@@ -20,7 +20,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
  | function <id> ( <id>,* ) { <command>;* }  // define a function
 <exp> := 
  | <candid val>                                    // any candid value
- | <var> <selector>*                               // variable with optional selectors
+ | <var> <transformer>*                            // variable with optional transformers
  | fail <exp>                                      // convert error message as text
  | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
  | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value. canister.__init_args represents init args
@@ -29,10 +29,11 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
 <var> := 
  | <id>                  // variable name 
  | _                     // previous eval of exp is bind to `_`
-<selector> :=
+<transformer> :=
  | ?                     // select opt value
  | . <name>              // select field name from record or variant value
  | [ <nat> ]             // select index from vec, record, or variant value
+ | . <id> ( <exp>,* )    // transform (map, filter, fold) a collection value
 <binop> := 
  | ==                    // structural equality
  | ~=                    // equal under candid subtyping; for text value, we check if the right side is contained in the left side
@@ -49,10 +50,19 @@ We also provide some built-in functions:
 * neuron_account(principal, nonce): convert (principal, nonce) to account in the governance canister.
 * file(path): load external file as a blob value.
 * gzip(blob): gzip a blob value.
-* stringify(exp1, exp2, exp3, ...): Convert all expressions to string and concat. Only supports primitive types.
-* output(path, content): Append text content to file path.
+* stringify(exp1, exp2, exp3, ...): convert all expressions to string and concat. Only supports primitive types.
+* output(path, content): append text content to file path.
 * wasm_profiling(path): load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`.
 * flamegraph(canister_id, title, filename): generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`.
+
+## Object methods
+
+For `vec`, `record` or `text` value, we provide some built-in methods for value transformation:
+* v.map(func): transform each item `v[i]` with `func(v[i])`.
+* v.filter(func): filter out item `v[i]` if `func(v[i])` returns `false` or has an error.
+* v.fold(init, func): combine all items in `v` by repeatedly apply `func(...func(func(init, v[0]), v[1])..., v[n-1])`.
+
+For `record` value, `v[i]` is represented as `record { key; value }` sorted by field id.
 
 ## Examples
 
