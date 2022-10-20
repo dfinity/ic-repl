@@ -21,3 +21,9 @@ function f7(acc, x) { let _ = concat(acc, vec{x[1]}) };
 assert z.filter(f6).map(f5) == record { 1; 2 = 3; 4 }; 
 assert z.filter(f6).map(f5).fold(vec{}, f7) == vec {1;3;4};
 
+let s = "abcdef";
+function f8(x) { let _ = stringify(" ", x) };
+function f9(acc, x) { let _ = add(acc, 1) };
+assert s.map(f8) == " a b c d e f";
+assert s.map(f8).fold(0, f9) == 12;
+

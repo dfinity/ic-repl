@@ -54,15 +54,18 @@ We also provide some built-in functions:
 * output(path, content): append text content to file path.
 * wasm_profiling(path): load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`.
 * flamegraph(canister_id, title, filename): generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`.
+* concat(e1, e2): concatenate two vec/record/text together.
+* add/sub/mul/div(e1, e2): addition/subtraction/multiplication/division of two integer numbers.
 
 ## Object methods
 
-For `vec` or `record` value, we provide some built-in methods for value transformation:
+For `vec`, `record` or `text` value, we provide some built-in methods for value transformation:
 * v.map(func): transform each item `v[i]` with `func(v[i])`.
 * v.filter(func): filter out item `v[i]` if `func(v[i])` returns `false` or has an error.
 * v.fold(init, func): combine all items in `v` by repeatedly apply `func(...func(func(init, v[0]), v[1])..., v[n-1])`.
 
 For `record` value, `v[i]` is represented as `record { key; value }` sorted by field id.
+for `text` value, `v[i]` is represented as a `text` value containing a single character.
 
 ## Examples
 
