@@ -1,5 +1,6 @@
 use super::error::pretty_parse;
 use super::helper::{MyHelper, OfflineOutput};
+use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{args_to_value, get_effective_canister_id, resolve_path, str_to_principal};
 use anyhow::{anyhow, Context, Result};
@@ -57,19 +58,6 @@ pub struct Field {
     pub id: Label,
     pub val: Exp,
 }
-#[derive(Debug, Clone)]
-pub enum Selector {
-    Index(u64),
-    Field(String),
-}
-impl Selector {
-    fn to_label(&self) -> Label {
-        match self {
-            Selector::Index(idx) => Label::Id(*idx as u32),
-            Selector::Field(name) => Label::Named(name.to_string()),
-        }
-    }
-}
 impl Exp {
     pub fn is_call(&self) -> bool {
         matches!(
@@ -87,8 +75,9 @@ impl Exp {
                     .env
                     .0
                     .get(&id)
-                    .ok_or_else(|| anyhow!("Undefined variable {}", id))?;
-                project(v, &path)?.clone()
+                    .ok_or_else(|| anyhow!("Undefined variable {}", id))?
+                    .clone();
+                project(helper, v, path)?
             }
             Exp::AnnVal(v, ty) => {
                 let arg = v.eval(helper)?;
@@ -419,35 +408,6 @@ let _ = decode as "{canister}".{method} _.Ok.return;
             }
         })
     }
-}
-
-pub fn project<'a>(value: &'a IDLValue, path: &[Selector]) -> Result<&'a IDLValue> {
-    if path.is_empty() {
-        return Ok(value);
-    }
-    let (head, tail) = (&path[0], &path[1..]);
-    match (value, head) {
-        (IDLValue::Opt(opt), Selector::Field(f)) if f == "?" => return project(opt, tail),
-        (IDLValue::Vec(vs), Selector::Index(idx)) => {
-            let idx = *idx as usize;
-            if idx < vs.len() {
-                return project(&vs[idx], tail);
-            }
-        }
-        (IDLValue::Record(fs), field) => {
-            let id = field.to_label();
-            if let Some(v) = fs.iter().find(|f| f.id == id) {
-                return project(&v.val, tail);
-            }
-        }
-        (IDLValue::Variant(VariantValue(f, _)), field) => {
-            if field.to_label() == f.id {
-                return project(&f.val, tail);
-            }
-        }
-        _ => (),
-    }
-    Err(anyhow!("{:?} cannot be applied to {}", head, value))
 }
 
 impl std::str::FromStr for Exp {

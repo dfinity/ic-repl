@@ -1,4 +1,5 @@
-use super::exp::{Field, Exp, Selector, Method, CallMode};
+use super::exp::{Field, Exp, Method, CallMode};
+use super::selector::Selector;
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, FuncMode, Binding};
 use candid::parser::typing::{TypeEnv, check_unique};
 use super::token::{Token, error2, LexicalError, Span};
@@ -105,11 +106,19 @@ pub Exp: Exp = {
 }
 Variable: Exp = <v:"id"> <path:(<Selector>)*> => Exp::Path(v, path);
 Selector: Selector = {
-     "?" => Selector::Field("?".to_string()),
+     "?" => Selector::Option,
      "." <Name> => Selector::Field(<>),
      "[" <Sp<"decimal">> "]" =>? {
        let idx = <>.0.parse::<u64>().map_err(|_| error2("index out of u64 range", <>.1))?;
        Ok(Selector::Index(idx))
+     },
+     "." <method:Sp<"id">> "(" <args:SepBy<Exp, ",">> ")" =>? {
+       match (method.0.as_str(), args.as_slice()) {
+         ("map", [Exp::Path(func, _x)]) if _x.is_empty() => Ok(Selector::Map(func.to_string())),
+         ("filter", [Exp::Path(func, _x)]) if _x.is_empty() => Ok(Selector::Filter(func.to_string())),
+         ("fold", [init, Exp::Path(func, _x)]) if _x.is_empty() => Ok(Selector::Fold(init.clone(), func.to_string())),
+         (_, _) => Err(error2("unknown method or wrong arguments", method.1)),
+       }
      }
 }
 Method: Method = <canister:Name> "." <method:Name> => Method { canister, method };
