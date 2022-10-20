@@ -77,7 +77,7 @@ impl Exp {
                     .get(&id)
                     .ok_or_else(|| anyhow!("Undefined variable {}", id))?
                     .clone();
-                project(helper, v, &path)?
+                project(helper, v, path)?
             }
             Exp::AnnVal(v, ty) => {
                 let arg = v.eval(helper)?;

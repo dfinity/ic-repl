@@ -24,13 +24,13 @@ impl Selector {
         }
     }
 }
-pub fn project(helper: &MyHelper, value: IDLValue, path: &[Selector]) -> Result<IDLValue> {
+pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Result<IDLValue> {
     let mut result = value;
-    for head in path.iter() {
+    for head in path.into_iter() {
         match (result, head) {
             (IDLValue::Opt(opt), Selector::Option) => result = *opt,
             (IDLValue::Vec(mut vs), Selector::Index(idx)) => {
-                let idx = *idx as usize;
+                let idx = idx as usize;
                 if idx < vs.len() {
                     result = vs.swap_remove(idx);
                 } else {
@@ -38,34 +38,27 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: &[Selector]) -> Result<
                 }
             }
             (IDLValue::Vec(vs), Selector::Map(func)) => {
-                result = IDLValue::Vec(map(helper, vs, func)?);
+                result = IDLValue::Vec(map(helper, vs, &func)?);
             }
             (IDLValue::Vec(vs), Selector::Filter(func)) => {
-                result = IDLValue::Vec(filter(helper, vs, func)?);
+                result = IDLValue::Vec(filter(helper, vs, &func)?);
             }
             (IDLValue::Vec(vs), Selector::Fold(init, func)) => {
-                let init = init.clone().eval(helper)?;
-                let mut new_helper = helper.spawn();
-                let mut acc = init;
-                for v in vs.into_iter() {
-                    new_helper.env.0.insert(String::new(), v);
-                    let arg = Exp::Path(String::new(), Vec::new());
-                    new_helper.env.0.insert("_".to_string(), acc.clone());
-                    let accu = Exp::Path("_".to_string(), Vec::new());
-                    let exp = Exp::Apply(func.to_string(), vec![accu, arg]);
-                    acc = exp.eval(&new_helper)?;
-                }
-                result = acc;
+                result = fold(helper, init, vs, &func)?;
             }
             (IDLValue::Record(fs), Selector::Map(func)) => {
                 let vs = from_fields(fs);
-                let res = map(helper, vs, func)?;
+                let res = map(helper, vs, &func)?;
                 result = IDLValue::Record(to_field(res)?);
             }
             (IDLValue::Record(fs), Selector::Filter(func)) => {
                 let vs = from_fields(fs);
-                let res = filter(helper, vs, func)?;
+                let res = filter(helper, vs, &func)?;
                 result = IDLValue::Record(to_field(res)?);
+            }
+            (IDLValue::Record(fs), Selector::Fold(init, func)) => {
+                let vs = from_fields(fs);
+                result = fold(helper, init, vs, &func)?;
             }
             (IDLValue::Record(fs), field @ (Selector::Index(_) | Selector::Field(_))) => {
                 let id = field.to_label();
@@ -166,4 +159,19 @@ fn filter(helper: &MyHelper, vs: Vec<IDLValue>, func: &str) -> Result<Vec<IDLVal
         }
     }
     Ok(res)
+}
+
+fn fold(helper: &MyHelper, init: Exp, vs: Vec<IDLValue>, func: &str) -> Result<IDLValue> {
+    let init = init.eval(helper)?;
+    let mut new_helper = helper.spawn();
+    let mut acc = init;
+    for v in vs.into_iter() {
+        new_helper.env.0.insert(String::new(), v);
+        let arg = Exp::Path(String::new(), Vec::new());
+        new_helper.env.0.insert("_".to_string(), acc.clone());
+        let accu = Exp::Path("_".to_string(), Vec::new());
+        let exp = Exp::Apply(func.to_string(), vec![accu, arg]);
+        acc = exp.eval(&new_helper)?;
+    }
+    Ok(acc)
 }
