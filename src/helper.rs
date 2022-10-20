@@ -434,7 +434,7 @@ async fn fetch_metadata_(
     let mut path: Vec<Label> = vec!["canister".into(), canister_id.into()];
     path.extend(sub_paths.split('/').map(|str| str.into()));
     let cert = agent
-        .read_state_raw(vec![path.clone()], canister_id, false)
+        .read_state_raw(vec![path.clone()], canister_id)
         .await?;
     Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
