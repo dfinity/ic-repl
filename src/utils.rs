@@ -31,6 +31,23 @@ pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<str>> {
     })
 }
 
+pub fn to_int(v: &IDLValue) -> Result<candid::Int> {
+    Ok(match v {
+        IDLValue::Number(n) => n.parse::<candid::Int>()?,
+        IDLValue::Int(n) => n.clone(),
+        IDLValue::Nat(n) => n.clone().into(),
+        IDLValue::Nat8(n) => (*n).into(),
+        IDLValue::Nat16(n) => (*n).into(),
+        IDLValue::Nat32(n) => (*n).into(),
+        IDLValue::Nat64(n) => (*n).into(),
+        IDLValue::Int8(n) => (*n).into(),
+        IDLValue::Int16(n) => (*n).into(),
+        IDLValue::Int32(n) => (*n).into(),
+        IDLValue::Int64(n) => (*n).into(),
+        _ => return Err(anyhow!("Cannot convert {} to a number", v)),
+    })
+}
+
 pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
     let try_id = Principal::from_text(id);
     Ok(match try_id {

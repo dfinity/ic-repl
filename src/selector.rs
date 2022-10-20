@@ -2,6 +2,7 @@ use super::exp::Exp;
 use super::helper::MyHelper;
 use anyhow::{anyhow, Result};
 use candid::{
+    parser::typing::check_unique,
     parser::value::{IDLField, IDLValue, VariantValue},
     types::Label,
 };
@@ -130,6 +131,8 @@ fn to_field(from: Vec<IDLValue>) -> Result<Vec<IDLField>> {
             _ => return Err(anyhow!("map doesn't return record {{ key; value }}")),
         }
     }
+    fs.sort_unstable_by_key(|IDLField { id, .. }| id.get_id());
+    check_unique(fs.iter().map(|f| &f.id))?;
     Ok(fs)
 }
 
