@@ -8,6 +8,7 @@ use candid::{
 };
 use ic_agent::Agent;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 pub fn ok_to_profile<'a>(helper: &'a MyHelper, info: &'a MethodInfo) -> bool {
     helper.offline.is_none()
@@ -33,7 +34,7 @@ pub async fn get_profiling(
     canister_id: &Principal,
     names: &BTreeMap<u16, String>,
     title: &str,
-    filename: &str,
+    filename: PathBuf,
 ) -> anyhow::Result<()> {
     use candid::{Decode, Encode};
     let mut builder = agent.query(canister_id, "__get_profiling");
@@ -55,7 +56,7 @@ fn render_profiling(
     input: Vec<(i32, i64)>,
     names: &BTreeMap<u16, String>,
     title: &str,
-    filename: &str,
+    filename: PathBuf,
 ) -> anyhow::Result<()> {
     use inferno::flamegraph::{from_reader, Options};
     use std::fmt::Write;
@@ -103,7 +104,7 @@ fn render_profiling(
     opt.flame_chart = true;
     opt.no_sort = true;
     let reader = std::io::Cursor::new(result);
-    println!("Flamegraph written to {}", filename);
+    println!("Flamegraph written to {}", filename.display());
     let mut writer = std::fs::File::create(&filename)?;
     from_reader(&mut opt, reader, &mut writer)?;
     Ok(())
