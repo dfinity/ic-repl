@@ -180,18 +180,18 @@ impl Exp {
                                 }) => names,
                                 _ => return Err(anyhow!("{} is not instrumented", cid)),
                             };
-                            let mut path = resolve_path(&helper.base_path, file);
+                            let mut path = resolve_path(&std::env::current_dir()?, file);
                             if path.extension().is_none() {
                                 path.set_extension("svg");
                             }
-                            crate::profiling::get_profiling(
+                            let cost = crate::profiling::get_profiling(
                                 &helper.agent,
                                 cid,
                                 names,
                                 title,
                                 path,
                             )?;
-                            IDLValue::Null
+                            IDLValue::Nat(cost.into())
                         }
                         _ => {
                             return Err(anyhow!(
@@ -203,7 +203,7 @@ impl Exp {
                         [IDLValue::Text(file), IDLValue::Text(content)] => {
                             use std::fs::OpenOptions;
                             use std::io::Write;
-                            let path = resolve_path(&helper.base_path, file);
+                            let path = resolve_path(&std::env::current_dir()?, file);
                             let mut file =
                                 OpenOptions::new().append(true).create(true).open(path)?;
                             file.write_all(content.as_bytes())?;

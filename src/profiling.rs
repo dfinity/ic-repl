@@ -35,7 +35,7 @@ pub async fn get_profiling(
     names: &BTreeMap<u16, String>,
     title: &str,
     filename: PathBuf,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<u64> {
     use candid::{Decode, Encode};
     let mut builder = agent.query(canister_id, "__get_profiling");
     let bytes = builder
@@ -45,11 +45,11 @@ pub async fn get_profiling(
         .await?;
     let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
     if !pairs.is_empty() {
-        render_profiling(pairs, names, title, filename)?;
+        render_profiling(pairs, names, title, filename)
     } else {
         eprintln!("empty trace");
+        Ok(0)
     }
-    Ok(())
 }
 
 fn render_profiling(
@@ -57,13 +57,13 @@ fn render_profiling(
     names: &BTreeMap<u16, String>,
     title: &str,
     filename: PathBuf,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<u64> {
     use inferno::flamegraph::{from_reader, Options};
     use std::fmt::Write;
     let mut stack = Vec::new();
     let mut prefix = Vec::new();
     let mut result = String::new();
-    let mut _total = 0;
+    let mut total = 0;
     for (id, count) in input.into_iter() {
         if id >= 0 {
             stack.push((id, count, 0));
@@ -85,7 +85,7 @@ fn render_profiling(
                     if let Some((parent, parent_cost, children_cost)) = stack.pop() {
                         stack.push((parent, parent_cost, children_cost + cost));
                     } else {
-                        _total += cost;
+                        total += cost as u64;
                     }
                     //println!("{} {}", frame, cost - children);
                     writeln!(&mut result, "{} {}", frame, cost - children)?;
@@ -107,7 +107,7 @@ fn render_profiling(
     println!("Flamegraph written to {}", filename.display());
     let mut writer = std::fs::File::create(&filename)?;
     from_reader(&mut opt, reader, &mut writer)?;
-    Ok(())
+    Ok(total)
 }
 
 pub fn may_extract_profiling(result: IDLValue) -> (IDLValue, Option<i64>) {
