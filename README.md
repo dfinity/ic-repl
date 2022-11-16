@@ -53,7 +53,7 @@ We also provide some built-in functions:
 * stringify(exp1, exp2, exp3, ...): convert all expressions to string and concat. Only supports primitive types.
 * output(path, content): append text content to file path.
 * wasm_profiling(path): load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`.
-* flamegraph(canister_id, title, filename): generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`.
+* flamegraph(canister_id, title, filename): generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * concat(e1, e2): concatenate two vec/record/text together.
 * add/sub/mul/div(e1, e2): addition/subtraction/multiplication/division of two integer numbers.
 
@@ -189,6 +189,16 @@ let put = call cid.batch_put(50);
 flamegraph(cid, "hashmap.put(50)", "put.svg");
 output(file, stringify("[", __cost_put, "](put.svg)|\n"));
 ```
+
+## Relative paths
+
+Several commands and functions are taking arguments from the file system. We have different definitions for
+relative paths, depending on whether you are reading or writing the file.
+
+* For reading files, e.g., `import`, `load`, `identity`, `file`, `wasm_profiling`, relative paths are based on where the current script is located;
+* For writing files, e.g., `export`, `output`, `flamegraph`, relative paths are based on the current directory when the script is run.
+
+The rationale for the difference is that we can have an easier time to control where the output files are located, as scripts can spread out in different directories.
 
 ## Derived forms
 
