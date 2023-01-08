@@ -563,11 +563,7 @@ async fn call(
             output_message(serde_json::to_string(&message)?, offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {
-            let waiter = garcon::Delay::builder()
-                .exponential_backoff(std::time::Duration::from_secs(1), 1.1)
-                .timeout(std::time::Duration::from_secs(60 * 5))
-                .build();
-            builder.call_and_wait(waiter).await?
+            builder.call_and_wait().await?
         }
     };
     let res = if let Some((env, func)) = opt_func {

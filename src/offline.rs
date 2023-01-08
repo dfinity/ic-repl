@@ -35,13 +35,13 @@ pub fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()
             } else {
                 base64::URL_SAFE_NO_PAD
             };
-            let base64 = base64::encode_config(&zipped, config);
+            let base64 = base64::encode_config(zipped, config);
             eprintln!("base64 length: {}", base64.len());
             let msg = match format {
                 OfflineOutput::Ascii(url) | OfflineOutput::Png(url) => url.to_owned() + &base64,
                 _ => base64,
             };
-            let code = QrCode::new(&msg)?;
+            let code = QrCode::new(msg)?;
             match format {
                 OfflineOutput::Ascii(_) | OfflineOutput::AsciiNoUrl => {
                     let img = code.render::<unicode::Dense1x2>().build();
