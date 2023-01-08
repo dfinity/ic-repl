@@ -15,8 +15,8 @@ lalrpop = "0.19"
 
 [dependencies]
 candid = { version = "0.8", features = ["random"] }
-rustyline = "8.2"
-rustyline-derive = "0.4"
+rustyline = "10.0"
+rustyline-derive = "0.7"
 ansi_term = "0.12"
 pretty_assertions = "0.7"
 pretty-hex = "0.2.1"

@@ -66,7 +66,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         .completion_type(CompletionType::List)
         .build();
     let h = MyHelper::new(agent, url.to_string(), offline);
-    let mut rl = rustyline::Editor::with_config(config);
+    let mut rl = rustyline::Editor::with_config(config)?;
     rl.set_helper(Some(h));
     if rl.load_history("./.history").is_err() {
         eprintln!("No history found");
