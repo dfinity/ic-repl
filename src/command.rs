@@ -1,6 +1,6 @@
 use super::error::pretty_parse;
 use super::exp::Exp;
-use super::helper::{did_to_canister_info, fetch_metadata, MyHelper};
+use super::helper::{did_to_canister_info, fetch_metadata, FileSource, MyHelper};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{get_dfx_hsm_pin, resolve_path, str_to_principal};
 use anyhow::{anyhow, Context};
@@ -51,9 +51,7 @@ impl Command {
             Command::Import(id, canister_id, did) => {
                 if let Some(did) = &did {
                     let path = resolve_path(&helper.base_path, did);
-                    let src = std::fs::read_to_string(&path)
-                        .with_context(|| format!("Cannot read {:?}", path))?;
-                    let info = did_to_canister_info(did, &src, None)?;
+                    let info = did_to_canister_info(did, FileSource::Path(&path), None)?;
                     helper.canister_map.borrow_mut().0.insert(canister_id, info);
                 }
                 // TODO decide if it's a Service instead

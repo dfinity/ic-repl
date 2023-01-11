@@ -6,7 +6,7 @@ use candid::{
     check_prog,
     parser::configs::Configs,
     parser::value::{IDLField, IDLValue, VariantValue},
-    pretty_parse,
+    pretty_check_file, pretty_parse,
     types::{Function, Label, Type},
     Decode, Encode, IDLProg, Principal, TypeEnv,
 };
@@ -168,9 +168,10 @@ impl MyHelper {
     ) -> anyhow::Result<()> {
         let mut canister_map = self.canister_map.borrow_mut();
         if let Some(did_file) = did_file {
-            canister_map
-                .0
-                .insert(id, did_to_canister_info(&name, did_file, None)?);
+            canister_map.0.insert(
+                id,
+                did_to_canister_info(&name, FileSource::Text(did_file), None)?,
+            );
         }
         self.env.0.insert(name, IDLValue::Principal(id));
         Ok(())
@@ -415,7 +416,11 @@ async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<Ca
             }
         }
     };
-    did_to_canister_info(&format!("did file for {}", canister_id), &candid, profiling)
+    did_to_canister_info(
+        &format!("did file for {}", canister_id),
+        FileSource::Text(&candid),
+        profiling,
+    )
 }
 #[tokio::main]
 pub async fn fetch_metadata(
@@ -439,14 +444,26 @@ async fn fetch_metadata_(
     Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
 
+pub enum FileSource<'a> {
+    Text(&'a str),
+    Path(&'a std::path::Path),
+}
+
 pub fn did_to_canister_info(
     name: &str,
-    did: &str,
+    did: FileSource,
     profiling: Option<BTreeMap<u16, String>>,
 ) -> anyhow::Result<CanisterInfo> {
-    let ast = pretty_parse::<IDLProg>(name, did)?;
-    let mut env = TypeEnv::new();
-    let actor = check_prog(&mut env, &ast)?.unwrap();
+    let (env, actor) = match did {
+        FileSource::Text(did) => {
+            let ast = pretty_parse::<IDLProg>(name, did)?;
+            let mut env = TypeEnv::new();
+            let actor = check_prog(&mut env, &ast)?;
+            (env, actor)
+        }
+        FileSource::Path(path) => pretty_check_file(path)?,
+    };
+    let actor = actor.ok_or_else(|| anyhow::anyhow!("no main actor"))?;
     let methods = env
         .as_service(&actor)?
         .iter()
