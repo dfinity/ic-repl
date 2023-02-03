@@ -21,7 +21,7 @@ pub struct IngressWithStatus {
 static mut PNG_COUNTER: u32 = 0;
 pub fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()> {
     match format {
-        OfflineOutput::Json => println!("{}", json),
+        OfflineOutput::Json => println!("{json}"),
         _ => {
             use libflate::gzip;
             use qrcode::{render::unicode, QrCode};
@@ -45,17 +45,17 @@ pub fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()
             match format {
                 OfflineOutput::Ascii(_) | OfflineOutput::AsciiNoUrl => {
                     let img = code.render::<unicode::Dense1x2>().build();
-                    println!("{}", img);
+                    println!("{img}");
                     pause()?;
                 }
                 OfflineOutput::Png(_) | OfflineOutput::PngNoUrl => {
                     let img = code.render::<image::Luma<u8>>().build();
                     let filename = unsafe {
                         PNG_COUNTER += 1;
-                        format!("msg{}.png", PNG_COUNTER)
+                        format!("msg{PNG_COUNTER}.png")
                     };
                     img.save(&filename)?;
-                    println!("QR code saved to {}", filename);
+                    println!("QR code saved to {filename}");
                 }
                 _ => unreachable!(),
             }

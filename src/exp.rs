@@ -8,8 +8,8 @@ use super::utils::{
 use anyhow::{anyhow, Context, Result};
 use candid::{
     parser::typing::check_unique,
-    parser::value::{IDLArgs, IDLField, IDLValue, VariantValue},
-    types::{Function, Label, Type},
+    types::value::{IDLArgs, IDLField, IDLValue, VariantValue},
+    types::{Function, Label, Type, TypeInner},
     Principal, TypeEnv,
 };
 use ic_agent::Agent;
@@ -132,7 +132,7 @@ impl Exp {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);
                             let blob: Vec<IDLValue> = std::fs::read(&path)
-                                .with_context(|| format!("Cannot read {:?}", path))?
+                                .with_context(|| format!("Cannot read {path:?}"))?
                                 .into_iter()
                                 .map(IDLValue::Nat8)
                                 .collect();
@@ -162,7 +162,7 @@ impl Exp {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);
                             let blob = std::fs::read(&path)
-                                .with_context(|| format!("Cannot read {:?}", path))?;
+                                .with_context(|| format!("Cannot read {path:?}"))?;
                             let mut m = ic_wasm::utils::parse_wasm(&blob, false)?;
                             ic_wasm::shrink::shrink(&mut m);
                             ic_wasm::instrumentation::instrument(&mut m);
@@ -281,7 +281,7 @@ impl Exp {
             }
             Exp::Decode { method, blob } => {
                 let blob = blob.eval(helper)?;
-                if blob.value_ty() != Type::Vec(Box::new(Type::Nat8)) {
+                if *blob.value_ty() != TypeInner::Vec(TypeInner::Nat8.into()) {
                     return Err(anyhow!("not a blob"));
                 }
                 let bytes: Vec<u8> = match blob {
@@ -351,7 +351,7 @@ impl Exp {
                         )?;
                         if ok_to_profile {
                             let cost = get_cycles(&helper.agent, &info.canister_id)? - before_cost;
-                            println!("Cost: {} Wasm instructions", cost);
+                            println!("Cost: {cost} Wasm instructions");
                             let cost = IDLValue::Record(vec![IDLField {
                                 id: Label::Named("__cost".to_string()),
                                 val: IDLValue::Int64(cost),

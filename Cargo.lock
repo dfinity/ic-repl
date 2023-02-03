@@ -288,9 +288,9 @@ checksum = "dfb24e866b15a1af2a1b663f10c6b6b8f397a84aadb828f12e5b289ec23a3a3c"
 
 [[package]]
 name = "candid"
-version = "0.8.4"
+version = "0.9.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "244005a1917bb7614cd775ca8a5d59efeb5ac74397bb14ba29a19347ebd78591"
+checksum = "4163412115fdb2d41d418b2746405c0fa5716be8064d507ec8bacf88027141e6"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -321,9 +321,9 @@ dependencies = [
 
 [[package]]
 name = "candid_derive"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58f1f4db7c7d04b87b70b3a35c5dc5c2c9dd73cef8bdf6760e2f18a0d45350dd"
+checksum = "34df46ac8b0a44de9b243d9dd21e608838183be20de408c934993ed6a4a8e4c1"
 dependencies = [
  "lazy_static",
  "proc-macro2",
@@ -1084,8 +1084,7 @@ dependencies = [
 [[package]]
 name = "ic-agent"
 version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee53ec42421e7bfedcba07de8f27a295b822f0db69c596dc5edef5d3f979fa18"
+source = "git+https://github.com/dfinity/agent-rs.git?branch=bump-candid#031344068aa5acdc2857c6e887475b6de38d22bd"
 dependencies = [
  "async-trait",
  "backoff",
@@ -1123,8 +1122,7 @@ dependencies = [
 [[package]]
 name = "ic-certification"
 version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b201d11ba96f09548ec09409beb50cf845828f058f5c6a17c285729eab3a77d3"
+source = "git+https://github.com/dfinity/agent-rs.git?branch=bump-candid#031344068aa5acdc2857c6e887475b6de38d22bd"
 dependencies = [
  "hex",
  "serde",
@@ -1149,7 +1147,7 @@ dependencies = [
 
 [[package]]
 name = "ic-repl"
-version = "0.3.12"
+version = "0.3.13"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -1200,9 +1198,8 @@ dependencies = [
 
 [[package]]
 name = "ic-wasm"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "032539bfe9f1555014ac935a43118439e39a1c4d063666a06d44611a9278b923"
+version = "0.3.3"
+source = "git+https://github.com/dfinity/ic-wasm.git?branch=bump-candid#0cdd8aa06cd6bb57e700d55c637a01eb9e1a7555"
 dependencies = [
  "anyhow",
  "candid",

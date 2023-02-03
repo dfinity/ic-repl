@@ -5,9 +5,9 @@ use ansi_term::Color;
 use candid::{
     check_prog,
     parser::configs::Configs,
-    parser::value::{IDLField, IDLValue, VariantValue},
     pretty_check_file, pretty_parse,
-    types::{Function, Label, Type},
+    types::value::{IDLField, IDLValue, VariantValue},
+    types::{Function, Label, Type, TypeInner},
     Decode, Encode, IDLProg, Principal, TypeEnv,
 };
 use ic_agent::{Agent, Identity};
@@ -62,8 +62,8 @@ impl CanisterInfo {
             .iter()
             .filter(|(name, _)| name.starts_with(meth))
             .map(|(meth, func)| Pair {
-                display: format!("{} : {}", meth, func),
-                replacement: format!(".{}", meth),
+                display: format!("{meth} : {func}"),
+                replacement: format!(".{meth}"),
             })
             .collect()
     }
@@ -283,7 +283,7 @@ fn match_field(f: &IDLField, prefix: &str) -> Option<Pair> {
         {
             Some(Pair {
                 display: format!(".{} = {}", name, f.val),
-                replacement: format!(".{}", name),
+                replacement: format!(".{name}"),
             })
         }
         Label::Id(id) | Label::Unnamed(id)
@@ -292,7 +292,7 @@ fn match_field(f: &IDLField, prefix: &str) -> Option<Pair> {
         {
             Some(Pair {
                 display: format!("[{}] = {}", id, f.val),
-                replacement: format!("[{}]", id),
+                replacement: format!("[{id}]"),
             })
         }
         _ => None,
@@ -417,7 +417,7 @@ async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<Ca
         }
     };
     did_to_canister_info(
-        &format!("did file for {}", canister_id),
+        &format!("did file for {canister_id}"),
         FileSource::Text(&candid),
         profiling,
     )
@@ -482,9 +482,9 @@ pub fn did_to_canister_info(
 }
 
 fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
-    match actor {
-        Type::Var(id) => find_init_args(env, env.find_type(id).ok()?),
-        Type::Class(init, _) => Some(init.to_vec()),
+    match actor.as_ref() {
+        TypeInner::Var(id) => find_init_args(env, env.find_type(id).ok()?),
+        TypeInner::Class(init, _) => Some(init.to_vec()),
         _ => None,
     }
 }

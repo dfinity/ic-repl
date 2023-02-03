@@ -4,7 +4,7 @@ use super::helper::{did_to_canister_info, fetch_metadata, FileSource, MyHelper};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{get_dfx_hsm_pin, resolve_path, str_to_principal};
 use anyhow::{anyhow, Context};
-use candid::{parser::configs::Configs, parser::value::IDLValue, Principal, TypeEnv};
+use candid::{parser::configs::Configs, types::value::IDLValue, Principal, TypeEnv};
 use ic_agent::Agent;
 use pretty_assertions::{assert_eq, assert_ne};
 use std::ops::Range;
@@ -101,7 +101,7 @@ impl Command {
                 } else {
                     80
                 };
-                println!("{:>width$}", format!("({:.2?})", duration), width = width);
+                println!("{:>width$}", format!("({duration:.2?})"), width = width);
             }
             Command::Fetch(id, path) => {
                 let id = str_to_principal(&id, helper)?;
@@ -152,7 +152,7 @@ impl Command {
                     .0
                     .insert(id.to_string(), identity.clone());
                 let sender = identity.sender().map_err(|e| anyhow!("{}", e))?;
-                println!("Current identity {}", sender);
+                println!("Current identity {sender}");
 
                 let agent = Agent::builder()
                     .with_transport(
@@ -175,7 +175,7 @@ impl Command {
                 //for item in helper.history.iter() {
                 for (id, val) in helper.env.0.iter() {
                     //writeln!(&mut writer, "{};", item)?;
-                    writeln!(&mut writer, "let {} = {};", id, val)?;
+                    writeln!(&mut writer, "let {id} = {val};")?;
                 }
             }
             Command::Load(file) => {
@@ -183,7 +183,7 @@ impl Command {
                 let old_base = helper.base_path.clone();
                 let path = resolve_path(&old_base, &file);
                 let mut script = std::fs::read_to_string(&path)
-                    .with_context(|| format!("Cannot read {:?}", path))?;
+                    .with_context(|| format!("Cannot read {path:?}"))?;
                 if script.starts_with("#!") {
                     let line_end = script.find('\n').unwrap_or(0);
                     script.drain(..line_end);
@@ -220,16 +220,16 @@ fn bind_value(helper: &mut MyHelper, id: String, v: IDLValue, is_call: bool, dis
     if is_call {
         let (v, cost) = crate::profiling::may_extract_profiling(v);
         if let Some(cost) = cost {
-            let cost_id = format!("__cost_{}", id);
+            let cost_id = format!("__cost_{id}");
             helper.env.0.insert(cost_id, IDLValue::Int64(cost));
         }
         if display {
-            println!("{}", v);
+            println!("{v}");
         }
         helper.env.0.insert(id, v);
     } else {
         if display {
-            println!("{}", v);
+            println!("{v}");
         }
         helper.env.0.insert(id, v);
     }

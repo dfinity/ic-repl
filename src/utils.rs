@@ -1,8 +1,8 @@
 use crate::helper::MyHelper;
 use anyhow::{anyhow, Context, Result};
+use candid::bindings::candid::value::number_to_string;
 use candid::parser::configs::Configs;
-use candid::parser::pretty::number_to_string;
-use candid::parser::value::{IDLArgs, IDLField, IDLValue};
+use candid::types::value::{IDLArgs, IDLField, IDLValue};
 use candid::types::{Label, Type};
 use candid::Principal;
 use candid::TypeEnv;
@@ -120,7 +120,7 @@ pub fn random_value(
         if given_args <= tys.len() {
             let mut res = String::new();
             for v in result.args[given_args..].iter() {
-                write!(&mut res, ", {}", v).map_err(|e| anyhow::anyhow!("{}", e))?;
+                write!(&mut res, ", {v}").map_err(|e| anyhow::anyhow!("{e}"))?;
             }
             res.push(')');
             res
@@ -128,7 +128,7 @@ pub fn random_value(
             "".to_owned()
         }
     } else {
-        format!("{}", result)
+        format!("{result}")
     })
 }
 

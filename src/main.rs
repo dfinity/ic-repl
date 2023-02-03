@@ -26,7 +26,7 @@ where
 {
     match v {
         Ok(res) => f(res),
-        Err(e) => eprintln!("Error: {:?}", e),
+        Err(e) => eprintln!("Error: {e:?}"),
     }
 }
 
@@ -53,7 +53,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         "ic" => "https://ic0.app",
         url => url,
     };
-    println!("Ping {}...", url);
+    println!("Ping {url}...");
     let agent = Agent::builder()
         .with_transport(
             ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url)?,
@@ -84,7 +84,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     let mut count = 1;
     loop {
         let identity = &rl.helper().unwrap().current_identity;
-        let p = format!("{}@{} {}> ", identity, replica, count);
+        let p = format!("{identity}@{replica} {count}> ");
         rl.helper_mut().unwrap().colored_prompt = format!("{}", Color::Green.bold().paint(&p));
         let input = rl.readline(&p);
         match input {
@@ -98,7 +98,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
             }
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => break,
             Err(err) => {
-                eprintln!("Error: {:?}", err);
+                eprintln!("Error: {err:?}");
                 break;
             }
         }

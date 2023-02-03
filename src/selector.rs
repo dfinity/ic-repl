@@ -3,7 +3,7 @@ use super::helper::MyHelper;
 use anyhow::{anyhow, Result};
 use candid::{
     parser::typing::check_unique,
-    parser::value::{IDLField, IDLValue, VariantValue},
+    types::value::{IDLField, IDLValue, VariantValue},
     types::Label,
 };
 
@@ -129,7 +129,7 @@ fn to_text(from: Vec<IDLValue>) -> Result<String> {
     let mut res = String::with_capacity(from.len());
     for v in from.into_iter() {
         if let IDLValue::Text(s) = v {
-            write!(&mut res, "{}", s)?;
+            write!(&mut res, "{s}")?;
         } else {
             return Err(anyhow!("expect function to return text"));
         }
