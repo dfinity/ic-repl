@@ -62,7 +62,8 @@ We also provide some built-in functions:
 For `vec`, `record` or `text` value, we provide some built-in methods for value transformation:
 * v.map(func): transform each item `v[i]` with `func(v[i])`.
 * v.filter(func): filter out item `v[i]` if `func(v[i])` returns `false` or has an error.
-* v.fold(init, func): combine all items in `v` by repeatedly apply `func(...func(func(init, v[0]), v[1])..., v[n-1])`.
+* v.fold(init, func): combine all items in `v` by repeatedly applying `func(...func(func(init, v[0]), v[1])..., v[n-1])`.
+* v.size(): count the size of `v`.
 
 For `record` value, `v[i]` is represented as `record { key; value }` sorted by field id.
 

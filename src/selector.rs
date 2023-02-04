@@ -15,6 +15,7 @@ pub enum Selector {
     Map(String),
     Filter(String),
     Fold(Exp, String),
+    Size, // Size is not required, but it is faster than using fold
 }
 impl Selector {
     fn to_label(&self) -> Label {
@@ -47,6 +48,9 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
             (IDLValue::Vec(vs), Selector::Fold(init, func)) => {
                 result = fold(helper, init, vs, &func)?;
             }
+            (IDLValue::Vec(vs), Selector::Size) => {
+                result = IDLValue::Nat(vs.len().into());
+            }
             (IDLValue::Record(fs), Selector::Map(func)) => {
                 let vs = from_fields(fs);
                 let res = map(helper, vs, &func)?;
@@ -61,6 +65,9 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
                 let vs = from_fields(fs);
                 result = fold(helper, init, vs, &func)?;
             }
+            (IDLValue::Record(fs), Selector::Size) => {
+                result = IDLValue::Nat(fs.len().into());
+            }
             (IDLValue::Text(s), Selector::Map(func)) => {
                 let vs = from_text(s);
                 let res = map(helper, vs, &func)?;
@@ -74,6 +81,9 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
             (IDLValue::Text(s), Selector::Fold(init, func)) => {
                 let vs = from_text(s);
                 result = fold(helper, init, vs, &func)?;
+            }
+            (IDLValue::Text(s), Selector::Size) => {
+                result = IDLValue::Nat(s.len().into());
             }
             (IDLValue::Record(fs), field @ (Selector::Index(_) | Selector::Field(_))) => {
                 let id = field.to_label();

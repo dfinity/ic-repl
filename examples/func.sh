@@ -26,4 +26,4 @@ function f8(x) { let _ = stringify(" ", x) };
 function f9(acc, x) { let _ = add(acc, 1) };
 assert s.map(f8) == " a b c d e f";
 assert s.map(f8).fold(0, f9) == 12;
-
+assert s.map(f8).size() == (12 : nat);

@@ -1199,7 +1199,8 @@ dependencies = [
 [[package]]
 name = "ic-wasm"
 version = "0.3.3"
-source = "git+https://github.com/dfinity/ic-wasm.git?branch=bump-candid#0cdd8aa06cd6bb57e700d55c637a01eb9e1a7555"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6954f9e0528d377626fc091b90e77632a38d3bed42f4740a6e1db667bca79901"
 dependencies = [
  "anyhow",
  "candid",
