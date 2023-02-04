@@ -2,7 +2,7 @@ use crate::exp::MethodInfo;
 use crate::helper::MyHelper;
 use anyhow::anyhow;
 use candid::{
-    parser::value::{IDLField, IDLValue},
+    types::value::{IDLField, IDLValue},
     types::Label,
     Principal,
 };
