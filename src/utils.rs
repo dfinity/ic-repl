@@ -29,6 +29,7 @@ pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<str>> {
         {
             Cow::Owned(number_to_string(v))
         }
+        IDLValue::Principal(id) => Cow::Owned(id.to_string()),
         IDLValue::Null => Cow::Borrowed("null"),
         IDLValue::None => Cow::Borrowed("none"),
         IDLValue::Reserved => Cow::Borrowed("reserved"),
