@@ -24,10 +24,15 @@ pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<str>> {
         | IDLValue::Nat8(_)
         | IDLValue::Nat(_)
         | IDLValue::Float32(_)
-        | IDLValue::Float64(_) => Cow::Owned(number_to_string(v)),
-        IDLValue::Principal(id) => Cow::Owned(id.to_string()),
-        IDLValue::Bool(b) => Cow::Owned(b.to_string()),
-        _ => return Err(anyhow!("Cannot stringify {}", v)),
+        | IDLValue::Float64(_) =>
+        // Not using Debug print to omit type annotations
+        {
+            Cow::Owned(number_to_string(v))
+        }
+        IDLValue::Null => Cow::Borrowed("null"),
+        IDLValue::None => Cow::Borrowed("none"),
+        IDLValue::Reserved => Cow::Borrowed("reserved"),
+        _ => Cow::Owned(format!("{v:?}")), // TODO: need to remove type annotations for inner values
     })
 }
 
