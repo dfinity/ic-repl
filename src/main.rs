@@ -117,7 +117,7 @@ struct Opts {
     #[clap(short, long, conflicts_with("replica"))]
     /// Offline mode to be run in air-gap machines
     offline: bool,
-    #[clap(short, long, requires("offline"), possible_values = &["ascii", "json", "png", "ascii_no_url", "png_no_url"])]
+    #[clap(short, long, requires("offline"), value_parser = ["ascii", "json", "png", "ascii_no_url", "png_no_url"])]
     /// Offline output format
     format: Option<String>,
     #[clap(short, long, requires("offline"))]
