@@ -61,7 +61,7 @@ fn render_profiling(
     use inferno::flamegraph::{from_reader, Options};
     let mut stack = Vec::new();
     let mut prefix = Vec::new();
-    let mut result = String::new();
+    let mut result = Vec::new();
     let mut total = 0;
     let mut prev = None;
     for (id, count) in input.into_iter() {
@@ -91,13 +91,11 @@ fn render_profiling(
                         Some(prev) if prev == frame => {
                             // Add an empty spacer to avoid collapsing adjacent same-named calls
                             // See https://github.com/jonhoo/inferno/issues/185#issuecomment-671393504
-                            result = format!("{};spacer 0\n", prefix.join(";")) + &result;
+                            result.push(format!("{};spacer 0", prefix.join(";")));
                         }
                         _ => (),
                     }
-                    // Reserve result order to make flamegraph from left to right.
-                    // See https://github.com/jonhoo/inferno/issues/236
-                    result = format!("{} {}\n", frame, cost - children) + &result;
+                    result.push(format!("{} {}", frame, cost - children));
                     prev = Some(frame);
                 }
             }
@@ -113,7 +111,11 @@ fn render_profiling(
     opt.image_width = Some(1024);
     opt.flame_chart = true;
     opt.no_sort = true;
-    let reader = std::io::Cursor::new(result);
+    // Reserve result order to make flamegraph from left to right.
+    // See https://github.com/jonhoo/inferno/issues/236
+    result.reverse();
+    let logs = result.join("\n");
+    let reader = std::io::Cursor::new(logs);
     println!("Flamegraph written to {}", filename.display());
     let mut writer = std::fs::File::create(&filename)?;
     from_reader(&mut opt, reader, &mut writer)?;
