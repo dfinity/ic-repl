@@ -59,11 +59,11 @@ fn render_profiling(
     filename: PathBuf,
 ) -> anyhow::Result<u64> {
     use inferno::flamegraph::{from_reader, Options};
-    use std::fmt::Write;
     let mut stack = Vec::new();
     let mut prefix = Vec::new();
     let mut result = String::new();
     let mut total = 0;
+    let mut prev = None;
     for (id, count) in input.into_iter() {
         if id >= 0 {
             stack.push((id, count, 0));
@@ -87,8 +87,18 @@ fn render_profiling(
                     } else {
                         total += cost as u64;
                     }
-                    //println!("{} {}", frame, cost - children);
-                    writeln!(&mut result, "{} {}", frame, cost - children)?;
+                    match prev {
+                        Some(prev) if prev == frame => {
+                            // Add an empty spacer to avoid collapsing adjacent same-named calls
+                            // See https://github.com/jonhoo/inferno/issues/185#issuecomment-671393504
+                            result = format!("{};spacer 0\n", prefix.join(";")) + &result;
+                        }
+                        _ => (),
+                    }
+                    // Reserve result order to make flamegraph from left to right.
+                    // See https://github.com/jonhoo/inferno/issues/236
+                    result = format!("{} {}\n", frame, cost - children) + &result;
+                    prev = Some(frame);
                 }
             }
         }
