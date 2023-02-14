@@ -52,7 +52,7 @@ We also provide some built-in functions:
 * `gzip(blob)`: gzip a blob value.
 * `stringify(exp1, exp2, exp3, ...)`: convert all expressions to string and concat. Only supports primitive types.
 * `output(path, content)`: append text content to file path.
-* `wasm_profiling(path [, vec { func_name }])`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument of func_names is optional. If provided, it will only count and trace the provided functions.
+* `wasm_profiling(path)/wasm_profiling(path, vec { func_name })`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument of func_names is optional. If provided, it will only count and trace the provided functions.
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.
 * `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer numbers.
