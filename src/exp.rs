@@ -159,16 +159,21 @@ impl Exp {
                         _ => return Err(anyhow!("gzip expects blob")),
                     },
                     "wasm_profiling" => match args.as_slice() {
-                        [IDLValue::Text(file)] => {
+                        [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Vec(_)] => {
                             let path = resolve_path(&helper.base_path, file);
                             let blob = std::fs::read(&path)
                                 .with_context(|| format!("Cannot read {path:?}"))?;
                             let mut m = ic_wasm::utils::parse_wasm(&blob, false)?;
                             ic_wasm::shrink::shrink(&mut m);
-                            ic_wasm::instrumentation::instrument(&mut m);
+                            let trace_funcs: Vec<String> = match args.as_slice() {
+                                [_] => vec![],
+                                [_, IDLValue::Vec(vec)] => vec.iter().filter_map(|name| if let IDLValue::Text(name) = name { Some(name.clone()) } else { None }).collect(),
+                                _ => unreachable!(),
+                            };
+                            ic_wasm::instrumentation::instrument(&mut m, &trace_funcs).map_err(|e| anyhow::anyhow!("{e}"))?;
                             IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
                         }
-                        _ => return Err(anyhow!("wasm_profiling expects file path")),
+                        _ => return Err(anyhow!("wasm_profiling expects file path and optionally vec text of function names")),
                     },
                     "flamegraph" => match args.as_slice() {
                         [IDLValue::Principal(cid), IDLValue::Text(title), IDLValue::Text(file)] => {
