@@ -102,6 +102,7 @@ fn render_profiling(
         }
     }
     if !stack.is_empty() {
+        result.push("incomplete_trace 10000".to_string());
         eprintln!("A trap occured or trace is too large");
     }
     //println!("Cost: {} Wasm instructions", total);
