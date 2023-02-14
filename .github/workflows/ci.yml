@@ -44,5 +44,5 @@ jobs:
     - name: e2e tests
       run: |
         set -ex
-        target/debug/ic-repl -r http://localhost:8000 examples/install.sh
-        target/debug/ic-repl -r http://localhost:8000 examples/func.sh
+        target/debug/ic-repl examples/install.sh
+        target/debug/ic-repl examples/func.sh
