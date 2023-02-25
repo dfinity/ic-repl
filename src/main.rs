@@ -50,7 +50,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     };
     let url = match replica.as_str() {
         "local" => "http://localhost:4943/",
-        "ic" => "https://ic0.app",
+        "ic" => "https://icp0.io",
         url => url,
     };
     println!("Ping {url}...");

@@ -60,6 +60,8 @@ pub fn str_to_principal(id: &str, helper: &MyHelper) -> Result<Principal> {
         Ok(id) => id,
         Err(_) => match helper.env.0.get(id) {
             Some(IDLValue::Principal(id)) => *id,
+            Some(IDLValue::Service(id)) => *id,
+            Some(IDLValue::Func(id, _)) => *id,
             _ => return Err(anyhow!("{} is not a canister id", id)),
         },
     })
