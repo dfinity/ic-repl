@@ -55,7 +55,7 @@ We also provide some built-in functions:
 * `wasm_profiling(path)/wasm_profiling(path, vec { func_name })`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument of func_names is optional. If provided, it will only count and trace the provided functions.
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.
-* `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer numbers.
+* `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer/float numbers. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
 
 ## Object methods
 
@@ -68,6 +68,14 @@ For `vec`, `record` or `text` value, we provide some built-in methods for value 
 For `record` value, `v[i]` is represented as `record { key; value }` sorted by field id.
 
 For `text` value, `v[i]` is represented as a `text` value containing a single character.
+
+## Type casting
+
+Type annotations in `ic-repl` is more permissible (not following the subtyping rules) than the Candid library to allow piping results from different canister calls.
+* `("text" : blob)` becomes `blob "text"` and vice versa.
+* `(service "aaaaa-aa" : principal)` becomes `principal "aaaaa-aa"`. You can convert among `service`, `principal` and `func`.
+* `((((1.99 : nat8) : int) : float32) : nat32)` becomes `(1 : nat32)`. When converting from float to integer, we only return the integer part of the float.
+* Type annotations for `vec`, `record`, `variant` is left unimplemented. With candid interface embedded in the canister metadata, annotating composite types is almost never needed.
 
 ## Examples
 

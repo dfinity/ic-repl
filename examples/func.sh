@@ -30,4 +30,11 @@ assert s.map(f8).size() == (12 : nat);
 
 assert div(1, 2) == 0;
 assert div(1, 2.0) == 0.5;
-assert div((mul(div((1:nat8), 3.0), 1000) : nat), 100.0) == 3.33;
+assert div((mul(div(((1:nat8):float32), (3:float64)), 1000) : nat), 100.0) == 3.33;
+
+assert (service "aaaaa-aa" : principal) == principal "aaaaa-aa";
+assert (func "aaaaa-aa".test : service {}) == service "aaaaa-aa";
+assert (principal "aaaaa-aa" : service {}) == service "aaaaa-aa";
+
+assert ("this is a text" : blob) == blob "this is a text";
+assert (blob "this is a blob" : text) == "this is a blob";
