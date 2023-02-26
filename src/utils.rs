@@ -67,6 +67,14 @@ pub fn cast_type(v: IDLValue, ty: &Type) -> Result<IDLValue> {
         (IDLValue::Null | IDLValue::Reserved | IDLValue::None, TypeInner::Opt(_)) => IDLValue::None,
         // No fallback to None for option
         (IDLValue::Opt(v), TypeInner::Opt(t)) => IDLValue::Opt(Box::new(cast_type(*v, t)?)),
+        (IDLValue::Vec(vec), TypeInner::Vec(t)) => {
+            let mut res = Vec::with_capacity(vec.len());
+            for e in vec.into_iter() {
+                let v = cast_type(e, t)?;
+                res.push(v);
+            }
+            IDLValue::Vec(res)
+        }
         // text <--> blob
         (IDLValue::Text(s), TypeInner::Text) => IDLValue::Text(s),
         (IDLValue::Vec(vec), TypeInner::Text)
@@ -109,7 +117,7 @@ pub fn cast_type(v: IDLValue, ty: &Type) -> Result<IDLValue> {
         (v, TypeInner::Float32) => IDLValue::Float32(num_cast_helper(v, false)?.parse::<f32>()?),
         (v, TypeInner::Float64) => IDLValue::Float64(num_cast_helper(v, false)?.parse::<f64>()?),
         // error
-        (_, TypeInner::Vec(_) | TypeInner::Record(_) | TypeInner::Variant(_)) => {
+        (_, TypeInner::Record(_) | TypeInner::Variant(_)) => {
             return Err(anyhow!("{ty} annotation not implemented"))
         }
         (v, _) => return Err(anyhow!("Cannot cast {v} to type {ty}")),

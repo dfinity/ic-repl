@@ -75,7 +75,7 @@ Type annotations in `ic-repl` is more permissible (not following the subtyping r
 * `("text" : blob)` becomes `blob "text"` and vice versa. Converting `blob` to `text` can get an error if the blob is not utf8 compatible.
 * `(service "aaaaa-aa" : principal)` becomes `principal "aaaaa-aa"`. You can convert among `service`, `principal` and `func`.
 * `((((1.99 : nat8) : int) : float32) : nat32)` becomes `(1 : nat32)`. When converting from float to integer, we only return the integer part of the float.
-* Type annotations for `vec`, `record`, `variant` is left unimplemented. With candid interface embedded in the canister metadata, annotating composite types is almost never needed.
+* Type annotations for `record`, `variant` is left unimplemented. With candid interface embedded in the canister metadata, annotating composite types is almost never needed.
 
 ## Examples
 
