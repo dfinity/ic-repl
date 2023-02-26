@@ -3,7 +3,7 @@ use super::helper::{MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
-    args_to_value, get_effective_canister_id, resolve_path, str_to_principal, to_int,
+    args_to_value, cast_type, get_effective_canister_id, resolve_path, str_to_principal,
 };
 use anyhow::{anyhow, Context, Result};
 use candid::{
@@ -84,8 +84,7 @@ impl Exp {
             }
             Exp::AnnVal(v, ty) => {
                 let arg = v.eval(helper)?;
-                let env = TypeEnv::new();
-                arg.annotate_type(true, &env, &ty)?
+                cast_type(arg, &ty).with_context(|| format!("casting to type {ty} fails"))?
             }
             Exp::Fail(v) => match v.eval(helper) {
                 Err(e) => IDLValue::Text(e.to_string()),
@@ -242,23 +241,30 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("concat expects two vec, record or text")),
                     },
-                    "add" | "sub" | "mul" | "div" => {
-                        if args.len() == 2 {
-                            let v1 = to_int(&args[0])?;
-                            let v2 = to_int(&args[1])?;
-                            IDLValue::Number(
-                                match func.as_str() {
-                                    "add" => v1 + v2,
-                                    "sub" => v1 - v2,
-                                    "mul" => v1 * v2,
-                                    "div" => v1 / v2,
-                                    _ => unreachable!(),
-                                }
-                                .to_string(),
-                            )
-                        } else {
-                            return Err(anyhow!("add expects two numbers"));
+                    "add" | "sub" | "mul" | "div" => match args.as_slice() {
+                        [IDLValue::Float32(_) | IDLValue::Float64(_), _] | [_, IDLValue::Float32(_) | IDLValue::Float64(_)] => {
+                            let IDLValue::Float64(v1) = cast_type(args[0].clone(), &TypeInner::Float64.into())? else { panic!() };
+                            let IDLValue::Float64(v2) = cast_type(args[1].clone(), &TypeInner::Float64.into())? else { panic!() };
+                            IDLValue::Float64(match func.as_str() {
+                                "add" => v1 + v2,
+                                "sub" => v1 - v2,
+                                "mul" => v1 * v2,
+                                "div" => v1 / v2,
+                                _ => unreachable!(),
+                            })
                         }
+                        [v1, v2] => {
+                            let IDLValue::Int(v1) = cast_type(v1.clone(), &TypeInner::Int.into())? else { panic!() };
+                            let IDLValue::Int(v2) = cast_type(v2.clone(), &TypeInner::Int.into())? else { panic!() };
+                            IDLValue::Number(match func.as_str() {
+                                "add" => v1 + v2,
+                                "sub" => v1 - v2,
+                                "mul" => v1 * v2,
+                                "div" => v1 / v2,
+                                _ => unreachable!(),
+                            }.to_string())
+                        }
+                        _ => return Err(anyhow!("add expects two numbers")),
                     }
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),

@@ -3,7 +3,7 @@ use anyhow::{anyhow, Context, Result};
 use candid::bindings::candid::value::number_to_string;
 use candid::parser::configs::Configs;
 use candid::types::value::{IDLArgs, IDLField, IDLValue};
-use candid::types::{Label, Type};
+use candid::types::{Label, Type, TypeInner};
 use candid::Principal;
 use candid::TypeEnv;
 use std::borrow::Cow;
@@ -30,6 +30,8 @@ pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<str>> {
             Cow::Owned(number_to_string(v))
         }
         IDLValue::Principal(id) => Cow::Owned(id.to_string()),
+        IDLValue::Service(id) => Cow::Owned(id.to_string()),
+        IDLValue::Func(id, meth) => Cow::Owned(format!("{id}.{meth}")),
         IDLValue::Null => Cow::Borrowed("null"),
         IDLValue::None => Cow::Borrowed("none"),
         IDLValue::Reserved => Cow::Borrowed("reserved"),
@@ -37,20 +39,80 @@ pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<str>> {
     })
 }
 
-pub fn to_int(v: &IDLValue) -> Result<candid::Int> {
+fn num_cast_helper(v: IDLValue, truncate_float: bool) -> Result<String> {
     Ok(match v {
-        IDLValue::Number(n) => n.parse::<candid::Int>()?,
-        IDLValue::Int(n) => n.clone(),
-        IDLValue::Nat(n) => n.clone().into(),
-        IDLValue::Nat8(n) => (*n).into(),
-        IDLValue::Nat16(n) => (*n).into(),
-        IDLValue::Nat32(n) => (*n).into(),
-        IDLValue::Nat64(n) => (*n).into(),
-        IDLValue::Int8(n) => (*n).into(),
-        IDLValue::Int16(n) => (*n).into(),
-        IDLValue::Int32(n) => (*n).into(),
-        IDLValue::Int64(n) => (*n).into(),
-        _ => return Err(anyhow!("Cannot convert {} to a number", v)),
+        IDLValue::Number(n) => n,
+        IDLValue::Int64(n) => n.to_string(),
+        IDLValue::Int32(n) => n.to_string(),
+        IDLValue::Int16(n) => n.to_string(),
+        IDLValue::Int8(n) => n.to_string(),
+        IDLValue::Int(n) => n.to_string(),
+        IDLValue::Nat64(n) => n.to_string(),
+        IDLValue::Nat32(n) => n.to_string(),
+        IDLValue::Nat16(n) => n.to_string(),
+        IDLValue::Nat8(n) => n.to_string(),
+        IDLValue::Nat(n) => n.to_string(),
+        IDLValue::Float32(f) => if truncate_float { f.trunc() } else { f }.to_string(),
+        IDLValue::Float64(f) => if truncate_float { f.trunc() } else { f }.to_string(),
+        _ => return Err(anyhow!("{v} is not a number")),
+    })
+}
+
+/// This function allows conversions between text and blob, principal and service/func, and all number types.
+pub fn cast_type(v: IDLValue, ty: &Type) -> Result<IDLValue> {
+    Ok(match (v, ty.as_ref()) {
+        (_, TypeInner::Reserved) => IDLValue::Reserved,
+        (IDLValue::Null, TypeInner::Null) => IDLValue::Null,
+        (IDLValue::Bool(b), TypeInner::Bool) => IDLValue::Bool(b),
+        (IDLValue::Null | IDLValue::Reserved | IDLValue::None, TypeInner::Opt(_)) => IDLValue::None,
+        // No fallback to None for option
+        (IDLValue::Opt(v), TypeInner::Opt(t)) => IDLValue::Opt(Box::new(cast_type(*v, t)?)),
+        // text <--> blob
+        (IDLValue::Text(s), TypeInner::Text) => IDLValue::Text(s),
+        (IDLValue::Vec(vec), TypeInner::Text)
+            if vec.is_empty() || matches!(vec[0], IDLValue::Nat8(_)) =>
+        {
+            let bytes: Vec<_> = vec
+                .into_iter()
+                .map(|x| {
+                    let IDLValue::Nat8(v) = x else { unreachable!("not a blob") };
+                    v
+                })
+                .collect();
+            IDLValue::Text(String::from_utf8(bytes)?)
+        }
+        (IDLValue::Text(str), TypeInner::Vec(t)) if matches!(t.as_ref(), TypeInner::Nat8) => {
+            let blob = str.into_bytes().into_iter().map(IDLValue::Nat8).collect();
+            IDLValue::Vec(blob)
+        }
+        // reference types
+        (
+            IDLValue::Principal(id) | IDLValue::Service(id) | IDLValue::Func(id, _),
+            TypeInner::Principal,
+        ) => IDLValue::Principal(id),
+        (
+            IDLValue::Principal(id) | IDLValue::Service(id) | IDLValue::Func(id, _),
+            TypeInner::Service(_),
+        ) => IDLValue::Service(id),
+        (IDLValue::Func(id, meth), TypeInner::Func(_)) => IDLValue::Func(id, meth),
+        // number types
+        (v, TypeInner::Int) => IDLValue::Int(num_cast_helper(v, true)?.parse::<candid::Int>()?),
+        (v, TypeInner::Nat) => IDLValue::Nat(num_cast_helper(v, true)?.parse::<candid::Nat>()?),
+        (v, TypeInner::Nat8) => IDLValue::Nat8(num_cast_helper(v, true)?.parse::<u8>()?),
+        (v, TypeInner::Nat16) => IDLValue::Nat16(num_cast_helper(v, true)?.parse::<u16>()?),
+        (v, TypeInner::Nat32) => IDLValue::Nat32(num_cast_helper(v, true)?.parse::<u32>()?),
+        (v, TypeInner::Nat64) => IDLValue::Nat64(num_cast_helper(v, true)?.parse::<u64>()?),
+        (v, TypeInner::Int8) => IDLValue::Int8(num_cast_helper(v, true)?.parse::<i8>()?),
+        (v, TypeInner::Int16) => IDLValue::Int16(num_cast_helper(v, true)?.parse::<i16>()?),
+        (v, TypeInner::Int32) => IDLValue::Int32(num_cast_helper(v, true)?.parse::<i32>()?),
+        (v, TypeInner::Int64) => IDLValue::Int64(num_cast_helper(v, true)?.parse::<i64>()?),
+        (v, TypeInner::Float32) => IDLValue::Float32(num_cast_helper(v, false)?.parse::<f32>()?),
+        (v, TypeInner::Float64) => IDLValue::Float64(num_cast_helper(v, false)?.parse::<f64>()?),
+        // error
+        (_, TypeInner::Vec(_) | TypeInner::Record(_) | TypeInner::Variant(_)) => {
+            return Err(anyhow!("{ty} annotation not implemented"))
+        }
+        (v, _) => return Err(anyhow!("Cannot cast {v} to type {ty}")),
     })
 }
 
