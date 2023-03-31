@@ -36,7 +36,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         replica = "ic".to_string();
         let send_url = opts
             .url
-            .unwrap_or_else(|| "https://qhmh2-niaaa-aaaab-qadta-cai.raw.ic0.app/?msg=".to_string());
+            .unwrap_or_else(|| "https://qhmh2-niaaa-aaaab-qadta-cai.raw.icp0.io/?msg=".to_string());
         Some(match opts.format.as_deref() {
             Some("json") => OfflineOutput::Json,
             None | Some("ascii") => OfflineOutput::Ascii(send_url),

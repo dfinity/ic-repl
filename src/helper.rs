@@ -133,6 +133,9 @@ impl MyHelper {
         res.load_prelude().unwrap();
         res
     }
+    fn is_mainnet(&self) -> bool {
+        self.agent_url == "https://icp0.io" || self.agent_url == "https://ic0.app"
+    }
     fn load_prelude(&mut self) -> anyhow::Result<()> {
         self.identity_map.0.insert(
             "anonymous".to_string(),
@@ -143,7 +146,7 @@ impl MyHelper {
             Principal::from_text("aaaaa-aa")?,
             Some(include_str!("ic.did")),
         )?;
-        if self.agent_url == "https://ic0.app" {
+        if self.is_mainnet() {
             self.preload_canister(
                 "nns".to_string(),
                 Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?,
@@ -177,7 +180,7 @@ impl MyHelper {
         Ok(())
     }
     pub fn fetch_root_key_if_needed(&mut self) -> anyhow::Result<()> {
-        if self.offline.is_none() && self.agent_url != "https://ic0.app" {
+        if self.offline.is_none() && !self.is_mainnet() {
             let runtime = Runtime::new().expect("Unable to create a runtime");
             runtime.block_on(self.agent.fetch_root_key())?;
         };
