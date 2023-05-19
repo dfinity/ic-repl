@@ -224,26 +224,9 @@ let _ = call proxy_canister.wallet_call(
 decode as target_canister.method _.Ok.return
 ```
 
-## Notes for Rust canisters
+## Contributing
 
-> **Warning**
-> This is deprecated. `dfx` will embed the .did file as metadata in the canister.
-
-`ic-repl` relies on the `__get_candid_interface_tmp_hack` canister method to fetch the Candid interface. The default
-Rust CDK does not provide this method. You can do the following to enable this feature:
-
-* For each canister method, in addition to the `#[ic_cdk_macros::query]` annotation, add `#[ic_cdk::export::candid::candid_method(query)]` or `#[ic_cdk::export::candid::candid_method]` for query and update calls respectively.
-* At the end of the the canister `.rs` file, add the following lines:
-```
-ic_cdk::export::candid::export_service!();
-
-#[ic_cdk_macros::query(name = "__get_candid_interface_tmp_hack")]
-fn export_candid() -> String {
-    __export_service()
-}
-```
-
-If you are writing your own `.did` file, you can also supply the did file via the `import` command, e.g. `import canister = "rrkah-fqaaa-aaaaa-aaaaq-cai" as "your_own_did_file.did"`
+Please follow the guidelines in the [CONTRIBUTING.md](.github/CONTRIBUTING.md) document.
 
 ## Issues
 
