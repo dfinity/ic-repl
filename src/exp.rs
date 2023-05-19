@@ -1,5 +1,5 @@
 use super::error::pretty_parse;
-use super::helper::{MyHelper, OfflineOutput};
+use super::helper::{fetch_metadata, MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
@@ -127,6 +127,13 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
                     },
+                    "metadata" => match args.as_slice() {
+                        [IDLValue::Principal(id), IDLValue::Text(path)] => {
+                            let res = fetch_metadata(&helper.agent, *id, path)?;
+                            IDLValue::Vec(res.into_iter().map(IDLValue::Nat8).collect())
+                        }
+                        _ => return Err(anyhow!("metadata expects (principal, path)")),
+                    }
                     "file" => match args.as_slice() {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);

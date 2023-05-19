@@ -42,7 +42,6 @@ extern {
         "let" => Token::Let,
         "fail" => Token::Fail,
         "identity" => Token::Identity,
-        "fetch" => Token::Fetch,
         "function" => Token::Function,
         "sign" => Token::Sign(<char>),
         "=" => Token::Equals,
@@ -78,7 +77,6 @@ pub Command: Command = {
          let principal = Principal::from_text(&uri.0).map_err(|e| error2(e, uri.1))?;
          Ok(Command::Import(id, principal, did))
     },
-    "fetch" <id:Name> <path:Text> => Command::Fetch(id, path),
     "identity" <id:"id"> <config:Sp<Exp>?> =>? {
       use super::command::IdentityConfig::*;
       Ok(match config {
