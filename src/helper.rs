@@ -494,7 +494,7 @@ fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
 
 #[test]
 fn test_partial_parse() -> anyhow::Result<()> {
-    let url = "https://ic0.app".to_string();
+    let url = "https://icp0.io".to_string();
     let agent = Agent::builder()
         .with_transport(
             ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
