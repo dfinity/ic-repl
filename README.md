@@ -15,7 +15,6 @@ ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <
  | let <id> = <exp>                          // bind <exp> to a variable <id>
  | <exp>                                     // show the value of <exp>
  | assert <exp> <binop> <exp>                // assertion
- | fetch <name> <text>                       // fetch the HTTP endpoint of `canister/<canister_id>/<name>`
  | identity <id> (<text> | record { slot_index = <nat>; key_id = <text> })?   // switch to identity <id>, with optional pem file or HSM config
  | function <id> ( <id>,* ) { <command>;* }  // define a function
 <exp> := 
@@ -48,6 +47,7 @@ You cannot define recursive functions, as there is no control flow in the langua
 We also provide some built-in functions:
 * `account(principal)`: convert principal to account id.
 * `neuron_account(principal, nonce)`: convert (principal, nonce) to account in the governance canister.
+* `metadata(principal, path)`: fetch the HTTP endpoint of `canister/<principal>/<path>`.
 * `file(path)`: load external file as a blob value.
 * `gzip(blob)`: gzip a blob value.
 * `stringify(exp1, exp2, exp3, ...)`: convert all expressions to string and concat. Only supports primitive types.
