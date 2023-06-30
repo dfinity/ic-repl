@@ -4,45 +4,43 @@ on:
     branches:
       - master
   pull_request:
-
 jobs:
   test:
     runs-on: ubuntu-latest
     env:
       DFX_VERSION: 0.13.1
     steps:
-    - uses: actions/checkout@v2
-    - name: Install stable Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        override: true
-        components: rustfmt, clippy
-    - name: Cache cargo build
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - name: Build
-      run: cargo build
-    - name: Run tests
-      run: cargo test
-    - name: fmt
-      run: cargo fmt -v -- --check
-    - name: lint
-      run: cargo clippy --tests -- -D clippy::all
-    - name: install dfx
-      run: |
-        echo y | DFX_VERSION=$DFX_VERSION bash -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-        echo '{}' > dfx.json
-        dfx start --background
-
-    - name: e2e tests
-      run: |
-        set -ex
-        target/debug/ic-repl examples/install.sh
-        target/debug/ic-repl examples/func.sh
+      - uses: actions/checkout@v2
+      - name: Install stable Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+      - name: Cache cargo build
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build
+        run: cargo build
+      - name: Run tests
+        run: cargo test
+      - name: fmt
+        run: cargo fmt -v -- --check
+      - name: lint
+        run: cargo clippy --tests -- -D clippy::all
+      - name: install dfx
+        run: |
+          echo y | DFX_VERSION=$DFX_VERSION bash -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+          echo '{}' > dfx.json
+          dfx start --background
+      - name: e2e tests
+        run: |
+          set -ex
+          target/debug/ic-repl examples/install.sh
+          target/debug/ic-repl examples/func.sh
