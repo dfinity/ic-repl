@@ -19,7 +19,7 @@ pub fn ok_to_profile<'a>(helper: &'a MyHelper, info: &'a MethodInfo) -> bool {
 #[tokio::main]
 pub async fn get_cycles(agent: &Agent, canister_id: &Principal) -> anyhow::Result<i64> {
     use candid::{Decode, Encode};
-    let mut builder = agent.query(canister_id, "__get_cycles");
+    let builder = agent.query(canister_id, "__get_cycles");
     let bytes = builder
         .with_arg(Encode!()?)
         .with_effective_canister_id(*canister_id)
@@ -37,7 +37,7 @@ pub async fn get_profiling(
     filename: PathBuf,
 ) -> anyhow::Result<u64> {
     use candid::{Decode, Encode};
-    let mut builder = agent.query(canister_id, "__get_profiling");
+    let builder = agent.query(canister_id, "__get_profiling");
     let bytes = builder
         .with_arg(Encode!()?)
         .with_effective_canister_id(*canister_id)

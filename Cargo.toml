@@ -24,8 +24,8 @@ codespan-reporting = "0.11"
 pretty = "0.10"
 pem = "1.1"
 shellexpand = "3.0"
-ic-agent = "0.23"
-ic-identity-hsm = "0.23"
+ic-agent = "0.24"
+ic-identity-hsm = "0.24"
 ic-wasm = { version = "0.3.5", default-features = false }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
 tokio = { version = "1.24", features = ["full"] }
@@ -47,6 +47,11 @@ libflate = "1.2"
 base64 = "0.13"
 
 [patch.crates-io.ic-agent]
-version = "0.23"
-git = "https://github.com/dfinity/agent-rs.git"
+version = "0.24"
+git = "https://github.com/chenyan-dfinity/agent-rs.git"
 branch = "bump-candid"
+[patch.crates-io.ic-identity-hsm]
+version = "0.24"
+git = "https://github.com/chenyan-dfinity/agent-rs.git"
+branch = "bump-candid"
+

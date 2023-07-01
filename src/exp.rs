@@ -543,7 +543,7 @@ async fn call(
         .unwrap_or(false);
     let bytes = if is_query {
         let mut builder = agent.query(canister_id, method);
-        builder
+        builder = builder
             .with_arg(args)
             .with_effective_canister_id(effective_id);
         if let Some(offline) = offline {
@@ -560,7 +560,7 @@ async fn call(
         }
     } else {
         let mut builder = agent.update(canister_id, method);
-        builder
+        builder = builder
             .with_arg(args)
             .with_effective_canister_id(effective_id);
         if let Some(offline) = offline {

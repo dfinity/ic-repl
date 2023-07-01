@@ -403,7 +403,7 @@ async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<Ca
         Err(_) => {
             let response = agent
                 .query(&canister_id, "__get_candid_interface_tmp_hack")
-                .with_arg(&Encode!()?)
+                .with_arg(Encode!()?)
                 .call()
                 .await;
             match response {
@@ -439,8 +439,9 @@ async fn fetch_metadata_(
     sub_paths: &str,
 ) -> anyhow::Result<Vec<u8>> {
     use ic_agent::{hash_tree::Label, lookup_value};
-    let mut path: Vec<Label> = vec!["canister".into(), canister_id.into()];
-    path.extend(sub_paths.split('/').map(|str| str.into()));
+    let mut path: Vec<Label<Vec<u8>>> =
+        vec!["canister".as_bytes().into(), canister_id.as_slice().into()];
+    path.extend(sub_paths.split('/').map(|str| str.as_bytes().into()));
     let cert = agent
         .read_state_raw(vec![path.clone()], canister_id)
         .await?;
