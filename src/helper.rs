@@ -195,7 +195,7 @@ enum Partial {
 }
 
 fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
-    let (start, _) = extract_word(line, pos, None, b" ");
+    let (start, _) = extract_word(line, pos, None, |c| c == ' ');
     let iter = Tokenizer::new(&line[start..pos]);
     let mut tokens = Vec::new();
     let mut pos_start = 0;

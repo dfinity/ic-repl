@@ -89,7 +89,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         let input = rl.readline(&p);
         match input {
             Ok(line) => {
-                rl.add_history_entry(&line);
+                rl.add_history_entry(&line)?;
                 unwrap(pretty_parse::<Command>("stdin", &line), |cmd| {
                     let helper = rl.helper_mut().unwrap();
                     helper.history.push(line.clone());

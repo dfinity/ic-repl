@@ -39,7 +39,7 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4fa78e18c64fce05e902adecd7a5eed15a5e0a3439f7b0e169f0252214865e3"
 dependencies = [
- "gimli",
+ "gimli 0.27.3",
 ]
 
 [[package]]
@@ -64,15 +64,6 @@ dependencies = [
  "getrandom",
  "once_cell",
  "version_check",
-]
-
-[[package]]
-name = "aho-corasick"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43f6cb1bf222025340178f382c426f13757b2960e89779dfcb319c32542a5a41"
-dependencies = [
- "memchr",
 ]
 
 [[package]]
@@ -345,9 +336,9 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "candid"
-version = "0.9.0-beta.4"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3005be607a05b449b5a5a144839c5731699af5c309ce20eb5c812f889683601e"
+checksum = "14881d34e5ad2b3e77dfbbdf3266d907f85d28faf214b843684f2e64e8acd6c7"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -834,6 +825,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fallible-iterator"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4443176a9f2c162692bd3d352d745ef9413eec5782a80d8fd6f8a1ac692a07f7"
+
+[[package]]
 name = "fd-lock"
 version = "3.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -966,6 +963,17 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
+]
+
+[[package]]
+name = "gimli"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22030e2c5a68ec659fde1e949a745124b48e6fa8b045b7ed5bd1fe4ccc5c4e5d"
+dependencies = [
+ "fallible-iterator",
+ "indexmap 1.9.3",
+ "stable_deref_trait",
 ]
 
 [[package]]
@@ -1155,7 +1163,7 @@ dependencies = [
 [[package]]
 name = "ic-agent"
 version = "0.24.1"
-source = "git+https://github.com/chenyan-dfinity/agent-rs.git?branch=bump-candid#31b753a646e3b630fba85e03dcedae49932b94ef"
+source = "git+https://github.com/chenyan-dfinity/agent-rs.git?branch=bump-candid#e1cf4763c4bc61c876e51e90c60b5ae5cc2fe921"
 dependencies = [
  "backoff",
  "candid",
@@ -1189,7 +1197,7 @@ dependencies = [
 [[package]]
 name = "ic-certification"
 version = "0.24.1"
-source = "git+https://github.com/chenyan-dfinity/agent-rs.git?branch=bump-candid#31b753a646e3b630fba85e03dcedae49932b94ef"
+source = "git+https://github.com/chenyan-dfinity/agent-rs.git?branch=bump-candid#e1cf4763c4bc61c876e51e90c60b5ae5cc2fe921"
 dependencies = [
  "hex",
  "serde",
@@ -1200,7 +1208,7 @@ dependencies = [
 [[package]]
 name = "ic-identity-hsm"
 version = "0.24.1"
-source = "git+https://github.com/chenyan-dfinity/agent-rs.git?branch=bump-candid#31b753a646e3b630fba85e03dcedae49932b94ef"
+source = "git+https://github.com/chenyan-dfinity/agent-rs.git?branch=bump-candid#e1cf4763c4bc61c876e51e90c60b5ae5cc2fe921"
 dependencies = [
  "hex",
  "ic-agent",
@@ -1262,9 +1270,9 @@ dependencies = [
 
 [[package]]
 name = "ic-wasm"
-version = "0.3.7"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c02065b062419eedf7fd94cc6721424ba4ced7370de3b129d86c6e2626e2aa84"
+checksum = "e360e45c2bf406a867c35ec5daee433f2c3bbbaf013469e6a386a322a9713885"
 dependencies = [
  "candid",
  "rustc-demangle",
@@ -1430,9 +1438,9 @@ dependencies = [
 
 [[package]]
 name = "lalrpop"
-version = "0.19.12"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a1cbf952127589f2851ab2046af368fd20645491bb4b376f04b7f94d7a9837b"
+checksum = "da4081d44f4611b66c6dd725e6de3169f9f63905421e8626fcb86b6a898998b8"
 dependencies = [
  "ascii-canvas",
  "bit-set",
@@ -1442,8 +1450,9 @@ dependencies = [
  "itertools 0.10.5",
  "lalrpop-util",
  "petgraph",
+ "pico-args",
  "regex",
- "regex-syntax 0.6.29",
+ "regex-syntax 0.7.2",
  "string_cache",
  "term",
  "tiny-keccak",
@@ -1452,9 +1461,9 @@ dependencies = [
 
 [[package]]
 name = "lalrpop-util"
-version = "0.19.12"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3c48237b9604c5a4702de6b824e02006c3214327564636aef27c1028a8fa0ed"
+checksum = "3f35c735096c0293d313e8f2a641627472b83d01b937177fe76e5e2708d31e0d"
 dependencies = [
  "regex",
 ]
@@ -1622,14 +1631,14 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.25.1"
+version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f346ff70e7dbfd675fe90590b92d59ef2de15a8779ae305ebcbfd3f0caf59be4"
+checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
 dependencies = [
- "autocfg",
  "bitflags 1.3.2",
  "cfg-if",
  "libc",
+ "static_assertions",
 ]
 
 [[package]]
@@ -1941,6 +1950,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pico-args"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2161,8 +2176,6 @@ version = "1.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0ab3ca65655bb1e41f2a8c8cd662eb4fb035e67c3f78da1d61dffe89d07300f"
 dependencies = [
- "aho-corasick",
- "memchr",
  "regex-syntax 0.7.2",
 ]
 
@@ -2364,15 +2377,15 @@ checksum = "4f3208ce4d8448b3f3e7d168a73f5e0c43a61e32930de3bceeccedb388b6bf06"
 
 [[package]]
 name = "rustyline"
-version = "10.1.1"
+version = "12.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1e83c32c3f3c33b08496e0d1df9ea8c64d39adb8eb36a1ebb1440c690697aef"
+checksum = "994eca4bca05c87e86e15d90fc7a91d1be64b4482b38cb2d27474568fe7c9db9"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.3.3",
  "cfg-if",
  "clipboard-win",
- "dirs-next",
  "fd-lock",
+ "home",
  "libc",
  "log",
  "memchr",
@@ -2387,13 +2400,13 @@ dependencies = [
 
 [[package]]
 name = "rustyline-derive"
-version = "0.7.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "107c3d5d7f370ac09efa62a78375f94d94b8a33c61d8c278b96683fb4dbf2d8d"
+checksum = "5a32af5427251d2e4be14fc151eabe18abb4a7aad5efee7044da9f096c906a43"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.22",
 ]
 
 [[package]]
@@ -2647,6 +2660,12 @@ dependencies = [
  "psm",
  "winapi",
 ]
+
+[[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "str-buf"
@@ -3006,15 +3025,17 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "walrus"
-version = "0.19.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4eb08e48cde54c05f363d984bb54ce374f49e242def9468d2e1b6c2372d291f8"
+checksum = "cc27d837c587f863d99515dc8cae7cef1098bd1d99fa29373e3660c12766265e"
 dependencies = [
  "anyhow",
+ "gimli 0.26.2",
  "id-arena",
  "leb128",
  "log",
  "walrus-macro",
+ "wasm-encoder",
  "wasmparser",
 ]
 
@@ -3112,6 +3133,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 
 [[package]]
+name = "wasm-encoder"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18c41dbd92eaebf3612a39be316540b8377c871cb9bde6b064af962984912881"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
 name = "wasm-streams"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3126,9 +3156,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.77.1"
+version = "0.80.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fe3d5405e9ea6c1317a656d6e0820912d8b7b3607823a7596117c8f666daf6f"
+checksum = "449167e2832691a1bff24cde28d2804e90e09586a448c8e76984792c44334a6b"
 
 [[package]]
 name = "web-sys"

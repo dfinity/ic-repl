@@ -1,7 +1,7 @@
 use super::exp::{Field, Exp, Method, CallMode};
 use super::selector::Selector;
 use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, Binding};
-use candid::parser::typing::check_unique;
+use candid::utils::check_unique;
 use super::token::{Token, error2, LexicalError, Span};
 use candid::{Principal, types::{FuncMode, Label, TypeEnv}};
 use super::command::{Command, Commands, BinOp};

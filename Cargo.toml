@@ -11,12 +11,12 @@ path = "src/main.rs"
 doc = false
 
 [build-dependencies]
-lalrpop = "0.19"
+lalrpop = "0.20"
 
 [dependencies]
-candid = { version = "0.9.0-beta.2", features = ["all"] }
-rustyline = "10.0"
-rustyline-derive = "0.7"
+candid = { version = "0.9.0", features = ["all"] }
+rustyline = "12.0"
+rustyline-derive = "0.9"
 ansi_term = "0.12"
 pretty_assertions = "0.7"
 terminal_size = "0.2"
@@ -26,13 +26,13 @@ pem = "1.1"
 shellexpand = "3.0"
 ic-agent = "0.24"
 ic-identity-hsm = "0.24"
-ic-wasm = { version = "0.3.5", default-features = false }
+ic-wasm = { version = "0.4.0", default-features = false }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
 tokio = { version = "1.24", features = ["full"] }
 anyhow = "1.0"
 rand = "0.8"
 logos = "0.12"
-lalrpop-util = "0.19"
+lalrpop-util = "0.20"
 clap = { version = "4.1", features = ["derive"] }
 ring = "0.16"
 rpassword = "7.0"

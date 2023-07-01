@@ -7,9 +7,9 @@ use super::utils::{
 };
 use anyhow::{anyhow, Context, Result};
 use candid::{
-    parser::typing::check_unique,
     types::value::{IDLArgs, IDLField, IDLValue, VariantValue},
     types::{Function, Label, Type, TypeInner},
+    utils::check_unique,
     Principal, TypeEnv,
 };
 use ic_agent::Agent;
