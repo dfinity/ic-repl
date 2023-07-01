@@ -1,6 +1,6 @@
 [package]
 name = "ic-repl"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["DFINITY Team"]
 edition = "2021"
 default-run = "ic-repl"
@@ -28,7 +28,7 @@ ic-agent = "0.24"
 ic-identity-hsm = "0.24"
 ic-wasm = { version = "0.4.0", default-features = false }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
-tokio = { version = "1.24", features = ["full"] }
+tokio = { version = "1.29", features = ["full"] }
 anyhow = "1.0"
 rand = "0.8"
 logos = "0.12"
