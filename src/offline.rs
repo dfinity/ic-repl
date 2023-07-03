@@ -23,6 +23,10 @@ pub fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()
     match format {
         OfflineOutput::Json => println!("{json}"),
         _ => {
+            use base64::{
+                engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD},
+                Engine,
+            };
             use libflate::gzip;
             use qrcode::{render::unicode, QrCode};
             use std::io::Write;
@@ -30,12 +34,12 @@ pub fn output_message(json: String, format: &OfflineOutput) -> anyhow::Result<()
             let mut encoder = gzip::Encoder::new(Vec::new())?;
             encoder.write_all(json.as_bytes())?;
             let zipped = encoder.finish().into_result()?;
-            let config = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
-                base64::STANDARD_NO_PAD
+            let engine = if matches!(format, OfflineOutput::PngNoUrl | OfflineOutput::AsciiNoUrl) {
+                STANDARD_NO_PAD
             } else {
-                base64::URL_SAFE_NO_PAD
+                URL_SAFE_NO_PAD
             };
-            let base64 = base64::encode_config(zipped, config);
+            let base64 = engine.encode(zipped);
             eprintln!("base64 length: {}", base64.len());
             let msg = match format {
                 OfflineOutput::Ascii(url) | OfflineOutput::Png(url) => url.to_owned() + &base64,

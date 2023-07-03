@@ -2,9 +2,9 @@ use super::exp::Exp;
 use super::helper::MyHelper;
 use anyhow::{anyhow, Result};
 use candid::{
-    parser::typing::check_unique,
     types::value::{IDLField, IDLValue, VariantValue},
     types::Label,
+    utils::check_unique,
 };
 
 #[derive(Debug, Clone)]

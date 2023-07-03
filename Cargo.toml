@@ -1,6 +1,6 @@
 [package]
 name = "ic-repl"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["DFINITY Team"]
 edition = "2021"
 default-run = "ic-repl"
@@ -11,42 +11,47 @@ path = "src/main.rs"
 doc = false
 
 [build-dependencies]
-lalrpop = "0.19"
+lalrpop = "0.20"
 
 [dependencies]
-candid = { version = "0.9.0-beta.2", features = ["all"] }
-rustyline = "10.0"
-rustyline-derive = "0.7"
+candid = { version = "0.9.0", features = ["all"] }
+rustyline = "12.0"
+rustyline-derive = "0.9"
 ansi_term = "0.12"
-pretty_assertions = "0.7"
+pretty_assertions = "1.3"
 terminal_size = "0.2"
 codespan-reporting = "0.11"
 pretty = "0.10"
-pem = "1.1"
-shellexpand = "3.0"
-ic-agent = "0.23"
-ic-identity-hsm = "0.23"
-ic-wasm = { version = "0.3.5", default-features = false }
+pem = "2.0"
+shellexpand = "3.1"
+ic-agent = "0.24"
+ic-identity-hsm = "0.24"
+ic-wasm = { version = "0.4.0", default-features = false }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
-tokio = { version = "1.24", features = ["full"] }
+tokio = { version = "1.29", features = ["full"] }
 anyhow = "1.0"
 rand = "0.8"
 logos = "0.12"
-lalrpop-util = "0.19"
-clap = { version = "4.1", features = ["derive"] }
+lalrpop-util = "0.20"
+clap = { version = "4.3", features = ["derive"] }
 ring = "0.16"
-rpassword = "7.0"
+rpassword = "7.2"
 serde = "1.0"
 serde_json = "1.0"
 hex = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
-crc32fast = "1.2"
+crc32fast = "1.3"
 qrcode = "0.12"
 image = { version = "0.23", default-features = false, features = ["png"] }
-libflate = "1.2"
-base64 = "0.13"
+libflate = "1.4"
+base64 = "0.21"
 
 [patch.crates-io.ic-agent]
-version = "0.23"
-git = "https://github.com/dfinity/agent-rs.git"
+version = "0.24"
+git = "https://github.com/chenyan-dfinity/agent-rs.git"
 branch = "bump-candid"
+[patch.crates-io.ic-identity-hsm]
+version = "0.24"
+git = "https://github.com/chenyan-dfinity/agent-rs.git"
+branch = "bump-candid"
+
