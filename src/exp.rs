@@ -12,7 +12,6 @@ use candid::{
     utils::check_unique,
     Principal, TypeEnv,
 };
-use ic_agent::Agent;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -360,7 +359,7 @@ impl Exp {
                             0
                         };
                         let res = call(
-                            &helper.agent,
+                            &helper,
                             &info.canister_id,
                             &method.method,
                             &bytes,
@@ -528,7 +527,7 @@ impl Method {
 
 #[tokio::main]
 async fn call(
-    agent: &Agent,
+    helper: &MyHelper,
     canister_id: &Principal,
     method: &str,
     args: &[u8],
@@ -536,6 +535,7 @@ async fn call(
     offline: &Option<OfflineOutput>,
 ) -> anyhow::Result<IDLArgs> {
     use crate::offline::*;
+    let agent = &helper.agent;
     let effective_id = get_effective_canister_id(*canister_id, method, args)?;
     let is_query = opt_func
         .as_ref()
@@ -547,12 +547,17 @@ async fn call(
             .with_arg(args)
             .with_effective_canister_id(effective_id);
         if let Some(offline) = offline {
+            let mut msgs = helper.messages.borrow_mut();
             let signed = builder.sign()?;
-            let message = Ingress {
-                call_type: "query".to_owned(),
-                request_id: None,
-                content: hex::encode(signed.signed_query),
+            let message = IngressWithStatus {
+                ingress: Ingress {
+                    call_type: "query".to_owned(),
+                    request_id: None,
+                    content: hex::encode(signed.signed_query),
+                },
+                request_status: None,
             };
+            msgs.push(message.clone());
             output_message(serde_json::to_string(&message)?, offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {
@@ -564,6 +569,7 @@ async fn call(
             .with_arg(args)
             .with_effective_canister_id(effective_id);
         if let Some(offline) = offline {
+            let mut msgs = helper.messages.borrow_mut();
             let signed = builder.sign()?;
             let status = agent.sign_request_status(effective_id, signed.request_id)?;
             let message = IngressWithStatus {
@@ -572,12 +578,13 @@ async fn call(
                     request_id: Some(hex::encode(signed.request_id.as_slice())),
                     content: hex::encode(signed.signed_update),
                 },
-                request_status: RequestStatus {
+                request_status: Some(RequestStatus {
                     canister_id: status.effective_canister_id,
                     request_id: hex::encode(status.request_id.as_slice()),
                     content: hex::encode(status.signed_request_status),
-                },
+                }),
             };
+            msgs.push(message.clone());
             output_message(serde_json::to_string(&message)?, offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {

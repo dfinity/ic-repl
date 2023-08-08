@@ -87,6 +87,7 @@ pub struct MyHelper {
     pub func_env: FuncEnv,
     pub base_path: std::path::PathBuf,
     pub history: Vec<String>,
+    pub messages: RefCell<Vec<crate::offline::IngressWithStatus>>,
 }
 
 impl MyHelper {
@@ -108,6 +109,7 @@ impl MyHelper {
             agent: self.agent.clone(),
             agent_url: self.agent_url.clone(),
             offline: self.offline.clone(),
+            messages: self.messages.clone(),
         }
     }
     pub fn new(agent: Agent, agent_url: String, offline: Option<OfflineOutput>) -> Self {
@@ -125,6 +127,7 @@ impl MyHelper {
             func_env: FuncEnv::default(),
             base_path: std::env::current_dir().unwrap(),
             history: Vec::new(),
+            messages: Vec::new().into(),
             agent,
             agent_url,
             offline,
@@ -185,6 +188,9 @@ impl MyHelper {
             runtime.block_on(self.agent.fetch_root_key())?;
         };
         Ok(())
+    }
+    pub fn dump_ingress(&self) -> anyhow::Result<()> {
+        crate::offline::dump_ingress(&self.messages.borrow(), self.agent_url.clone())
     }
 }
 

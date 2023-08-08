@@ -75,36 +75,41 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         let config = std::fs::read_to_string(file)?;
         rl.helper_mut().unwrap().config = candid::parser::configs::Configs::from_dhall(&config)?;
     }
+    let enter_repl = opts.script.is_none() || opts.interactive;
     if let Some(file) = opts.script {
         let cmd = Command::Load(file);
         let helper = rl.helper_mut().unwrap();
-        return cmd.run(helper);
+        cmd.run(helper)?;
     }
-
-    let mut count = 1;
-    loop {
-        let identity = &rl.helper().unwrap().current_identity;
-        let p = format!("{identity}@{replica} {count}> ");
-        rl.helper_mut().unwrap().colored_prompt = format!("{}", Color::Green.bold().paint(&p));
-        let input = rl.readline(&p);
-        match input {
-            Ok(line) => {
-                rl.add_history_entry(&line)?;
-                unwrap(pretty_parse::<Command>("stdin", &line), |cmd| {
-                    let helper = rl.helper_mut().unwrap();
-                    helper.history.push(line.clone());
-                    unwrap(cmd.run(helper), |_| {});
-                });
+    if enter_repl {
+        let mut count = 1;
+        loop {
+            let identity = &rl.helper().unwrap().current_identity;
+            let p = format!("{identity}@{replica} {count}> ");
+            rl.helper_mut().unwrap().colored_prompt = format!("{}", Color::Green.bold().paint(&p));
+            let input = rl.readline(&p);
+            match input {
+                Ok(line) => {
+                    rl.add_history_entry(&line)?;
+                    unwrap(pretty_parse::<Command>("stdin", &line), |cmd| {
+                        let helper = rl.helper_mut().unwrap();
+                        helper.history.push(line.clone());
+                        unwrap(cmd.run(helper), |_| {});
+                    });
+                }
+                Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => break,
+                Err(err) => {
+                    eprintln!("Error: {err:?}");
+                    break;
+                }
             }
-            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => break,
-            Err(err) => {
-                eprintln!("Error: {err:?}");
-                break;
-            }
+            count += 1;
         }
-        count += 1;
+        rl.save_history("./.history")?;
     }
-    rl.save_history("./.history")?;
+    if matches!(opts.format.as_deref(), Some("json")) {
+        rl.helper().unwrap().dump_ingress()?;
+    }
     Ok(())
 }
 
@@ -128,6 +133,9 @@ struct Opts {
     config: Option<String>,
     /// ic-repl script file
     script: Option<String>,
+    #[clap(short, long, requires("script"))]
+    /// enter repl once the script is finished
+    interactive: bool,
 }
 
 fn main() -> anyhow::Result<()> {
