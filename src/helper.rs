@@ -190,7 +190,7 @@ impl MyHelper {
         Ok(())
     }
     pub fn dump_ingress(&self) -> anyhow::Result<()> {
-        crate::offline::dump_ingress(&self.messages.borrow(), self.agent_url.clone())
+        crate::offline::dump_ingress(&self.messages.borrow())
     }
 }
 

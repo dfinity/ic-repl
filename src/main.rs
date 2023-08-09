@@ -1,6 +1,6 @@
 use ansi_term::Color;
 use clap::Parser;
-use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport as Transport;
+use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport as V2Transport;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
@@ -54,23 +54,9 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         "ic" => "https://icp0.io",
         url => url,
     };
-    if let Some(file) = opts.send {
-        use crate::offline::{send_messages, Messages};
-        let json = std::fs::read_to_string(file)?;
-        let msgs = serde_json::from_str::<Messages>(&json)?;
-        let url = msgs.replica_url.clone().unwrap_or_else(|| {
-            eprintln!("Unspecified replica URL, use {url}");
-            url.to_string()
-        });
-        let agent = Agent::builder()
-            .with_transport(Transport::create(url.clone())?)
-            .build()?;
-        let helper = MyHelper::new(agent, url, None);
-        return send_messages(helper, &msgs);
-    }
     println!("Ping {url}...");
     let agent = Agent::builder()
-        .with_transport(Transport::create(url)?)
+        .with_transport(V2Transport::create(url)?)
         .build()?;
 
     println!("Canister REPL");
@@ -79,6 +65,12 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         .completion_type(CompletionType::List)
         .build();
     let h = MyHelper::new(agent, url.to_string(), offline);
+    if let Some(file) = opts.send {
+        use crate::offline::{send_messages, Messages};
+        let json = std::fs::read_to_string(file)?;
+        let msgs = serde_json::from_str::<Messages>(&json)?;
+        return send_messages(h, &msgs);
+    }
     let mut rl = rustyline::Editor::with_config(config)?;
     rl.set_helper(Some(h));
     if rl.load_history("./.history").is_err() {
@@ -88,6 +80,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         let config = std::fs::read_to_string(file)?;
         rl.helper_mut().unwrap().config = candid::parser::configs::Configs::from_dhall(&config)?;
     }
+
     let enter_repl = opts.script.is_none() || opts.interactive;
     if let Some(file) = opts.script {
         let cmd = Command::Load(file);
@@ -121,7 +114,10 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         rl.save_history("./.history")?;
     }
     if opts.offline {
-        rl.helper().unwrap().dump_ingress()?;
+        let helper = rl.helper().unwrap();
+        if !helper.messages.borrow().is_empty() {
+            helper.dump_ingress()?;
+        }
     }
     Ok(())
 }
