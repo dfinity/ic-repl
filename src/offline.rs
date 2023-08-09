@@ -23,9 +23,7 @@ pub struct IngressWithStatus {
     pub request_status: Option<RequestStatus>,
 }
 #[derive(Serialize, Deserialize, Clone)]
-pub struct Messages {
-    pub messages: Vec<IngressWithStatus>,
-}
+pub struct Messages(Vec<IngressWithStatus>);
 
 static mut PNG_COUNTER: u32 = 0;
 
@@ -109,9 +107,7 @@ pub fn output_message(json: String, format: &OfflineOutput) -> Result<()> {
 pub fn dump_ingress(msgs: &[IngressWithStatus]) -> Result<()> {
     use std::fs::File;
     use std::io::Write;
-    let msgs = Messages {
-        messages: msgs.to_vec(),
-    };
+    let msgs = Messages(msgs.to_vec());
     let json = serde_json::to_string(&msgs)?;
     let mut file = File::create("messages.json")?;
     file.write_all(json.as_bytes())?;
@@ -119,36 +115,39 @@ pub fn dump_ingress(msgs: &[IngressWithStatus]) -> Result<()> {
 }
 
 pub fn send_messages(helper: MyHelper, msgs: &Messages) -> Result<()> {
-    let len = msgs.messages.len();
+    let len = msgs.0.len();
     println!("Sending {} messages to {}", len, helper.agent_url);
-    for (i, msg) in msgs.messages.iter().enumerate() {
-        let message = &msg.ingress;
+    for (i, msg) in msgs.0.iter().enumerate() {
         print!("[{}/{}] ", i + 1, len);
-        let (sender, canister_id, method_name, bytes) = message.parse()?;
-        let meth = crate::exp::Method {
-            canister: canister_id.to_string(),
-            method: method_name.clone(),
-        };
-        let opt_func = meth.get_info(&helper)?.signature;
-        let args = if let Some((env, func)) = &opt_func {
-            IDLArgs::from_bytes_with_types(&bytes, env, &func.args)?
-        } else {
-            IDLArgs::from_bytes(&bytes)?
-        };
-        println!("Sending {} call as {}:", message.call_type, sender);
-        println!("  call \"{}\".{}{};", canister_id, method_name, args);
-        println!("Do you want to send this message? [y/N]");
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)?;
-        if !["y", "yes"].contains(&input.to_lowercase().trim()) {
-            std::process::exit(0);
-        }
-        send(&helper.agent, canister_id, msg, &opt_func)?;
+        send(&helper, msg)?;
     }
     Ok(())
 }
+pub fn send(helper: &MyHelper, msg: &IngressWithStatus) -> Result<()> {
+    let message = &msg.ingress;
+    let (sender, canister_id, method_name, bytes) = message.parse()?;
+    let meth = crate::exp::Method {
+        canister: canister_id.to_string(),
+        method: method_name.clone(),
+    };
+    let opt_func = meth.get_info(helper)?.signature;
+    let args = if let Some((env, func)) = &opt_func {
+        IDLArgs::from_bytes_with_types(&bytes, env, &func.args)?
+    } else {
+        IDLArgs::from_bytes(&bytes)?
+    };
+    println!("Sending {} call as {}:", message.call_type, sender);
+    println!("  call \"{}\".{}{};", canister_id, method_name, args);
+    println!("Do you want to send this message? [y/N]");
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    if !["y", "yes"].contains(&input.to_lowercase().trim()) {
+        std::process::exit(0);
+    }
+    send_internal(&helper.agent, canister_id, msg, &opt_func)
+}
 #[tokio::main]
-async fn send(
+async fn send_internal(
     agent: &Agent,
     canister_id: Principal,
     message: &IngressWithStatus,
