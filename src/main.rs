@@ -1,5 +1,6 @@
 use ansi_term::Color;
 use clap::Parser;
+use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport as Transport;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
@@ -53,11 +54,23 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         "ic" => "https://icp0.io",
         url => url,
     };
+    if let Some(file) = opts.send {
+        use crate::offline::{send_messages, Messages};
+        let json = std::fs::read_to_string(file)?;
+        let msgs = serde_json::from_str::<Messages>(&json)?;
+        let url = msgs.replica_url.clone().unwrap_or_else(|| {
+            eprintln!("Unspecified replica URL, use {url}");
+            url.to_string()
+        });
+        let agent = Agent::builder()
+            .with_transport(Transport::create(url.clone())?)
+            .build()?;
+        let helper = MyHelper::new(agent, url, None);
+        return send_messages(helper, &msgs);
+    }
     println!("Ping {url}...");
     let agent = Agent::builder()
-        .with_transport(
-            ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url)?,
-        )
+        .with_transport(Transport::create(url)?)
         .build()?;
 
     println!("Canister REPL");
@@ -107,7 +120,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         }
         rl.save_history("./.history")?;
     }
-    if matches!(opts.format.as_deref(), Some("json")) {
+    if opts.offline {
         rl.helper().unwrap().dump_ingress()?;
     }
     Ok(())
@@ -120,7 +133,7 @@ struct Opts {
     /// Specifies replica URL, possible values: local, ic, URL
     replica: Option<String>,
     #[clap(short, long, conflicts_with("replica"))]
-    /// Offline mode to be run in air-gap machines
+    /// Offline mode to be run in air-gap machines. All signed messages will be stored in messages.json
     offline: bool,
     #[clap(short, long, requires("offline"), value_parser = ["ascii", "json", "png", "ascii_no_url", "png_no_url"])]
     /// Offline output format
@@ -134,8 +147,11 @@ struct Opts {
     /// ic-repl script file
     script: Option<String>,
     #[clap(short, long, requires("script"))]
-    /// enter repl once the script is finished
+    /// Enter repl once the script is finished
     interactive: bool,
+    #[clap(short, long, conflicts_with("script"), conflicts_with("offline"))]
+    /// Send signed messages
+    send: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {

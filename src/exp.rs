@@ -359,7 +359,7 @@ impl Exp {
                             0
                         };
                         let res = call(
-                            &helper,
+                            helper,
                             &info.canister_id,
                             &method.method,
                             &bytes,
@@ -481,7 +481,7 @@ pub struct MethodInfo {
     pub profiling: Option<BTreeMap<u16, String>>,
 }
 impl Method {
-    fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
+    pub fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
         let canister_id = str_to_principal(&self.canister, helper)?;
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
