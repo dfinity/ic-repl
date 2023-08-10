@@ -1,4 +1,5 @@
 use crate::helper::{MyHelper, OfflineOutput};
+use crate::utils::args_to_value;
 use anyhow::{anyhow, Context, Result};
 use candid::Principal;
 use candid::{types::Function, IDLArgs, TypeEnv};
@@ -114,16 +115,18 @@ pub fn dump_ingress(msgs: &[IngressWithStatus]) -> Result<()> {
     Ok(())
 }
 
-pub fn send_messages(helper: MyHelper, msgs: &Messages) -> Result<()> {
+pub fn send_messages(helper: &MyHelper, msgs: &Messages) -> Result<IDLArgs> {
     let len = msgs.0.len();
+    let mut res = Vec::with_capacity(len);
     println!("Sending {} messages to {}", len, helper.agent_url);
     for (i, msg) in msgs.0.iter().enumerate() {
         print!("[{}/{}] ", i + 1, len);
-        send(&helper, msg)?;
+        let args = send(helper, msg)?;
+        res.push(args_to_value(args))
     }
-    Ok(())
+    Ok(IDLArgs::new(&res))
 }
-pub fn send(helper: &MyHelper, msg: &IngressWithStatus) -> Result<()> {
+pub fn send(helper: &MyHelper, msg: &IngressWithStatus) -> Result<IDLArgs> {
     let message = &msg.ingress;
     let (sender, canister_id, method_name, bytes) = message.parse()?;
     let meth = crate::exp::Method {
@@ -142,7 +145,7 @@ pub fn send(helper: &MyHelper, msg: &IngressWithStatus) -> Result<()> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
     if !["y", "yes"].contains(&input.to_lowercase().trim()) {
-        std::process::exit(0);
+        return Err(anyhow!("Send abort"));
     }
     send_internal(&helper.agent, canister_id, msg, &opt_func)
 }
@@ -152,7 +155,7 @@ async fn send_internal(
     canister_id: Principal,
     message: &IngressWithStatus,
     opt_func: &Option<(TypeEnv, Function)>,
-) -> Result<()> {
+) -> Result<IDLArgs> {
     let content = hex::decode(&message.ingress.content)?;
     let response = match message.ingress.call_type.as_str() {
         "query" => agent.query_signed(canister_id, content).await?,
@@ -163,9 +166,10 @@ async fn send_internal(
                 .request_status
                 .as_ref()
                 .ok_or_else(|| anyhow!("Cannot get request status for update call"))?;
-            assert!(
-                status.canister_id == canister_id && status.request_id == String::from(request_id)
-            );
+            if !(status.canister_id == canister_id && status.request_id == String::from(request_id))
+            {
+                return Err(anyhow!("request_id does match, cannot request status"));
+            }
             let status = hex::decode(&status.content)?;
             let ic_agent::agent::Replied::CallReplied(blob) = async {
                 loop {
@@ -192,6 +196,5 @@ async fn send_internal(
         IDLArgs::from_bytes(&response)?
     };
     println!("{}", res);
-
-    Ok(())
+    Ok(res)
 }

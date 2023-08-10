@@ -39,8 +39,8 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
             .url
             .unwrap_or_else(|| "https://qhmh2-niaaa-aaaab-qadta-cai.raw.icp0.io/?msg=".to_string());
         Some(match opts.format.as_deref() {
-            Some("json") => OfflineOutput::Json,
-            None | Some("ascii") => OfflineOutput::Ascii(send_url),
+            None | Some("json") => OfflineOutput::Json,
+            Some("ascii") => OfflineOutput::Ascii(send_url),
             Some("png") => OfflineOutput::Png(send_url),
             Some("png_no_url") => OfflineOutput::PngNoUrl,
             Some("ascii_no_url") => OfflineOutput::AsciiNoUrl,
@@ -69,7 +69,8 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         use crate::offline::{send_messages, Messages};
         let json = std::fs::read_to_string(file)?;
         let msgs = serde_json::from_str::<Messages>(&json)?;
-        return send_messages(h, &msgs);
+        send_messages(&h, &msgs)?;
+        return Ok(());
     }
     let mut rl = rustyline::Editor::with_config(config)?;
     rl.set_helper(Some(h));

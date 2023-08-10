@@ -163,6 +163,23 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("gzip expects blob")),
                     },
+                    "send" => match args.as_slice() {
+                        [IDLValue::Vec(blob)] => {
+                            use crate::offline::{send, send_messages};
+                            let blob: Vec<u8> = blob.iter().filter_map(|v| match v {
+                                IDLValue::Nat8(n) => Some(*n),
+                                _ => None,
+                            }).collect();
+                            let json = std::str::from_utf8(&blob)?;
+                            let res = match json.trim_start().chars().next() {
+                                Some('{') => send(helper, &serde_json::from_str(json)?)?,
+                                Some('[') => send_messages(helper, &serde_json::from_str(json)?)?,
+                                _ => return Err(anyhow!("not a valid json message")),
+                            };
+                            args_to_value(res)
+                        }
+                        _ => return Err(anyhow!("send expects a json blob")),
+                    },
                     "wasm_profiling" => match args.as_slice() {
                         [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Vec(_)] => {
                             let path = resolve_path(&helper.base_path, file);

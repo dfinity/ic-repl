@@ -1,7 +1,7 @@
 # Canister REPL
 
 ```
-ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <dhall config> [script file]
+ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --config <dhall config> [script file]
 ```
 
 ## Commands
@@ -56,6 +56,8 @@ We also provide some built-in functions:
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.
 * `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer/float numbers. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
+* `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
+
 
 ## Object methods
 
