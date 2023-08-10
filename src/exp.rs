@@ -126,7 +126,7 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
                     },
-                    "metadata" => match args.as_slice() {
+                    "metadata" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Principal(id), IDLValue::Text(path)] => {
                             let res = fetch_metadata(&helper.agent, *id, path)?;
                             IDLValue::Vec(res.into_iter().map(IDLValue::Nat8).collect())
@@ -163,7 +163,7 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("gzip expects blob")),
                     },
-                    "send" => match args.as_slice() {
+                    "send" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Vec(blob)] => {
                             use crate::offline::{send, send_messages};
                             let blob: Vec<u8> = blob.iter().filter_map(|v| match v {
