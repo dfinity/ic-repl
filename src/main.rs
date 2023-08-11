@@ -1,5 +1,6 @@
 use ansi_term::Color;
 use clap::Parser;
+use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport as V2Transport;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
@@ -38,8 +39,8 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
             .url
             .unwrap_or_else(|| "https://qhmh2-niaaa-aaaab-qadta-cai.raw.icp0.io/?msg=".to_string());
         Some(match opts.format.as_deref() {
-            Some("json") => OfflineOutput::Json,
-            None | Some("ascii") => OfflineOutput::Ascii(send_url),
+            None | Some("json") => OfflineOutput::Json,
+            Some("ascii") => OfflineOutput::Ascii(send_url),
             Some("png") => OfflineOutput::Png(send_url),
             Some("png_no_url") => OfflineOutput::PngNoUrl,
             Some("ascii_no_url") => OfflineOutput::AsciiNoUrl,
@@ -55,9 +56,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     };
     println!("Ping {url}...");
     let agent = Agent::builder()
-        .with_transport(
-            ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url)?,
-        )
+        .with_transport(V2Transport::create(url)?)
         .build()?;
 
     println!("Canister REPL");
@@ -66,6 +65,13 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         .completion_type(CompletionType::List)
         .build();
     let h = MyHelper::new(agent, url.to_string(), offline);
+    if let Some(file) = opts.send {
+        use crate::offline::{send_messages, Messages};
+        let json = std::fs::read_to_string(file)?;
+        let msgs = serde_json::from_str::<Messages>(&json)?;
+        send_messages(&h, &msgs)?;
+        return Ok(());
+    }
     let mut rl = rustyline::Editor::with_config(config)?;
     rl.set_helper(Some(h));
     if rl.load_history("./.history").is_err() {
@@ -75,36 +81,45 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         let config = std::fs::read_to_string(file)?;
         rl.helper_mut().unwrap().config = candid::parser::configs::Configs::from_dhall(&config)?;
     }
+
+    let enter_repl = opts.script.is_none() || opts.interactive;
     if let Some(file) = opts.script {
         let cmd = Command::Load(file);
         let helper = rl.helper_mut().unwrap();
-        return cmd.run(helper);
+        cmd.run(helper)?;
     }
-
-    let mut count = 1;
-    loop {
-        let identity = &rl.helper().unwrap().current_identity;
-        let p = format!("{identity}@{replica} {count}> ");
-        rl.helper_mut().unwrap().colored_prompt = format!("{}", Color::Green.bold().paint(&p));
-        let input = rl.readline(&p);
-        match input {
-            Ok(line) => {
-                rl.add_history_entry(&line)?;
-                unwrap(pretty_parse::<Command>("stdin", &line), |cmd| {
-                    let helper = rl.helper_mut().unwrap();
-                    helper.history.push(line.clone());
-                    unwrap(cmd.run(helper), |_| {});
-                });
+    if enter_repl {
+        let mut count = 1;
+        loop {
+            let identity = &rl.helper().unwrap().current_identity;
+            let p = format!("{identity}@{replica} {count}> ");
+            rl.helper_mut().unwrap().colored_prompt = format!("{}", Color::Green.bold().paint(&p));
+            let input = rl.readline(&p);
+            match input {
+                Ok(line) => {
+                    rl.add_history_entry(&line)?;
+                    unwrap(pretty_parse::<Command>("stdin", &line), |cmd| {
+                        let helper = rl.helper_mut().unwrap();
+                        helper.history.push(line.clone());
+                        unwrap(cmd.run(helper), |_| {});
+                    });
+                }
+                Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => break,
+                Err(err) => {
+                    eprintln!("Error: {err:?}");
+                    break;
+                }
             }
-            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => break,
-            Err(err) => {
-                eprintln!("Error: {err:?}");
-                break;
-            }
+            count += 1;
         }
-        count += 1;
+        rl.save_history("./.history")?;
     }
-    rl.save_history("./.history")?;
+    if opts.offline {
+        let helper = rl.helper().unwrap();
+        if !helper.messages.borrow().is_empty() {
+            helper.dump_ingress()?;
+        }
+    }
     Ok(())
 }
 
@@ -115,7 +130,7 @@ struct Opts {
     /// Specifies replica URL, possible values: local, ic, URL
     replica: Option<String>,
     #[clap(short, long, conflicts_with("replica"))]
-    /// Offline mode to be run in air-gap machines
+    /// Offline mode to be run in air-gap machines. All signed messages will be stored in messages.json
     offline: bool,
     #[clap(short, long, requires("offline"), value_parser = ["ascii", "json", "png", "ascii_no_url", "png_no_url"])]
     /// Offline output format
@@ -128,6 +143,12 @@ struct Opts {
     config: Option<String>,
     /// ic-repl script file
     script: Option<String>,
+    #[clap(short, long, requires("script"))]
+    /// Enter repl once the script is finished
+    interactive: bool,
+    #[clap(short, long, conflicts_with("script"), conflicts_with("offline"))]
+    /// Send signed messages
+    send: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {

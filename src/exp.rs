@@ -12,7 +12,6 @@ use candid::{
     utils::check_unique,
     Principal, TypeEnv,
 };
-use ic_agent::Agent;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -127,7 +126,7 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
                     },
-                    "metadata" => match args.as_slice() {
+                    "metadata" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Principal(id), IDLValue::Text(path)] => {
                             let res = fetch_metadata(&helper.agent, *id, path)?;
                             IDLValue::Vec(res.into_iter().map(IDLValue::Nat8).collect())
@@ -163,6 +162,23 @@ impl Exp {
                             IDLValue::Vec(result.into_iter().map(IDLValue::Nat8).collect())
                         }
                         _ => return Err(anyhow!("gzip expects blob")),
+                    },
+                    "send" if helper.offline.is_none() => match args.as_slice() {
+                        [IDLValue::Vec(blob)] => {
+                            use crate::offline::{send, send_messages};
+                            let blob: Vec<u8> = blob.iter().filter_map(|v| match v {
+                                IDLValue::Nat8(n) => Some(*n),
+                                _ => None,
+                            }).collect();
+                            let json = std::str::from_utf8(&blob)?;
+                            let res = match json.trim_start().chars().next() {
+                                Some('{') => send(helper, &serde_json::from_str(json)?)?,
+                                Some('[') => send_messages(helper, &serde_json::from_str(json)?)?,
+                                _ => return Err(anyhow!("not a valid json message")),
+                            };
+                            args_to_value(res)
+                        }
+                        _ => return Err(anyhow!("send expects a json blob")),
                     },
                     "wasm_profiling" => match args.as_slice() {
                         [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Vec(_)] => {
@@ -360,7 +376,7 @@ impl Exp {
                             0
                         };
                         let res = call(
-                            &helper.agent,
+                            helper,
                             &info.canister_id,
                             &method.method,
                             &bytes,
@@ -482,7 +498,7 @@ pub struct MethodInfo {
     pub profiling: Option<BTreeMap<u16, String>>,
 }
 impl Method {
-    fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
+    pub fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
         let canister_id = str_to_principal(&self.canister, helper)?;
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
@@ -528,7 +544,7 @@ impl Method {
 
 #[tokio::main]
 async fn call(
-    agent: &Agent,
+    helper: &MyHelper,
     canister_id: &Principal,
     method: &str,
     args: &[u8],
@@ -536,6 +552,7 @@ async fn call(
     offline: &Option<OfflineOutput>,
 ) -> anyhow::Result<IDLArgs> {
     use crate::offline::*;
+    let agent = &helper.agent;
     let effective_id = get_effective_canister_id(*canister_id, method, args)?;
     let is_query = opt_func
         .as_ref()
@@ -547,12 +564,17 @@ async fn call(
             .with_arg(args)
             .with_effective_canister_id(effective_id);
         if let Some(offline) = offline {
+            let mut msgs = helper.messages.borrow_mut();
             let signed = builder.sign()?;
-            let message = Ingress {
-                call_type: "query".to_owned(),
-                request_id: None,
-                content: hex::encode(signed.signed_query),
+            let message = IngressWithStatus {
+                ingress: Ingress {
+                    call_type: "query".to_owned(),
+                    request_id: None,
+                    content: hex::encode(signed.signed_query),
+                },
+                request_status: None,
             };
+            msgs.push(message.clone());
             output_message(serde_json::to_string(&message)?, offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {
@@ -564,6 +586,7 @@ async fn call(
             .with_arg(args)
             .with_effective_canister_id(effective_id);
         if let Some(offline) = offline {
+            let mut msgs = helper.messages.borrow_mut();
             let signed = builder.sign()?;
             let status = agent.sign_request_status(effective_id, signed.request_id)?;
             let message = IngressWithStatus {
@@ -572,12 +595,13 @@ async fn call(
                     request_id: Some(hex::encode(signed.request_id.as_slice())),
                     content: hex::encode(signed.signed_update),
                 },
-                request_status: RequestStatus {
+                request_status: Some(RequestStatus {
                     canister_id: status.effective_canister_id,
                     request_id: hex::encode(status.request_id.as_slice()),
                     content: hex::encode(status.signed_request_status),
-                },
+                }),
             };
+            msgs.push(message.clone());
             output_message(serde_json::to_string(&message)?, offline)?;
             return Ok(IDLArgs::new(&[]));
         } else {

@@ -1,7 +1,7 @@
 # Canister REPL
 
 ```
-ic-repl [--replica [local|ic|url] | --offline [--format [ascii|png]]] --config <dhall config> [script file]
+ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --config <dhall config> [script file]
 ```
 
 ## Commands
@@ -47,7 +47,6 @@ You cannot define recursive functions, as there is no control flow in the langua
 We also provide some built-in functions:
 * `account(principal)`: convert principal to account id.
 * `neuron_account(principal, nonce)`: convert (principal, nonce) to account in the governance canister.
-* `metadata(principal, path)`: fetch the HTTP endpoint of `canister/<principal>/<path>`.
 * `file(path)`: load external file as a blob value.
 * `gzip(blob)`: gzip a blob value.
 * `stringify(exp1, exp2, exp3, ...)`: convert all expressions to string and concat. Only supports primitive types.
@@ -56,6 +55,11 @@ We also provide some built-in functions:
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.
 * `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer/float numbers. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
+
+The following functions are only available in non-offline mode:
+* `metadata(principal, path)`: fetch the HTTP endpoint of `canister/<principal>/<path>`.
+* `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
+
 
 ## Object methods
 
