@@ -61,9 +61,15 @@ impl CanisterInfo {
         self.methods
             .iter()
             .filter(|(name, _)| name.starts_with(meth))
-            .map(|(meth, func)| Pair {
-                display: format!("{meth} : {func}"),
-                replacement: format!(".{meth}"),
+            .map(|(meth, func)| {
+                let mut replacement = format!(".{meth}(");
+                if func.args.is_empty() {
+                    replacement.push(')');
+                }
+                Pair {
+                    display: format!("{meth} : {func}"),
+                    replacement,
+                }
             })
             .collect()
     }
@@ -199,6 +205,22 @@ enum Partial {
     Call(Principal, String),
     Val(IDLValue, String),
 }
+impl Partial {
+    fn get_func_type<'a>(
+        &'a self,
+        agent: &'a Agent,
+        map: &'a mut CanisterMap,
+    ) -> Option<(&'a TypeEnv, &'a [Type])> {
+        match self {
+            Partial::Call(canister_id, method) => {
+                let info = map.get(agent, canister_id).ok()?;
+                let func = info.methods.get(method)?;
+                Some((&info.env, &func.args))
+            }
+            _ => None,
+        }
+    }
+}
 
 fn partial_parse(line: &str, pos: usize, helper: &MyHelper) -> Option<(usize, Partial)> {
     let (start, _) = extract_word(line, pos, None, |c| c == ' ');
@@ -330,20 +352,31 @@ impl Completer for MyHelper {
     }
 }
 
-fn hint_method(line: &str, pos: usize, helper: &MyHelper) -> Option<String> {
-    let start = line.rfind("encode").or_else(|| line.rfind("call"))?;
-    let arg_pos = line[start..].find('(').unwrap_or(pos);
-    match partial_parse(line, arg_pos, helper) {
-        Some((_, Partial::Call(canister_id, method))) => {
-            let mut map = helper.canister_map.borrow_mut();
-            let info = map.get(&helper.agent, &canister_id).ok()?;
-            let func = info.methods.get(&method)?;
-            let given_args = line[arg_pos..].matches(',').count();
-            let value = random_value(&info.env, &func.args, given_args, &helper.config).ok()?;
-            Some(value)
-        }
-        _ => None,
+fn find_lastest_call(line: &str, helper: &MyHelper) -> Option<(usize, usize, Partial)> {
+    if matches!(line.chars().last(), Some(')')) {
+        return None;
     }
+    let start = line.rfind("encode").or_else(|| line.rfind("call"))?;
+    let arg_pos = line[start..].find('(')?;
+    let given_args = line[arg_pos..].matches(',').count();
+    let (_, call) = partial_parse(line, arg_pos, helper)?;
+    let mut map = helper.canister_map.borrow_mut();
+    let (_, args) = call.get_func_type(&helper.agent, &mut map)?;
+    if given_args >= args.len() {
+        return None;
+    }
+    Some((arg_pos, given_args, call))
+}
+fn hint_method(line: &str, _pos: usize, helper: &MyHelper) -> Option<String> {
+    let (_, given_args, call) = find_lastest_call(line, helper)?;
+    let mut map = helper.canister_map.borrow_mut();
+    let (env, args) = call.get_func_type(&helper.agent, &mut map)?;
+    let ty = &args[given_args];
+    let mut value = random_value(env, ty, &helper.config).ok()?;
+    if given_args == args.len() - 1 {
+        value.push(')');
+    }
+    Some(value)
 }
 
 impl Hinter for MyHelper {
