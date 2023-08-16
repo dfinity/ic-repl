@@ -347,9 +347,31 @@ impl Completer for MyHelper {
                 })
             }
             Some((pos, Partial::Val(v, rest))) => Ok((pos, match_selector(&v, &rest))),
-            _ => self.completer.complete(line, pos, ctx),
+            _ => match match_type(line, self) {
+                Some(res) => Ok((pos, res)),
+                None => self.completer.complete(line, pos, ctx),
+            },
         }
     }
+}
+
+fn match_type(line: &str, helper: &MyHelper) -> Option<Vec<Pair>> {
+    use std::collections::HashSet;
+    let (_, arg_idx, call) = find_lastest_call(line, helper)?;
+    let mut map = helper.canister_map.borrow_mut();
+    let (env, args) = call.get_func_type(&helper.agent, &mut map)?;
+    let expect_ty = &args[arg_idx];
+    let mut res = Vec::new();
+    for (var, value) in helper.env.0.iter() {
+        let ty = value.value_ty();
+        if candid::types::subtype::subtype(&mut HashSet::new(), env, &ty, expect_ty).is_ok() {
+            res.push(Pair {
+                display: format!("{} = {}", var, value),
+                replacement: var.to_owned(),
+            })
+        }
+    }
+    Some(res)
 }
 
 fn find_lastest_call(line: &str, helper: &MyHelper) -> Option<(usize, usize, Partial)> {
@@ -367,7 +389,7 @@ fn find_lastest_call(line: &str, helper: &MyHelper) -> Option<(usize, usize, Par
     }
     Some((arg_pos, given_args, call))
 }
-fn hint_method(line: &str, _pos: usize, helper: &MyHelper) -> Option<String> {
+fn hint_method(line: &str, pos: usize, helper: &MyHelper) -> Option<String> {
     let (_, given_args, call) = find_lastest_call(line, helper)?;
     let mut map = helper.canister_map.borrow_mut();
     let (env, args) = call.get_func_type(&helper.agent, &mut map)?;
@@ -375,6 +397,16 @@ fn hint_method(line: &str, _pos: usize, helper: &MyHelper) -> Option<String> {
     let mut value = random_value(env, ty, &helper.config).ok()?;
     if given_args == args.len() - 1 {
         value.push(')');
+    }
+    // TODO doesn't match on newline
+    if let Some(prefix) = line[..pos]
+        .rfind(',')
+        .or_else(|| line[..pos].rfind('('))
+        .map(|start| line[start + 1..pos].trim_start())
+    {
+        if value.starts_with(prefix) {
+            value = value[prefix.len()..].trim().to_owned();
+        }
     }
     Some(value)
 }
