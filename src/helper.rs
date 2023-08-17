@@ -348,32 +348,36 @@ impl Completer for MyHelper {
             }
             Some((pos, Partial::Val(v, rest))) => Ok((pos, match_selector(&v, &rest))),
             _ => match match_type(line, self) {
-                Some(res) => Ok((pos, res)),
+                Some(res) => Ok(res),
                 None => self.completer.complete(line, pos, ctx),
             },
         }
     }
 }
 
-fn match_type(line: &str, helper: &MyHelper) -> Option<Vec<Pair>> {
+fn match_type(line: &str, helper: &MyHelper) -> Option<(usize, Vec<Pair>)> {
     use std::collections::HashSet;
-    let (_, arg_idx, call) = find_lastest_call(line, helper)?;
+    let (pos, arg_idx, call) = find_lastest_call(line, helper)?;
     let mut map = helper.canister_map.borrow_mut();
     let (env, args) = call.get_func_type(&helper.agent, &mut map)?;
     let expect_ty = &args[arg_idx];
     let mut res = Vec::new();
+    let mut gamma = HashSet::new();
     for (var, value) in helper.env.0.iter() {
         let ty = value.value_ty();
-        if candid::types::subtype::subtype(&mut HashSet::new(), env, &ty, expect_ty).is_ok() {
+        if candid::types::subtype::subtype(&mut gamma, env, &ty, expect_ty).is_ok() {
+            let value = format!("{:?}", value);
+            // TODO use floor_char_boundary when available.
+            let value = &value[..20.min(value.len())];
             res.push(Pair {
-                display: format!("{} = {}", var, value),
+                display: format!("{var}: {value}"),
                 replacement: var.to_owned(),
             })
         }
     }
-    Some(res)
+    Some((pos, res))
 }
-
+// Returns (pos at the beginning of the current arg, current arg index, Partial::Call)
 fn find_lastest_call(line: &str, helper: &MyHelper) -> Option<(usize, usize, Partial)> {
     if matches!(line.chars().last(), Some(')')) {
         return None;
@@ -387,7 +391,8 @@ fn find_lastest_call(line: &str, helper: &MyHelper) -> Option<(usize, usize, Par
     if given_args >= args.len() {
         return None;
     }
-    Some((arg_pos, given_args, call))
+    let pos = line.rfind([',', '('])? + 1;
+    Some((pos, given_args, call))
 }
 fn hint_method(line: &str, pos: usize, helper: &MyHelper) -> Option<String> {
     let (_, given_args, call) = find_lastest_call(line, helper)?;
