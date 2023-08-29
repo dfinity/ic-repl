@@ -1269,8 +1269,7 @@ dependencies = [
 [[package]]
 name = "ic-wasm"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e360e45c2bf406a867c35ec5daee433f2c3bbbaf013469e6a386a322a9713885"
+source = "git+https://github.com/dfinity/ic-wasm.git?branch=new-meter#8bdb3da90d679046137f0f3ae1784c02603be4bd"
 dependencies = [
  "candid",
  "rustc-demangle",
