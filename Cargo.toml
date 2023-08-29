@@ -26,7 +26,7 @@ pem = "2.0"
 shellexpand = "3.1"
 ic-agent = "0.25"
 ic-identity-hsm = "0.25"
-ic-wasm = { version = "0.4.0", default-features = false, git = "https://github.com/dfinity/ic-wasm.git", branch = "new-meter" }
+ic-wasm = { version = "0.4.0", default-features = false, git = "https://github.com/dfinity/ic-wasm.git", branch = "new-meter-tune" }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
 tokio = { version = "1.29", features = ["full"] }
 anyhow = "1.0"
