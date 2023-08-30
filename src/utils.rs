@@ -83,7 +83,9 @@ pub fn cast_type(v: IDLValue, ty: &Type) -> Result<IDLValue> {
             let bytes: Vec<_> = vec
                 .into_iter()
                 .map(|x| {
-                    let IDLValue::Nat8(v) = x else { unreachable!("not a blob") };
+                    let IDLValue::Nat8(v) = x else {
+                        unreachable!("not a blob")
+                    };
                     v
                 })
                 .collect();
