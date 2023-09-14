@@ -83,7 +83,9 @@ pub fn cast_type(v: IDLValue, ty: &Type) -> Result<IDLValue> {
             let bytes: Vec<_> = vec
                 .into_iter()
                 .map(|x| {
-                    let IDLValue::Nat8(v) = x else { unreachable!("not a blob") };
+                    let IDLValue::Nat8(v) = x else {
+                        unreachable!("not a blob")
+                    };
                     v
                 })
                 .collect();
@@ -183,31 +185,12 @@ pub fn args_to_value(mut args: IDLArgs) -> IDLValue {
     }
 }
 
-pub fn random_value(
-    env: &TypeEnv,
-    tys: &[Type],
-    given_args: usize,
-    config: &Configs,
-) -> candid::Result<String> {
+pub fn random_value(env: &TypeEnv, ty: &Type, config: &Configs) -> candid::Result<String> {
     use rand::Rng;
-    use std::fmt::Write;
     let mut rng = rand::thread_rng();
     let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
-    let result = IDLArgs::any(&seed, config, env, tys)?;
-    Ok(if given_args > 0 {
-        if given_args <= tys.len() {
-            let mut res = String::new();
-            for v in result.args[given_args..].iter() {
-                write!(&mut res, ", {v}").map_err(|e| anyhow::anyhow!("{e}"))?;
-            }
-            res.push(')');
-            res
-        } else {
-            "".to_owned()
-        }
-    } else {
-        format!("{result}")
-    })
+    let result = IDLArgs::any(&seed, config, env, &[ty.clone()])?;
+    Ok(result.args[0].to_string())
 }
 
 pub fn resolve_path(base: &Path, file: &str) -> PathBuf {
