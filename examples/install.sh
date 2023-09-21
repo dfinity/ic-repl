@@ -5,7 +5,7 @@ function deploy(wasm) {
   assert _.module_hash == (null : opt blob);
   call ic.install_code(
     record {
-      arg = encode ();
+      arg = encode wasm.__init_args();
       wasm_module = wasm;
       mode = variant { install };
       canister_id = id.canister_id;
@@ -18,7 +18,7 @@ identity alice;
 let id = deploy(file("greet.wasm"));
 let status = call ic.canister_status(id);
 assert status.settings ~= record { controllers = vec { alice } };
-assert status.module_hash? == blob "\d8\d1\d3;\a3\a65\a6\a6\c8!\06\12\d2\da\9dZ\e4v\8d\27\bd\05\9d\cc\1a\df\cb \01u\dc";
+assert status.module_hash? == blob "\ab\a7h\8cH\e0]\e7W]\8b\07\92\ac\9fH\95\7f\f4\97\d0\efX\c4~\0d\83\91\01<\da\1d";
 let canister = id.canister_id;
 call canister.greet("test");
 assert _ == "Hello, test!";
