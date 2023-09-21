@@ -133,7 +133,7 @@ pub fn send(helper: &MyHelper, msg: &IngressWithStatus) -> Result<IDLArgs> {
         canister: canister_id.to_string(),
         method: method_name.clone(),
     };
-    let opt_func = meth.get_info(helper)?.signature;
+    let opt_func = meth.get_info(helper, false)?.signature;
     let args = if let Some((env, func)) = &opt_func {
         IDLArgs::from_bytes_with_types(&bytes, env, &func.args)?
     } else {

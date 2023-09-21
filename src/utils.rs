@@ -168,6 +168,15 @@ pub fn get_effective_canister_id(
     }
 }
 
+pub fn get_blob(vec: &[IDLValue]) -> Vec<u8> {
+    vec.iter()
+        .filter_map(|v| match v {
+            IDLValue::Nat8(n) => Some(*n),
+            _ => None,
+        })
+        .collect()
+}
+
 pub fn args_to_value(mut args: IDLArgs) -> IDLValue {
     match args.args.len() {
         0 => IDLValue::Null,

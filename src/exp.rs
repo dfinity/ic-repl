@@ -1,9 +1,9 @@
 use super::error::pretty_parse;
-use super::helper::{fetch_metadata, MyHelper, OfflineOutput};
+use super::helper::{fetch_metadata, find_init_args, MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
-    args_to_value, cast_type, get_effective_canister_id, resolve_path, str_to_principal,
+    args_to_value, cast_type, get_blob, get_effective_canister_id, resolve_path, str_to_principal,
 };
 use anyhow::{anyhow, Context, Result};
 use candid::{
@@ -149,13 +149,7 @@ impl Exp {
                         [IDLValue::Vec(blob)] => {
                             use libflate::gzip::Encoder;
                             use std::io::Write;
-                            let blob: Vec<u8> = blob
-                                .iter()
-                                .filter_map(|v| match v {
-                                    IDLValue::Nat8(n) => Some(*n),
-                                    _ => None,
-                                })
-                                .collect();
+                            let blob = get_blob(blob);
                             let mut encoder = Encoder::new(Vec::with_capacity(blob.len()))?;
                             encoder.write_all(&blob)?;
                             let result = encoder.finish().into_result()?;
@@ -166,10 +160,7 @@ impl Exp {
                     "send" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Vec(blob)] => {
                             use crate::offline::{send, send_messages};
-                            let blob: Vec<u8> = blob.iter().filter_map(|v| match v {
-                                IDLValue::Nat8(n) => Some(*n),
-                                _ => None,
-                            }).collect();
+                            let blob = get_blob(blob);
                             let json = std::str::from_utf8(&blob)?;
                             let res = match json.trim_start().chars().next() {
                                 Some('{') => send(helper, &serde_json::from_str(json)?)?,
@@ -330,7 +321,7 @@ impl Exp {
                 };
                 let args = match method {
                     Some(method) => {
-                        let info = method.get_info(helper)?;
+                        let info = method.get_info(helper, false)?;
                         if let Some((env, func)) = info.signature {
                             IDLArgs::from_bytes_with_types(&bytes, &env, &func.rets)?
                         } else {
@@ -348,7 +339,8 @@ impl Exp {
                 }
                 let args = IDLArgs { args: res };
                 let opt_info = if let Some(method) = &method {
-                    Some(method.get_info(helper)?)
+                    let is_encode = matches!(mode, CallMode::Encode);
+                    Some(method.get_info(helper, is_encode)?)
                 } else {
                     None
                 };
@@ -498,7 +490,49 @@ pub struct MethodInfo {
     pub profiling: Option<BTreeMap<u16, String>>,
 }
 impl Method {
-    pub fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
+    pub fn get_info(&self, helper: &MyHelper, is_encode: bool) -> Result<MethodInfo> {
+        if is_encode && self.method == "__init_args" {
+            if let Some(IDLValue::Vec(vec)) = helper.env.0.get(&self.canister) {
+                use ic_wasm::{metadata::get_metadata, utils::parse_wasm};
+                let bytes = get_blob(vec);
+                let m = parse_wasm(&bytes, false)?;
+                let args = get_metadata(&m, "candid:args");
+                let candid = get_metadata(&m, "candid:service");
+                let canister_id = Principal::anonymous();
+                match args {
+                    None => {
+                        eprintln!("Warning: no candid:args metadata in the Wasm module, use types inferred from textual value.");
+                        return Ok(MethodInfo {
+                            canister_id,
+                            signature: None,
+                            profiling: None,
+                        });
+                    }
+                    Some(args) => {
+                        let candid = candid
+                            .as_ref()
+                            .map(|x| std::str::from_utf8(x).unwrap())
+                            .unwrap_or("service : {}");
+                        let (env, ty) =
+                            candid::utils::merge_init_args(candid, std::str::from_utf8(&args)?)?;
+                        let init_args = find_init_args(&env, &ty).expect("invalid init arg types");
+                        let signature = Some((
+                            env,
+                            Function {
+                                args: init_args,
+                                rets: Vec::new(),
+                                modes: Vec::new(),
+                            },
+                        ));
+                        return Ok(MethodInfo {
+                            canister_id,
+                            signature,
+                            profiling: None,
+                        });
+                    }
+                }
+            }
+        }
         let canister_id = str_to_principal(&self.canister, helper)?;
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
@@ -510,14 +544,19 @@ impl Method {
             },
             Ok(info) => {
                 let signature = if self.method == "__init_args" {
-                    Some((
-                        info.env.clone(),
-                        Function {
-                            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
-                            rets: Vec::new(),
-                            modes: Vec::new(),
-                        },
-                    ))
+                    eprintln!(
+                        "Warning: no init args in did file, use types inferred from textual value."
+                    );
+                    info.init.clone().map(|init| {
+                        (
+                            info.env.clone(),
+                            Function {
+                                args: init,
+                                rets: Vec::new(),
+                                modes: Vec::new(),
+                            },
+                        )
+                    })
                 } else {
                     info.methods
                         .get(&self.method)
