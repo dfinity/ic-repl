@@ -133,7 +133,7 @@ function deploy(wasm) {
   let id = call ic.provisional_create_canister_with_cycles(record { settings = null; amount = null });
   call ic.install_code(
     record {
-      arg = encode ();
+      arg = encode wasm.__init_args();
       wasm_module = wasm;
       mode = variant { install };
       canister_id = id.canister_id;
@@ -228,13 +228,27 @@ let _ = call proxy_canister.wallet_call(
 decode as target_canister.method _.Ok.return
 ```
 
+## Canister init args types
+
+When calling `ic.install_code`, you may need to provide a Candid message for initializing the canister.
+To help with encoding the message, you can use get the init args types from the Wasm module custom section:
+```
+let wasm = file("a.wasm");
+encode wasm.__init_args(...)
+```
+
+If the Wasm module doesn't contain the init arg types, you can import the full did file as a workaround:
+```
+import init = "2vxsx-fae" as "did_file_with_init_args.did";
+encode init.__init_args(...)
+```
+
 ## Contributing
 
 Please follow the guidelines in the [CONTRIBUTING.md](.github/CONTRIBUTING.md) document.
 
 ## Issues
 
-* Acess to service init type (get from either Wasm or http endpoint)
 * `IDLValue::Blob` for efficient blob serialization
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
