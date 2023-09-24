@@ -312,8 +312,16 @@ impl Exp {
                     "add" | "sub" | "mul" | "div" => match args.as_slice() {
                         [IDLValue::Float32(_) | IDLValue::Float64(_), _]
                         | [_, IDLValue::Float32(_) | IDLValue::Float64(_)] => {
-                            let IDLValue::Float64(v1) = cast_type(args[0].clone(), &TypeInner::Float64.into())? else { panic!() };
-                            let IDLValue::Float64(v2) = cast_type(args[1].clone(), &TypeInner::Float64.into())? else { panic!() };
+                            let IDLValue::Float64(v1) =
+                                cast_type(args[0].clone(), &TypeInner::Float64.into())?
+                            else {
+                                panic!()
+                            };
+                            let IDLValue::Float64(v2) =
+                                cast_type(args[1].clone(), &TypeInner::Float64.into())?
+                            else {
+                                panic!()
+                            };
                             IDLValue::Float64(match func.as_str() {
                                 "add" => v1 + v2,
                                 "sub" => v1 - v2,
@@ -323,8 +331,14 @@ impl Exp {
                             })
                         }
                         [v1, v2] => {
-                            let IDLValue::Int(v1) = cast_type(v1.clone(), &TypeInner::Int.into())? else { panic!() };
-                            let IDLValue::Int(v2) = cast_type(v2.clone(), &TypeInner::Int.into())? else { panic!() };
+                            let IDLValue::Int(v1) = cast_type(v1.clone(), &TypeInner::Int.into())?
+                            else {
+                                panic!()
+                            };
+                            let IDLValue::Int(v2) = cast_type(v2.clone(), &TypeInner::Int.into())?
+                            else {
+                                panic!()
+                            };
                             IDLValue::Number(
                                 match func.as_str() {
                                     "add" => v1 + v2,
