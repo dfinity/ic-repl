@@ -3,7 +3,8 @@ use super::helper::{fetch_metadata, find_init_args, MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
-    args_to_value, cast_type, get_blob, get_effective_canister_id, resolve_path, str_to_principal,
+    args_to_value, as_u32, cast_type, get_blob, get_effective_canister_id, get_field, resolve_path,
+    str_to_principal,
 };
 use anyhow::{anyhow, Context, Result};
 use candid::{
@@ -132,7 +133,7 @@ impl Exp {
                             IDLValue::Vec(res.into_iter().map(IDLValue::Nat8).collect())
                         }
                         _ => return Err(anyhow!("metadata expects (principal, path)")),
-                    }
+                    },
                     "file" => match args.as_slice() {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);
@@ -172,21 +173,74 @@ impl Exp {
                         _ => return Err(anyhow!("send expects a json blob")),
                     },
                     "wasm_profiling" => match args.as_slice() {
-                        [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Vec(_)] => {
+                        [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Record(_)] => {
+                            use ic_wasm::instrumentation::{instrument, Config};
                             let path = resolve_path(&helper.base_path, file);
                             let blob = std::fs::read(&path)
                                 .with_context(|| format!("Cannot read {path:?}"))?;
                             let mut m = ic_wasm::utils::parse_wasm(&blob, false)?;
                             ic_wasm::shrink::shrink(&mut m);
-                            let trace_funcs: Vec<String> = match args.as_slice() {
-                                [_] => vec![],
-                                [_, IDLValue::Vec(vec)] => vec.iter().filter_map(|name| if let IDLValue::Text(name) = name { Some(name.clone()) } else { None }).collect(),
-                                _ => unreachable!(),
+                            let config = match args.get(1) {
+                                Some(IDLValue::Record(fs)) => {
+                                    let start_page = if let Some(n) = get_field(fs, "start_page") {
+                                        Some(as_u32(n).with_context(|| {
+                                            anyhow!("start_page expects a number")
+                                        })? as i32)
+                                    } else {
+                                        None
+                                    };
+                                    let page_limit = if start_page.is_some() {
+                                        if let Some(n) = get_field(fs, "page_limit") {
+                                            Some(as_u32(n).with_context(|| {
+                                                anyhow!("page_limit expects a number")
+                                            })?
+                                                as i32)
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    };
+                                    let trace_only_funcs = if let Some(v) =
+                                        get_field(fs, "trace_only_funcs")
+                                    {
+                                        if let IDLValue::Vec(vec) = v {
+                                            vec.iter()
+                                                .filter_map(|name| {
+                                                    if let IDLValue::Text(name) = name {
+                                                        Some(name.clone())
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                                .collect()
+                                        } else {
+                                            return Err(anyhow!("trace_only_funcs expects a vetor of function names"));
+                                        }
+                                    } else {
+                                        vec![]
+                                    };
+                                    Config {
+                                        trace_only_funcs,
+                                        start_address: start_page.map(|page| page * 65536),
+                                        page_limit,
+                                    }
+                                }
+                                Some(_) => unreachable!(),
+                                None => Config {
+                                    trace_only_funcs: vec![],
+                                    start_address: None,
+                                    page_limit: None,
+                                },
                             };
-                            ic_wasm::instrumentation::instrument(&mut m, &trace_funcs).map_err(|e| anyhow::anyhow!("{e}"))?;
+                            instrument(&mut m, config).map_err(|e| anyhow::anyhow!("{e}"))?;
                             IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
                         }
-                        _ => return Err(anyhow!("wasm_profiling expects file path and optionally vec text of function names")),
+                        _ => {
+                            return Err(anyhow!(
+                                "wasm_profiling expects file path and optionally record for config"
+                            ))
+                        }
                     },
                     "flamegraph" => match args.as_slice() {
                         [IDLValue::Principal(cid), IDLValue::Text(title), IDLValue::Text(file)] => {
@@ -256,7 +310,8 @@ impl Exp {
                         _ => return Err(anyhow!("concat expects two vec, record or text")),
                     },
                     "add" | "sub" | "mul" | "div" => match args.as_slice() {
-                        [IDLValue::Float32(_) | IDLValue::Float64(_), _] | [_, IDLValue::Float32(_) | IDLValue::Float64(_)] => {
+                        [IDLValue::Float32(_) | IDLValue::Float64(_), _]
+                        | [_, IDLValue::Float32(_) | IDLValue::Float64(_)] => {
                             let IDLValue::Float64(v1) = cast_type(args[0].clone(), &TypeInner::Float64.into())? else { panic!() };
                             let IDLValue::Float64(v2) = cast_type(args[1].clone(), &TypeInner::Float64.into())? else { panic!() };
                             IDLValue::Float64(match func.as_str() {
@@ -270,16 +325,19 @@ impl Exp {
                         [v1, v2] => {
                             let IDLValue::Int(v1) = cast_type(v1.clone(), &TypeInner::Int.into())? else { panic!() };
                             let IDLValue::Int(v2) = cast_type(v2.clone(), &TypeInner::Int.into())? else { panic!() };
-                            IDLValue::Number(match func.as_str() {
-                                "add" => v1 + v2,
-                                "sub" => v1 - v2,
-                                "mul" => v1 * v2,
-                                "div" => v1 / v2,
-                                _ => unreachable!(),
-                            }.to_string())
+                            IDLValue::Number(
+                                match func.as_str() {
+                                    "add" => v1 + v2,
+                                    "sub" => v1 - v2,
+                                    "mul" => v1 * v2,
+                                    "div" => v1 / v2,
+                                    _ => unreachable!(),
+                                }
+                                .to_string(),
+                            )
                         }
                         _ => return Err(anyhow!("add expects two numbers")),
-                    }
+                    },
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),
                         Some((formal_args, body)) => {
