@@ -1286,7 +1286,7 @@ dependencies = [
 [[package]]
 name = "ic-wasm"
 version = "0.5.0"
-source = "git+https://github.com/dfinity/ic-wasm.git?branch=stable-mem#8b16ddd5d135cb1f827a57798e72680b837a8f79"
+source = "git+https://github.com/dfinity/ic-wasm.git?branch=stable-mem#a68ac0c8b92be7e3af740cd4ef47545f32ce0726"
 dependencies = [
  "candid",
  "rustc-demangle",
