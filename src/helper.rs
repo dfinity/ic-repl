@@ -561,7 +561,7 @@ pub fn did_to_canister_info(
     })
 }
 
-fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
+pub fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
     match actor.as_ref() {
         TypeInner::Var(id) => find_init_args(env, env.find_type(id).ok()?),
         TypeInner::Class(init, _) => Some(init.to_vec()),

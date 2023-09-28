@@ -5,7 +5,6 @@ use super::token::{ParserError, Tokenizer};
 use super::utils::{get_dfx_hsm_pin, resolve_path};
 use anyhow::{anyhow, Context};
 use candid::{parser::configs::Configs, types::value::IDLValue, Principal, TypeEnv};
-use ic_agent::Agent;
 use pretty_assertions::{assert_eq, assert_ne};
 use std::ops::Range;
 use std::sync::Arc;
@@ -148,16 +147,7 @@ impl Command {
                 let sender = identity.sender().map_err(|e| anyhow!("{}", e))?;
                 println!("Current identity {sender}");
 
-                let agent = Agent::builder()
-                    .with_transport(
-                        ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(
-                            &helper.agent_url,
-                        )?,
-                    )
-                    .with_arc_identity(identity.clone())
-                    .build()?;
-                helper.agent = agent;
-                helper.fetch_root_key_if_needed()?;
+                helper.agent.set_arc_identity(identity.clone());
                 helper.current_identity = id.to_string();
                 helper.env.0.insert(id, IDLValue::Principal(sender));
             }

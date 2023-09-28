@@ -168,6 +168,30 @@ pub fn get_effective_canister_id(
     }
 }
 
+pub fn get_blob(vec: &[IDLValue]) -> Vec<u8> {
+    vec.iter()
+        .filter_map(|v| match v {
+            IDLValue::Nat8(n) => Some(*n),
+            _ => None,
+        })
+        .collect()
+}
+pub fn as_u32(v: &IDLValue) -> Result<u32> {
+    match v {
+        IDLValue::Number(n) => {
+            let n = n.parse::<u32>()?;
+            Ok(n)
+        }
+        _ => Err(anyhow!("not a number")),
+    }
+}
+
+pub fn get_field<'a>(fs: &'a [IDLField], key: &'a str) -> Option<&'a IDLValue> {
+    fs.iter()
+        .find(|f| f.id == Label::Named(key.to_string()))
+        .map(|f| &f.val)
+}
+
 pub fn args_to_value(mut args: IDLArgs) -> IDLValue {
     match args.args.len() {
         0 => IDLValue::Null,
