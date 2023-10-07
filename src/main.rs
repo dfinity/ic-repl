@@ -150,7 +150,7 @@ struct Opts {
     #[clap(short, long, conflicts_with("script"), conflicts_with("offline"))]
     /// Send signed messages
     send: Option<String>,
-    #[clap(short, long)]
+    #[clap(long)]
     /// Use new metering with wasm_profiling. This option will be removed once the mainnet is using the new metering.
     use_new_metering: bool,
 }
