@@ -18,6 +18,9 @@ pub fn ok_to_profile<'a>(helper: &'a MyHelper, info: &'a MethodInfo) -> bool {
 
 #[tokio::main]
 pub async fn get_cycles(agent: &Agent, canister_id: &Principal) -> anyhow::Result<i64> {
+    get_cycles_inner(agent, canister_id).await
+}
+async fn get_cycles_inner(agent: &Agent, canister_id: &Principal) -> anyhow::Result<i64> {
     use candid::{Decode, Encode};
     let builder = agent.query(canister_id, "__get_cycles");
     let bytes = builder
@@ -45,11 +48,22 @@ pub async fn get_profiling(
         .await?;
     let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
     if !pairs.is_empty() {
-        render_profiling(pairs, names, title, filename)
+        match render_profiling(pairs, names, title, filename)? {
+            CostValue::Complete(cost) => Ok(cost),
+            CostValue::StartCost(start) => {
+                let end = get_cycles_inner(agent, canister_id).await? as u64;
+                Ok(end - start)
+            }
+        }
     } else {
         eprintln!("empty trace");
         Ok(0)
     }
+}
+
+enum CostValue {
+    Complete(u64),
+    StartCost(u64),
 }
 
 fn render_profiling(
@@ -57,7 +71,7 @@ fn render_profiling(
     names: &BTreeMap<u16, String>,
     title: &str,
     filename: PathBuf,
-) -> anyhow::Result<u64> {
+) -> anyhow::Result<CostValue> {
     use inferno::flamegraph::{from_reader, Options};
     let mut stack = Vec::new();
     let mut prefix = Vec::new();
@@ -101,10 +115,13 @@ fn render_profiling(
             }
         }
     }
-    if !stack.is_empty() {
+    let cost = if !stack.is_empty() {
         result.push("incomplete_trace 10000".to_string());
         eprintln!("A trap occured or trace is too large");
-    }
+        CostValue::StartCost(stack[0].1 as u64)
+    } else {
+        CostValue::Complete(total)
+    };
     //println!("Cost: {} Wasm instructions", total);
     let mut opt = Options::default();
     opt.count_name = "instructions".to_string();
@@ -120,7 +137,7 @@ fn render_profiling(
     println!("Flamegraph written to {}", filename.display());
     let mut writer = std::fs::File::create(&filename)?;
     from_reader(&mut opt, reader, &mut writer)?;
-    Ok(total)
+    Ok(cost)
 }
 
 pub fn may_extract_profiling(result: IDLValue) -> (IDLValue, Option<i64>) {

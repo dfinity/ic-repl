@@ -1,9 +1,10 @@
 use super::error::pretty_parse;
-use super::helper::{fetch_metadata, MyHelper, OfflineOutput};
+use super::helper::{fetch_metadata, find_init_args, MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
-    args_to_value, cast_type, get_effective_canister_id, resolve_path, str_to_principal,
+    args_to_value, as_u32, cast_type, get_blob, get_effective_canister_id, get_field, resolve_path,
+    str_to_principal,
 };
 use anyhow::{anyhow, Context, Result};
 use candid::{
@@ -132,7 +133,7 @@ impl Exp {
                             IDLValue::Vec(res.into_iter().map(IDLValue::Nat8).collect())
                         }
                         _ => return Err(anyhow!("metadata expects (principal, path)")),
-                    }
+                    },
                     "file" => match args.as_slice() {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);
@@ -149,13 +150,7 @@ impl Exp {
                         [IDLValue::Vec(blob)] => {
                             use libflate::gzip::Encoder;
                             use std::io::Write;
-                            let blob: Vec<u8> = blob
-                                .iter()
-                                .filter_map(|v| match v {
-                                    IDLValue::Nat8(n) => Some(*n),
-                                    _ => None,
-                                })
-                                .collect();
+                            let blob = get_blob(blob);
                             let mut encoder = Encoder::new(Vec::with_capacity(blob.len()))?;
                             encoder.write_all(&blob)?;
                             let result = encoder.finish().into_result()?;
@@ -166,10 +161,7 @@ impl Exp {
                     "send" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Vec(blob)] => {
                             use crate::offline::{send, send_messages};
-                            let blob: Vec<u8> = blob.iter().filter_map(|v| match v {
-                                IDLValue::Nat8(n) => Some(*n),
-                                _ => None,
-                            }).collect();
+                            let blob = get_blob(blob);
                             let json = std::str::from_utf8(&blob)?;
                             let res = match json.trim_start().chars().next() {
                                 Some('{') => send(helper, &serde_json::from_str(json)?)?,
@@ -181,21 +173,76 @@ impl Exp {
                         _ => return Err(anyhow!("send expects a json blob")),
                     },
                     "wasm_profiling" => match args.as_slice() {
-                        [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Vec(_)] => {
+                        [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Record(_)] => {
+                            use ic_wasm::instrumentation::{instrument, Config};
                             let path = resolve_path(&helper.base_path, file);
                             let blob = std::fs::read(&path)
                                 .with_context(|| format!("Cannot read {path:?}"))?;
                             let mut m = ic_wasm::utils::parse_wasm(&blob, false)?;
                             ic_wasm::shrink::shrink(&mut m);
-                            let trace_funcs: Vec<String> = match args.as_slice() {
-                                [_] => vec![],
-                                [_, IDLValue::Vec(vec)] => vec.iter().filter_map(|name| if let IDLValue::Text(name) = name { Some(name.clone()) } else { None }).collect(),
-                                _ => unreachable!(),
+                            let config = match args.get(1) {
+                                Some(IDLValue::Record(fs)) => {
+                                    let start_page = if let Some(n) = get_field(fs, "start_page") {
+                                        Some(as_u32(n).with_context(|| {
+                                            anyhow!("start_page expects a number")
+                                        })? as i32)
+                                    } else {
+                                        None
+                                    };
+                                    let page_limit = if start_page.is_some() {
+                                        if let Some(n) = get_field(fs, "page_limit") {
+                                            Some(as_u32(n).with_context(|| {
+                                                anyhow!("page_limit expects a number")
+                                            })?
+                                                as i32)
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    };
+                                    let trace_only_funcs = if let Some(v) =
+                                        get_field(fs, "trace_only_funcs")
+                                    {
+                                        if let IDLValue::Vec(vec) = v {
+                                            vec.iter()
+                                                .filter_map(|name| {
+                                                    if let IDLValue::Text(name) = name {
+                                                        Some(name.clone())
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                                .collect()
+                                        } else {
+                                            return Err(anyhow!("trace_only_funcs expects a vetor of function names"));
+                                        }
+                                    } else {
+                                        vec![]
+                                    };
+                                    Config {
+                                        trace_only_funcs,
+                                        start_address: start_page.map(|page| page * 65536),
+                                        page_limit,
+                                        use_new_metering: false,
+                                    }
+                                }
+                                Some(_) => unreachable!(),
+                                None => Config {
+                                    trace_only_funcs: vec![],
+                                    start_address: None,
+                                    page_limit: None,
+                                    use_new_metering: false,
+                                },
                             };
-                            ic_wasm::instrumentation::instrument(&mut m, &trace_funcs).map_err(|e| anyhow::anyhow!("{e}"))?;
+                            instrument(&mut m, config).map_err(|e| anyhow::anyhow!("{e}"))?;
                             IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
                         }
-                        _ => return Err(anyhow!("wasm_profiling expects file path and optionally vec text of function names")),
+                        _ => {
+                            return Err(anyhow!(
+                                "wasm_profiling expects file path and optionally record for config"
+                            ))
+                        }
                     },
                     "flamegraph" => match args.as_slice() {
                         [IDLValue::Principal(cid), IDLValue::Text(title), IDLValue::Text(file)] => {
@@ -265,9 +312,18 @@ impl Exp {
                         _ => return Err(anyhow!("concat expects two vec, record or text")),
                     },
                     "add" | "sub" | "mul" | "div" => match args.as_slice() {
-                        [IDLValue::Float32(_) | IDLValue::Float64(_), _] | [_, IDLValue::Float32(_) | IDLValue::Float64(_)] => {
-                            let IDLValue::Float64(v1) = cast_type(args[0].clone(), &TypeInner::Float64.into())? else { panic!() };
-                            let IDLValue::Float64(v2) = cast_type(args[1].clone(), &TypeInner::Float64.into())? else { panic!() };
+                        [IDLValue::Float32(_) | IDLValue::Float64(_), _]
+                        | [_, IDLValue::Float32(_) | IDLValue::Float64(_)] => {
+                            let IDLValue::Float64(v1) =
+                                cast_type(args[0].clone(), &TypeInner::Float64.into())?
+                            else {
+                                panic!()
+                            };
+                            let IDLValue::Float64(v2) =
+                                cast_type(args[1].clone(), &TypeInner::Float64.into())?
+                            else {
+                                panic!()
+                            };
                             IDLValue::Float64(match func.as_str() {
                                 "add" => v1 + v2,
                                 "sub" => v1 - v2,
@@ -277,18 +333,27 @@ impl Exp {
                             })
                         }
                         [v1, v2] => {
-                            let IDLValue::Int(v1) = cast_type(v1.clone(), &TypeInner::Int.into())? else { panic!() };
-                            let IDLValue::Int(v2) = cast_type(v2.clone(), &TypeInner::Int.into())? else { panic!() };
-                            IDLValue::Number(match func.as_str() {
-                                "add" => v1 + v2,
-                                "sub" => v1 - v2,
-                                "mul" => v1 * v2,
-                                "div" => v1 / v2,
-                                _ => unreachable!(),
-                            }.to_string())
+                            let IDLValue::Int(v1) = cast_type(v1.clone(), &TypeInner::Int.into())?
+                            else {
+                                panic!()
+                            };
+                            let IDLValue::Int(v2) = cast_type(v2.clone(), &TypeInner::Int.into())?
+                            else {
+                                panic!()
+                            };
+                            IDLValue::Number(
+                                match func.as_str() {
+                                    "add" => v1 + v2,
+                                    "sub" => v1 - v2,
+                                    "mul" => v1 * v2,
+                                    "div" => v1 / v2,
+                                    _ => unreachable!(),
+                                }
+                                .to_string(),
+                            )
                         }
                         _ => return Err(anyhow!("add expects two numbers")),
-                    }
+                    },
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),
                         Some((formal_args, body)) => {
@@ -330,7 +395,7 @@ impl Exp {
                 };
                 let args = match method {
                     Some(method) => {
-                        let info = method.get_info(helper)?;
+                        let info = method.get_info(helper, false)?;
                         if let Some((env, func)) = info.signature {
                             IDLArgs::from_bytes_with_types(&bytes, &env, &func.rets)?
                         } else {
@@ -348,7 +413,8 @@ impl Exp {
                 }
                 let args = IDLArgs { args: res };
                 let opt_info = if let Some(method) = &method {
-                    Some(method.get_info(helper)?)
+                    let is_encode = matches!(mode, CallMode::Encode);
+                    Some(method.get_info(helper, is_encode)?)
                 } else {
                     None
                 };
@@ -498,7 +564,49 @@ pub struct MethodInfo {
     pub profiling: Option<BTreeMap<u16, String>>,
 }
 impl Method {
-    pub fn get_info(&self, helper: &MyHelper) -> Result<MethodInfo> {
+    pub fn get_info(&self, helper: &MyHelper, is_encode: bool) -> Result<MethodInfo> {
+        if is_encode && self.method == "__init_args" {
+            if let Some(IDLValue::Vec(vec)) = helper.env.0.get(&self.canister) {
+                use ic_wasm::{metadata::get_metadata, utils::parse_wasm};
+                let bytes = get_blob(vec);
+                let m = parse_wasm(&bytes, false)?;
+                let args = get_metadata(&m, "candid:args");
+                let candid = get_metadata(&m, "candid:service");
+                let canister_id = Principal::anonymous();
+                match args {
+                    None => {
+                        eprintln!("Warning: no candid:args metadata in the Wasm module, use types inferred from textual value.");
+                        return Ok(MethodInfo {
+                            canister_id,
+                            signature: None,
+                            profiling: None,
+                        });
+                    }
+                    Some(args) => {
+                        let candid = candid
+                            .as_ref()
+                            .map(|x| std::str::from_utf8(x).unwrap())
+                            .unwrap_or("service : {}");
+                        let (env, ty) =
+                            candid::utils::merge_init_args(candid, std::str::from_utf8(&args)?)?;
+                        let init_args = find_init_args(&env, &ty).expect("invalid init arg types");
+                        let signature = Some((
+                            env,
+                            Function {
+                                args: init_args,
+                                rets: Vec::new(),
+                                modes: Vec::new(),
+                            },
+                        ));
+                        return Ok(MethodInfo {
+                            canister_id,
+                            signature,
+                            profiling: None,
+                        });
+                    }
+                }
+            }
+        }
         let canister_id = str_to_principal(&self.canister, helper)?;
         let agent = &helper.agent;
         let mut map = helper.canister_map.borrow_mut();
@@ -510,14 +618,19 @@ impl Method {
             },
             Ok(info) => {
                 let signature = if self.method == "__init_args" {
-                    Some((
-                        info.env.clone(),
-                        Function {
-                            args: info.init.as_ref().unwrap_or(&Vec::new()).clone(),
-                            rets: Vec::new(),
-                            modes: Vec::new(),
-                        },
-                    ))
+                    eprintln!(
+                        "Warning: no init args in did file, use types inferred from textual value."
+                    );
+                    info.init.clone().map(|init| {
+                        (
+                            info.env.clone(),
+                            Function {
+                                args: init,
+                                rets: Vec::new(),
+                                modes: Vec::new(),
+                            },
+                        )
+                    })
                 } else {
                     info.methods
                         .get(&self.method)

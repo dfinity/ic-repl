@@ -51,7 +51,7 @@ We also provide some built-in functions:
 * `gzip(blob)`: gzip a blob value.
 * `stringify(exp1, exp2, exp3, ...)`: convert all expressions to string and concat. Only supports primitive types.
 * `output(path, content)`: append text content to file path.
-* `wasm_profiling(path)/wasm_profiling(path, vec { func_name })`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument of func_names is optional. If provided, it will only count and trace the provided functions.
+* `wasm_profiling(path)/wasm_profiling(path, record { trace_only_funcs = <vec text>; start_page = <nat>; page_limit = <nat> })`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument is optional, and all fields in the record are also optional. If provided, `trace_only_funcs` will only count and trace the provided set of functions; `start_page` writes the logs to a preallocated pages in stable memory; `page_limit` specifies the number of the preallocated pages, default to 30 if omitted. See [ic-wasm's doc](https://github.com/dfinity/ic-wasm#working-with-upgrades-and-stable-memory) for more details.
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.
 * `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer/float numbers. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
@@ -133,7 +133,7 @@ function deploy(wasm) {
   let id = call ic.provisional_create_canister_with_cycles(record { settings = null; amount = null });
   call ic.install_code(
     record {
-      arg = encode ();
+      arg = encode wasm.__init_args();
       wasm_module = wasm;
       mode = variant { install };
       canister_id = id.canister_id;
@@ -228,13 +228,27 @@ let _ = call proxy_canister.wallet_call(
 decode as target_canister.method _.Ok.return
 ```
 
+## Canister init args types
+
+When calling `ic.install_code`, you may need to provide a Candid message for initializing the canister.
+To help with encoding the message, you can use get the init args types from the Wasm module custom section:
+```
+let wasm = file("a.wasm");
+encode wasm.__init_args(...)
+```
+
+If the Wasm module doesn't contain the init arg types, you can import the full did file as a workaround:
+```
+import init = "2vxsx-fae" as "did_file_with_init_args.did";
+encode init.__init_args(...)
+```
+
 ## Contributing
 
 Please follow the guidelines in the [CONTRIBUTING.md](.github/CONTRIBUTING.md) document.
 
 ## Issues
 
-* Acess to service init type (get from either Wasm or http endpoint)
 * `IDLValue::Blob` for efficient blob serialization
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
