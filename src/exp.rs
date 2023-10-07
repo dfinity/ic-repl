@@ -175,7 +175,6 @@ impl Exp {
                     "wasm_profiling" => match args.as_slice() {
                         [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Record(_)] => {
                             use ic_wasm::instrumentation::{instrument, Config};
-                            let use_new_metering = helper.use_new_metering;
                             let path = resolve_path(&helper.base_path, file);
                             let blob = std::fs::read(&path)
                                 .with_context(|| format!("Cannot read {path:?}"))?;
@@ -201,6 +200,17 @@ impl Exp {
                                         }
                                     } else {
                                         None
+                                    };
+                                    let use_new_metering = if let Some(v) =
+                                        get_field(fs, "use_new_metering")
+                                    {
+                                        if let IDLValue::Bool(b) = v {
+                                            *b
+                                        } else {
+                                            return Err(anyhow!("use_new_metering expects a bool"));
+                                        }
+                                    } else {
+                                        helper.use_new_metering
                                     };
                                     let trace_only_funcs = if let Some(v) =
                                         get_field(fs, "trace_only_funcs")
@@ -233,7 +243,7 @@ impl Exp {
                                     trace_only_funcs: vec![],
                                     start_address: None,
                                     page_limit: None,
-                                    use_new_metering,
+                                    use_new_metering: helper.use_new_metering,
                                 },
                             };
                             instrument(&mut m, config).map_err(|e| anyhow::anyhow!("{e}"))?;
