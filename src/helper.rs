@@ -94,6 +94,7 @@ pub struct MyHelper {
     pub base_path: std::path::PathBuf,
     pub history: Vec<String>,
     pub messages: RefCell<Vec<crate::offline::IngressWithStatus>>,
+    pub use_new_metering: bool,
 }
 
 impl MyHelper {
@@ -116,6 +117,7 @@ impl MyHelper {
             agent_url: self.agent_url.clone(),
             offline: self.offline.clone(),
             messages: self.messages.clone(),
+            use_new_metering: self.use_new_metering,
         }
     }
     pub fn new(agent: Agent, agent_url: String, offline: Option<OfflineOutput>) -> Self {
@@ -137,6 +139,7 @@ impl MyHelper {
             agent,
             agent_url,
             offline,
+            use_new_metering: false,
         };
         res.fetch_root_key_if_needed().unwrap();
         res.load_prelude().unwrap();

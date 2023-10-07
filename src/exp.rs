@@ -175,6 +175,7 @@ impl Exp {
                     "wasm_profiling" => match args.as_slice() {
                         [IDLValue::Text(file)] | [IDLValue::Text(file), IDLValue::Record(_)] => {
                             use ic_wasm::instrumentation::{instrument, Config};
+                            let use_new_metering = helper.use_new_metering;
                             let path = resolve_path(&helper.base_path, file);
                             let blob = std::fs::read(&path)
                                 .with_context(|| format!("Cannot read {path:?}"))?;
@@ -224,7 +225,7 @@ impl Exp {
                                         trace_only_funcs,
                                         start_address: start_page.map(|page| page * 65536),
                                         page_limit,
-                                        use_new_metering: false,
+                                        use_new_metering,
                                     }
                                 }
                                 Some(_) => unreachable!(),
@@ -232,7 +233,7 @@ impl Exp {
                                     trace_only_funcs: vec![],
                                     start_address: None,
                                     page_limit: None,
-                                    use_new_metering: false,
+                                    use_new_metering,
                                 },
                             };
                             instrument(&mut m, config).map_err(|e| anyhow::anyhow!("{e}"))?;
