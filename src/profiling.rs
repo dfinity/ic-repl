@@ -78,6 +78,7 @@ fn render_profiling(
     let mut result = Vec::new();
     let mut total = 0;
     let mut prev = None;
+    let start_cost = input.first().map(|(_, count)| *count);
     for (id, count) in input.into_iter() {
         if id >= 0 {
             stack.push((id, count, 0));
@@ -118,7 +119,7 @@ fn render_profiling(
     let cost = if !stack.is_empty() {
         result.push("incomplete_trace 10000".to_string());
         eprintln!("A trap occured or trace is too large");
-        CostValue::StartCost(stack[0].1 as u64)
+        CostValue::StartCost(start_cost.unwrap() as u64)
     } else {
         CostValue::Complete(total)
     };
