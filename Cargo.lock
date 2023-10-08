@@ -1302,7 +1302,7 @@ dependencies = [
 [[package]]
 name = "ic-wasm"
 version = "0.5.2"
-source = "git+https://github.com/dfinity/ic-wasm.git?branch=new-meter#2aeda4e2e57485ee57144353c671b6c3b71f70af"
+source = "git+https://github.com/dfinity/ic-wasm.git?branch=new-meter#da750781099e524e7f6d3701cc22ec8da1b4c1e2"
 dependencies = [
  "candid",
  "rustc-demangle",
