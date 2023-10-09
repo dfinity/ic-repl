@@ -40,13 +40,29 @@ pub async fn get_profiling(
     filename: PathBuf,
 ) -> anyhow::Result<u64> {
     use candid::{Decode, Encode};
+    let mut idx = 0i32;
+    let mut pairs = vec![];
+    let mut cnt = 1;
     let builder = agent.query(canister_id, "__get_profiling");
-    let bytes = builder
-        .with_arg(Encode!()?)
-        .with_effective_canister_id(*canister_id)
-        .call()
-        .await?;
-    let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
+    loop {
+        let bytes = builder
+            .clone()
+            .with_arg(Encode!(&idx)?)
+            .with_effective_canister_id(*canister_id)
+            .call()
+            .await?;
+        let (mut trace, opt_idx) = Decode!(&bytes, Vec<(i32, i64)>, Option<i32>)?;
+        pairs.append(&mut trace);
+        if let Some(i) = opt_idx {
+            idx = i;
+            cnt += 1;
+        } else {
+            break;
+        }
+    }
+    if cnt > 1 {
+        eprintln!("large trace: {}MB", cnt * 2);
+    }
     if !pairs.is_empty() {
         match render_profiling(pairs, names, title, filename)? {
             CostValue::Complete(cost) => Ok(cost),
