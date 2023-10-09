@@ -1301,8 +1301,8 @@ dependencies = [
 
 [[package]]
 name = "ic-wasm"
-version = "0.5.2"
-source = "git+https://github.com/dfinity/ic-wasm.git?branch=stream-profiling#d2c4d2863b3467c133a87831d3d09ad47e65eb40"
+version = "0.6.0"
+source = "git+https://github.com/dfinity/ic-wasm.git?branch=new-meter#ffe8b31c981508437945dfdef631cb177aa5a0a4"
 dependencies = [
  "candid",
  "rustc-demangle",
