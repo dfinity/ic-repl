@@ -133,7 +133,6 @@ fn render_profiling(
         }
     }
     let cost = if !stack.is_empty() {
-        result.push("incomplete_trace 10000".to_string());
         eprintln!("A trap occured or trace is too large");
         CostValue::StartCost(start_cost.unwrap() as u64)
     } else {
@@ -142,7 +141,12 @@ fn render_profiling(
     //println!("Cost: {} Wasm instructions", total);
     let mut opt = Options::default();
     opt.count_name = "instructions".to_string();
-    opt.title = title.to_string();
+    let title = if matches!(cost, CostValue::StartCost(_)) {
+        title.to_string() + " (incomplete)"
+    } else {
+        title.to_string()
+    };
+    opt.title = title;
     opt.image_width = Some(1024);
     opt.flame_chart = true;
     opt.no_sort = true;
