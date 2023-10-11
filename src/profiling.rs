@@ -40,13 +40,29 @@ pub async fn get_profiling(
     filename: PathBuf,
 ) -> anyhow::Result<u64> {
     use candid::{Decode, Encode};
+    let mut idx = 0i32;
+    let mut pairs = vec![];
+    let mut cnt = 1;
     let builder = agent.query(canister_id, "__get_profiling");
-    let bytes = builder
-        .with_arg(Encode!()?)
-        .with_effective_canister_id(*canister_id)
-        .call()
-        .await?;
-    let pairs = Decode!(&bytes, Vec<(i32, i64)>)?;
+    loop {
+        let bytes = builder
+            .clone()
+            .with_arg(Encode!(&idx)?)
+            .with_effective_canister_id(*canister_id)
+            .call()
+            .await?;
+        let (mut trace, opt_idx) = Decode!(&bytes, Vec<(i32, i64)>, Option<i32>)?;
+        pairs.append(&mut trace);
+        if let Some(i) = opt_idx {
+            idx = i;
+            cnt += 1;
+        } else {
+            break;
+        }
+    }
+    if cnt > 1 {
+        eprintln!("large trace: {}MB", cnt * 2);
+    }
     if !pairs.is_empty() {
         match render_profiling(pairs, names, title, filename)? {
             CostValue::Complete(cost) => Ok(cost),
@@ -78,6 +94,7 @@ fn render_profiling(
     let mut result = Vec::new();
     let mut total = 0;
     let mut prev = None;
+    let start_cost = input.first().map(|(_, count)| *count);
     for (id, count) in input.into_iter() {
         if id >= 0 {
             stack.push((id, count, 0));
@@ -116,16 +133,20 @@ fn render_profiling(
         }
     }
     let cost = if !stack.is_empty() {
-        result.push("incomplete_trace 10000".to_string());
         eprintln!("A trap occured or trace is too large");
-        CostValue::StartCost(stack[0].1 as u64)
+        CostValue::StartCost(start_cost.unwrap() as u64)
     } else {
         CostValue::Complete(total)
     };
     //println!("Cost: {} Wasm instructions", total);
     let mut opt = Options::default();
     opt.count_name = "instructions".to_string();
-    opt.title = title.to_string();
+    let title = if matches!(cost, CostValue::StartCost(_)) {
+        title.to_string() + " (incomplete)"
+    } else {
+        title.to_string()
+    };
+    opt.title = title;
     opt.image_width = Some(1024);
     opt.flame_chart = true;
     opt.no_sort = true;
