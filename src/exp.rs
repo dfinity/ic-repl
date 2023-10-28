@@ -490,10 +490,7 @@ impl Exp {
                                 })?
                                 .clone(),
                         );
-                        env.env.0.insert(
-                            "_msg".to_string(),
-                            IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect()),
-                        );
+                        env.env.0.insert("_msg".to_string(), IDLValue::Blob(bytes));
                         let code = format!(
                             r#"
 let _ = call "{id}".wallet_call(

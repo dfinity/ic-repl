@@ -31,6 +31,12 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
     for head in path.into_iter() {
         match (result, head) {
             (IDLValue::Opt(opt), Selector::Option) => result = *opt,
+            (IDLValue::Blob(b), Selector::Index(idx)) => {
+                result = IDLValue::Nat8(
+                    *b.get(idx as usize)
+                        .ok_or_else(|| anyhow!("idx out of bound"))?,
+                )
+            }
             (IDLValue::Vec(mut vs), Selector::Index(idx)) => {
                 let idx = idx as usize;
                 if idx < vs.len() {
@@ -39,14 +45,29 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
                     return Err(anyhow!("{} out of bound {}", idx, vs.len()));
                 }
             }
+            (IDLValue::Blob(b), Selector::Map(func)) => {
+                let vs = b.into_iter().map(IDLValue::Nat8).collect();
+                result = IDLValue::Vec(map(helper, vs, &func)?);
+            }
             (IDLValue::Vec(vs), Selector::Map(func)) => {
                 result = IDLValue::Vec(map(helper, vs, &func)?);
+            }
+            (IDLValue::Blob(b), Selector::Filter(func)) => {
+                let vs = b.into_iter().map(IDLValue::Nat8).collect();
+                result = IDLValue::Vec(filter(helper, vs, &func)?);
             }
             (IDLValue::Vec(vs), Selector::Filter(func)) => {
                 result = IDLValue::Vec(filter(helper, vs, &func)?);
             }
+            (IDLValue::Blob(b), Selector::Fold(init, func)) => {
+                let vs = b.into_iter().map(IDLValue::Nat8).collect();
+                result = fold(helper, init, vs, &func)?;
+            }
             (IDLValue::Vec(vs), Selector::Fold(init, func)) => {
                 result = fold(helper, init, vs, &func)?;
+            }
+            (IDLValue::Blob(b), Selector::Size) => {
+                result = IDLValue::Nat(b.len().into());
             }
             (IDLValue::Vec(vs), Selector::Size) => {
                 result = IDLValue::Nat(vs.len().into());
