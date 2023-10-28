@@ -1,11 +1,11 @@
 use crate::helper::MyHelper;
 use anyhow::{anyhow, Context, Result};
-use candid::bindings::candid::value::number_to_string;
-use candid::parser::configs::Configs;
+use candid::pretty::candid::value::number_to_string;
 use candid::types::value::{IDLArgs, IDLField, IDLValue};
 use candid::types::{Label, Type, TypeInner};
 use candid::Principal;
 use candid::TypeEnv;
+use candid_parser::configs::Configs;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
@@ -77,6 +77,7 @@ pub fn cast_type(v: IDLValue, ty: &Type) -> Result<IDLValue> {
         }
         // text <--> blob
         (IDLValue::Text(s), TypeInner::Text) => IDLValue::Text(s),
+        (IDLValue::Blob(b), TypeInner::Text) => IDLValue::Text(String::from_utf8(b)?),
         (IDLValue::Vec(vec), TypeInner::Text)
             if vec.is_empty() || matches!(vec[0], IDLValue::Nat8(_)) =>
         {
@@ -92,8 +93,7 @@ pub fn cast_type(v: IDLValue, ty: &Type) -> Result<IDLValue> {
             IDLValue::Text(String::from_utf8(bytes)?)
         }
         (IDLValue::Text(str), TypeInner::Vec(t)) if matches!(t.as_ref(), TypeInner::Nat8) => {
-            let blob = str.into_bytes().into_iter().map(IDLValue::Nat8).collect();
-            IDLValue::Vec(blob)
+            IDLValue::Blob(str.into_bytes())
         }
         // reference types
         (
@@ -168,14 +168,6 @@ pub fn get_effective_canister_id(
     }
 }
 
-pub fn get_blob(vec: &[IDLValue]) -> Vec<u8> {
-    vec.iter()
-        .filter_map(|v| match v {
-            IDLValue::Nat8(n) => Some(*n),
-            _ => None,
-        })
-        .collect()
-}
 pub fn as_u32(v: &IDLValue) -> Result<u32> {
     match v {
         IDLValue::Number(n) => {
@@ -209,11 +201,11 @@ pub fn args_to_value(mut args: IDLArgs) -> IDLValue {
     }
 }
 
-pub fn random_value(env: &TypeEnv, ty: &Type, config: &Configs) -> candid::Result<String> {
+pub fn random_value(env: &TypeEnv, ty: &Type, config: &Configs) -> candid_parser::Result<String> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
-    let result = IDLArgs::any(&seed, config, env, &[ty.clone()])?;
+    let result = candid_parser::random::any(&seed, config, env, &[ty.clone()])?;
     Ok(result.args[0].to_string())
 }
 

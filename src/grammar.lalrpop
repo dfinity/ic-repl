@@ -1,6 +1,6 @@
 use super::exp::{Field, Exp, Method, CallMode};
 use super::selector::Selector;
-use candid::parser::types::{IDLType, TypeField, PrimType, FuncType, Binding};
+use candid_parser::types::{IDLType, TypeField, PrimType, FuncType, Binding};
 use candid::utils::check_unique;
 use super::token::{Token, error2, LexicalError, Span};
 use candid::{Principal, types::{FuncMode, Label, TypeEnv}};
@@ -135,10 +135,7 @@ Arg: Exp = {
     "bool" => Exp::Bool(<>),
     NumLiteral => <>,
     Text => Exp::Text(<>),
-    Bytes => {
-        let values: Vec<_> = <>.into_iter().map(Exp::Nat8).collect();
-        Exp::Vec(values)
-    },
+    Bytes => Exp::Blob(<>),
     "null" => Exp::Null,
     "opt" <Exp> => Exp::Opt(Box::new(<>)),
     "vec" "{" <SepBy<AnnVal, ";">> "}" => Exp::Vec(<>),
@@ -194,7 +191,7 @@ AnnVal: Exp = {
     <Exp> => <>,
     <arg:Exp> ":" <typ:Sp<Typ>> =>? {
         let env = TypeEnv::new();
-        let typ = env.ast_to_type(&typ.0).map_err(|e| error2(e, typ.1))?;
+        let typ = candid_parser::typing::ast_to_type(&env, &typ.0).map_err(|e| error2(e, typ.1))?;
         Ok(Exp::AnnVal(Box::new(arg), typ))
     }
 }

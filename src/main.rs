@@ -80,7 +80,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     }
     if let Some(file) = opts.config {
         let config = std::fs::read_to_string(file)?;
-        rl.helper_mut().unwrap().config = candid::parser::configs::Configs::from_dhall(&config)?;
+        rl.helper_mut().unwrap().config = candid_parser::configs::Configs::from_dhall(&config)?;
     }
 
     let enter_repl = opts.script.is_none() || opts.interactive;

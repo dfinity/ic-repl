@@ -3,13 +3,11 @@ use crate::token::{Token, Tokenizer};
 use crate::utils::{random_value, str_to_principal};
 use ansi_term::Color;
 use candid::{
-    check_prog,
-    parser::configs::Configs,
-    pretty_check_file, pretty_parse,
     types::value::{IDLField, IDLValue, VariantValue},
     types::{Function, Label, Type, TypeInner},
-    Decode, Encode, IDLProg, Principal, TypeEnv,
+    Decode, Encode, Principal, TypeEnv,
 };
+use candid_parser::{check_prog, configs::Configs, pretty_check_file, pretty_parse, IDLProg};
 use ic_agent::{Agent, Identity};
 use rustyline::completion::{extract_word, Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
