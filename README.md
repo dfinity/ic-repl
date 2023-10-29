@@ -249,7 +249,6 @@ Please follow the guidelines in the [CONTRIBUTING.md](.github/CONTRIBUTING.md) d
 
 ## Issues
 
-* `IDLValue::Blob` for efficient blob serialization
 * Autocompletion within Candid value
 * Robust support for `~=`, requires inferring principal types
 * Loop detection for `load`

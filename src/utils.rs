@@ -73,6 +73,25 @@ pub fn cast_type(v: IDLValue, ty: &Type) -> Result<IDLValue> {
                 let v = cast_type(e, t)?;
                 res.push(v);
             }
+            if matches!(t.as_ref(), TypeInner::Nat8) {
+                let blob = res
+                    .into_iter()
+                    .filter_map(|v| match v {
+                        IDLValue::Nat8(n) => Some(n),
+                        _ => None,
+                    })
+                    .collect();
+                IDLValue::Blob(blob)
+            } else {
+                IDLValue::Vec(res)
+            }
+        }
+        (IDLValue::Blob(blob), TypeInner::Vec(t)) => {
+            let mut res = Vec::with_capacity(blob.len());
+            for e in blob.into_iter() {
+                let v = cast_type(IDLValue::Nat8(e), t)?;
+                res.push(v);
+            }
             IDLValue::Vec(res)
         }
         // text <--> blob
@@ -174,6 +193,7 @@ pub fn as_u32(v: &IDLValue) -> Result<u32> {
             let n = n.parse::<u32>()?;
             Ok(n)
         }
+        IDLValue::Nat32(n) => Ok(*n),
         _ => Err(anyhow!("not a number")),
     }
 }
