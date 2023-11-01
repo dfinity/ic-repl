@@ -34,9 +34,12 @@ jobs:
         run: cargo fmt -v -- --check
       - name: lint
         run: cargo clippy --tests -- -D clippy::all
-      - name: install dfx
+      - name: Install dfx
+        uses: dfinity/setup-dfx@main
+        with:
+          dfx-version: "${{ env.DFX_VERSION }}"
+      - name: Start replica using dfx
         run: |
-          echo y | DFX_VERSION=$DFX_VERSION bash -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
           echo '{}' > dfx.json
           dfx start --background
       - name: e2e tests
