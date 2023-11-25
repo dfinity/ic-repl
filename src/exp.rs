@@ -193,17 +193,6 @@ impl Exp {
                                     } else {
                                         None
                                     };
-                                    let use_new_metering = if let Some(v) =
-                                        get_field(fs, "use_new_metering")
-                                    {
-                                        if let IDLValue::Bool(b) = v {
-                                            *b
-                                        } else {
-                                            return Err(anyhow!("use_new_metering expects a bool"));
-                                        }
-                                    } else {
-                                        helper.use_new_metering
-                                    };
                                     let trace_only_funcs = if let Some(v) =
                                         get_field(fs, "trace_only_funcs")
                                     {
@@ -227,7 +216,6 @@ impl Exp {
                                         trace_only_funcs,
                                         start_address: start_page.map(|page| page * 65536),
                                         page_limit,
-                                        use_new_metering,
                                     }
                                 }
                                 Some(_) => unreachable!(),
@@ -235,7 +223,6 @@ impl Exp {
                                     trace_only_funcs: vec![],
                                     start_address: None,
                                     page_limit: None,
-                                    use_new_metering: helper.use_new_metering,
                                 },
                             };
                             instrument(&mut m, config).map_err(|e| anyhow::anyhow!("{e}"))?;

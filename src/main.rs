@@ -1,6 +1,6 @@
 use ansi_term::Color;
 use clap::Parser;
-use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport as V2Transport;
+use ic_agent::agent::http_transport::ReqwestTransport;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
@@ -56,7 +56,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     };
     println!("Ping {url}...");
     let agent = Agent::builder()
-        .with_transport(V2Transport::create(url)?)
+        .with_transport(ReqwestTransport::create(url)?)
         .build()?;
 
     println!("Canister REPL");

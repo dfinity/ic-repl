@@ -14,7 +14,7 @@ doc = false
 lalrpop = "0.20"
 
 [dependencies]
-candid = { version = "0.9", features = ["all"] }
+candid = { version = "0.10", features = ["all"] }
 candid_parser = { version = "0.1", features = ["all"] }
 rustyline = "12.0"
 rustyline-derive = "0.9"
@@ -25,9 +25,9 @@ codespan-reporting = "0.11"
 pretty = "0.12"
 pem = "2.0"
 shellexpand = "3.1"
-ic-agent = "0.27"
-ic-identity-hsm = "0.27"
-ic-wasm = { version = "0.6.0", default-features = false }
+ic-agent = "0.30"
+ic-identity-hsm = "0.30"
+ic-wasm = { version = "0.7", default-features = false }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
 tokio = { version = "1.29", features = ["full"] }
 anyhow = "1.0"
@@ -48,11 +48,12 @@ image = { version = "0.23", default-features = false, features = ["png"] }
 libflate = "1.4"
 base64 = "0.21"
 
-[patch.crates-io.candid]
-version = "0.9"
-git = "https://github.com/dfinity/candid.git"
-branch = "beta"
-[patch.crates-io.candid_parser]
-version = "0.1"
-git = "https://github.com/dfinity/candid.git"
-branch = "beta"
+[patch.crates-io.ic-agent]
+git = "https://github.com/dfinity/agent-rs.git"
+branch = "main"
+[patch.crates-io.ic-identity-hsm]
+git = "https://github.com/dfinity/agent-rs.git"
+branch = "main"
+[patch.crates-io.ic-wasm]
+git = "https://github.com/dfinity/ic-wasm.git"
+branch = "new-meter"

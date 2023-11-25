@@ -171,22 +171,23 @@ async fn send_internal(
                 return Err(anyhow!("request_id does match, cannot request status"));
             }
             let status = hex::decode(&status.content)?;
-            let ic_agent::agent::Replied::CallReplied(blob) = async {
+            async {
                 loop {
                     match agent
                         .request_status_signed(&request_id, canister_id, status.clone())
                         .await?
                     {
-                        RequestStatusResponse::Replied { reply } => return Ok(reply),
-                        RequestStatusResponse::Rejected(response) => return Err(anyhow!(response)),
+                        RequestStatusResponse::Replied(reply) => return Ok(reply.arg),
+                        RequestStatusResponse::Rejected(response) => {
+                            return Err(anyhow!("{:?}", response))
+                        }
                         RequestStatusResponse::Done => return Err(anyhow!("No response")),
                         _ => println!("The request is being processed..."),
                     };
                     std::thread::sleep(std::time::Duration::from_millis(500));
                 }
             }
-            .await?;
-            blob
+            .await?
         }
         _ => unreachable!(),
     };
