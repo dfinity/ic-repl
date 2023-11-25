@@ -64,8 +64,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .build();
-    let mut h = MyHelper::new(agent, url.to_string(), offline);
-    h.use_new_metering = opts.use_new_metering;
+    let h = MyHelper::new(agent, url.to_string(), offline);
     if let Some(file) = opts.send {
         use crate::offline::{send_messages, Messages};
         let json = std::fs::read_to_string(file)?;
@@ -150,9 +149,6 @@ struct Opts {
     #[clap(short, long, conflicts_with("script"), conflicts_with("offline"))]
     /// Send signed messages
     send: Option<String>,
-    #[clap(long)]
-    /// Use new metering with wasm_profiling. This option will be removed once the mainnet is using the new metering.
-    use_new_metering: bool,
 }
 
 fn main() -> anyhow::Result<()> {
