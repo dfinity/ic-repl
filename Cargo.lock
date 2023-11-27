@@ -1317,7 +1317,7 @@ dependencies = [
 
 [[package]]
 name = "ic-repl"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -1387,7 +1387,8 @@ dependencies = [
 [[package]]
 name = "ic-wasm"
 version = "0.7.0"
-source = "git+https://github.com/dfinity/ic-wasm.git?branch=new-meter#306120ef72fd875f48354ec48acfacedb85fd5a0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d2aa0d7deeb38f18fcec6e4c25c5004422e2e9f8c3fbad15bb795ebac37aca6"
 dependencies = [
  "candid",
  "rustc-demangle",
