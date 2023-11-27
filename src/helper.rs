@@ -582,9 +582,9 @@ fn test_partial_parse() -> anyhow::Result<()> {
     use candid_parser::parse_idl_value;
     let url = "https://icp0.io".to_string();
     let agent = Agent::builder()
-        .with_transport(
-            ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
-        )
+        .with_transport(ic_agent::agent::http_transport::ReqwestTransport::create(
+            url.clone(),
+        )?)
         .build()?;
     let mut helper = MyHelper::new(agent, url, None);
     helper.env.0.insert(
