@@ -25,8 +25,8 @@ codespan-reporting = "0.11"
 pretty = "0.12"
 pem = "2.0"
 shellexpand = "3.1"
-ic-agent = "0.30"
-ic-identity-hsm = "0.30"
+ic-agent = "0.31"
+ic-identity-hsm = "0.31"
 ic-wasm = { version = "0.7", default-features = false }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
 tokio = { version = "1.29", features = ["full"] }
@@ -48,12 +48,6 @@ image = { version = "0.23", default-features = false, features = ["png"] }
 libflate = "1.4"
 base64 = "0.21"
 
-[patch.crates-io.ic-agent]
-git = "https://github.com/dfinity/agent-rs.git"
-branch = "main"
-[patch.crates-io.ic-identity-hsm]
-git = "https://github.com/dfinity/agent-rs.git"
-branch = "main"
 [patch.crates-io.ic-wasm]
 git = "https://github.com/dfinity/ic-wasm.git"
 branch = "new-meter"
