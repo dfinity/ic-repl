@@ -3,13 +3,11 @@ use crate::token::{Token, Tokenizer};
 use crate::utils::{random_value, str_to_principal};
 use ansi_term::Color;
 use candid::{
-    check_prog,
-    parser::configs::Configs,
-    pretty_check_file, pretty_parse,
     types::value::{IDLField, IDLValue, VariantValue},
     types::{Function, Label, Type, TypeInner},
-    Decode, Encode, IDLProg, Principal, TypeEnv,
+    Decode, Encode, Principal, TypeEnv,
 };
+use candid_parser::{check_prog, configs::Configs, pretty_check_file, pretty_parse, IDLProg};
 use ic_agent::{Agent, Identity};
 use rustyline::completion::{extract_word, Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
@@ -94,7 +92,6 @@ pub struct MyHelper {
     pub base_path: std::path::PathBuf,
     pub history: Vec<String>,
     pub messages: RefCell<Vec<crate::offline::IngressWithStatus>>,
-    pub use_new_metering: bool,
 }
 
 impl MyHelper {
@@ -117,7 +114,6 @@ impl MyHelper {
             agent_url: self.agent_url.clone(),
             offline: self.offline.clone(),
             messages: self.messages.clone(),
-            use_new_metering: self.use_new_metering,
         }
     }
     pub fn new(agent: Agent, agent_url: String, offline: Option<OfflineOutput>) -> Self {
@@ -139,7 +135,6 @@ impl MyHelper {
             agent,
             agent_url,
             offline,
-            use_new_metering: false,
         };
         res.fetch_root_key_if_needed().unwrap();
         res.load_prelude().unwrap();
@@ -289,6 +284,16 @@ fn match_selector(v: &IDLValue, prefix: &str) -> Vec<Pair> {
             display: "?".to_string(),
             replacement: "?".to_string(),
         }],
+        IDLValue::Blob(b) => vec![
+            Pair {
+                display: "blob".to_string(),
+                replacement: "".to_string(),
+            },
+            Pair {
+                display: format!("index should be less than {}", b.len()),
+                replacement: "".to_string(),
+            },
+        ],
         IDLValue::Vec(vs) => vec![
             Pair {
                 display: "vec".to_string(),
@@ -574,16 +579,17 @@ pub fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
 
 #[test]
 fn test_partial_parse() -> anyhow::Result<()> {
+    use candid_parser::parse_idl_value;
     let url = "https://icp0.io".to_string();
     let agent = Agent::builder()
-        .with_transport(
-            ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport::create(url.clone())?,
-        )
+        .with_transport(ic_agent::agent::http_transport::ReqwestTransport::create(
+            url.clone(),
+        )?)
         .build()?;
     let mut helper = MyHelper::new(agent, url, None);
     helper.env.0.insert(
         "a".to_string(),
-        "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+        parse_idl_value("opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}")?,
     );
     let ic0 = Principal::from_text("aaaaa-aa")?;
     helper
@@ -620,8 +626,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
         (
             10,
             Partial::Val(
-                "opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}"
-                    .parse::<IDLValue>()?,
+                parse_idl_value("opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}")?,
                 "".to_string()
             )
         )
@@ -632,7 +637,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
         (
             10,
             Partial::Val(
-                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                parse_idl_value("record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}")?,
                 "".to_string()
             )
         )
@@ -642,7 +647,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
         (
             9,
             Partial::Val(
-                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                parse_idl_value("record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}")?,
                 ".".to_string()
             )
         )
@@ -652,7 +657,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
         (
             11,
             Partial::Val(
-                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                parse_idl_value("record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}")?,
                 ".f1".to_string()
             )
         )
@@ -662,7 +667,7 @@ fn test_partial_parse() -> anyhow::Result<()> {
         (
             11,
             Partial::Val(
-                "record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}".parse::<IDLValue>()?,
+                parse_idl_value("record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}")?,
                 "[0".to_string()
             )
         )
@@ -671,20 +676,14 @@ fn test_partial_parse() -> anyhow::Result<()> {
         partial_parse("let id = a?[0]", 14, &helper).unwrap(),
         (
             14,
-            Partial::Val(
-                "variant {b=vec{1;2;3}}".parse::<IDLValue>()?,
-                "".to_string()
-            )
+            Partial::Val(parse_idl_value("variant {b=vec{1;2;3}}")?, "".to_string())
         )
     );
     assert_eq!(
         partial_parse("let id = a?[0].", 15, &helper).unwrap(),
         (
             14,
-            Partial::Val(
-                "variant {b=vec{1;2;3}}".parse::<IDLValue>()?,
-                ".".to_string()
-            )
+            Partial::Val(parse_idl_value("variant {b=vec{1;2;3}}")?, ".".to_string())
         )
     );
     Ok(())

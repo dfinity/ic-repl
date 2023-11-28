@@ -3,7 +3,7 @@ use super::helper::{fetch_metadata, find_init_args, MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
-    args_to_value, as_u32, cast_type, get_blob, get_effective_canister_id, get_field, resolve_path,
+    args_to_value, as_u32, cast_type, get_effective_canister_id, get_field, resolve_path,
     str_to_principal,
 };
 use anyhow::{anyhow, Context, Result};
@@ -30,14 +30,14 @@ pub enum Exp {
     },
     Apply(String, Vec<Exp>),
     Fail(Box<Exp>),
-    // from IDLValue without the infered types + Nat8
+    // from IDLValue without the infered types
     Bool(bool),
     Null,
     Text(String),
     Number(String), // Undetermined number type
-    Nat8(u8),
     Float64(f64),
     Opt(Box<Exp>),
+    Blob(Vec<u8>),
     Vec(Vec<Exp>),
     Record(Vec<Field>),
     Variant(Box<Field>, u64), // u64 represents the index from the type, defaults to 0 when parsing
@@ -101,9 +101,7 @@ impl Exp {
                     "account" => match args.as_slice() {
                         [IDLValue::Principal(principal)] => {
                             let account = AccountIdentifier::new(*principal, None);
-                            IDLValue::Vec(
-                                account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
-                            )
+                            IDLValue::Blob(account.to_vec())
                         }
                         _ => return Err(anyhow!("account expects principal")),
                     },
@@ -121,48 +119,42 @@ impl Exp {
                             let nns = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")?;
                             let subaccount = get_neuron_subaccount(principal, nonce);
                             let account = AccountIdentifier::new(nns, Some(subaccount));
-                            IDLValue::Vec(
-                                account.to_vec().into_iter().map(IDLValue::Nat8).collect(),
-                            )
+                            IDLValue::Blob(account.to_vec())
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
                     },
                     "metadata" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Principal(id), IDLValue::Text(path)] => {
                             let res = fetch_metadata(&helper.agent, *id, path)?;
-                            IDLValue::Vec(res.into_iter().map(IDLValue::Nat8).collect())
+                            IDLValue::Blob(res)
                         }
                         _ => return Err(anyhow!("metadata expects (principal, path)")),
                     },
                     "file" => match args.as_slice() {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);
-                            let blob: Vec<IDLValue> = std::fs::read(&path)
-                                .with_context(|| format!("Cannot read {path:?}"))?
-                                .into_iter()
-                                .map(IDLValue::Nat8)
-                                .collect();
-                            IDLValue::Vec(blob)
+                            IDLValue::Blob(
+                                std::fs::read(&path)
+                                    .with_context(|| format!("Cannot read {path:?}"))?,
+                            )
                         }
                         _ => return Err(anyhow!("file expects file path")),
                     },
                     "gzip" => match args.as_slice() {
-                        [IDLValue::Vec(blob)] => {
+                        [IDLValue::Blob(blob)] => {
                             use libflate::gzip::Encoder;
                             use std::io::Write;
-                            let blob = get_blob(blob);
                             let mut encoder = Encoder::new(Vec::with_capacity(blob.len()))?;
-                            encoder.write_all(&blob)?;
+                            encoder.write_all(blob)?;
                             let result = encoder.finish().into_result()?;
-                            IDLValue::Vec(result.into_iter().map(IDLValue::Nat8).collect())
+                            IDLValue::Blob(result)
                         }
                         _ => return Err(anyhow!("gzip expects blob")),
                     },
                     "send" if helper.offline.is_none() => match args.as_slice() {
-                        [IDLValue::Vec(blob)] => {
+                        [IDLValue::Blob(blob)] => {
                             use crate::offline::{send, send_messages};
-                            let blob = get_blob(blob);
-                            let json = std::str::from_utf8(&blob)?;
+                            let json = std::str::from_utf8(blob)?;
                             let res = match json.trim_start().chars().next() {
                                 Some('{') => send(helper, &serde_json::from_str(json)?)?,
                                 Some('[') => send_messages(helper, &serde_json::from_str(json)?)?,
@@ -201,17 +193,6 @@ impl Exp {
                                     } else {
                                         None
                                     };
-                                    let use_new_metering = if let Some(v) =
-                                        get_field(fs, "use_new_metering")
-                                    {
-                                        if let IDLValue::Bool(b) = v {
-                                            *b
-                                        } else {
-                                            return Err(anyhow!("use_new_metering expects a bool"));
-                                        }
-                                    } else {
-                                        helper.use_new_metering
-                                    };
                                     let trace_only_funcs = if let Some(v) =
                                         get_field(fs, "trace_only_funcs")
                                     {
@@ -235,7 +216,6 @@ impl Exp {
                                         trace_only_funcs,
                                         start_address: start_page.map(|page| page * 65536),
                                         page_limit,
-                                        use_new_metering,
                                     }
                                 }
                                 Some(_) => unreachable!(),
@@ -243,11 +223,10 @@ impl Exp {
                                     trace_only_funcs: vec![],
                                     start_address: None,
                                     page_limit: None,
-                                    use_new_metering: helper.use_new_metering,
                                 },
                             };
                             instrument(&mut m, config).map_err(|e| anyhow::anyhow!("{e}"))?;
-                            IDLValue::Vec(m.emit_wasm().into_iter().map(IDLValue::Nat8).collect())
+                            IDLValue::Blob(m.emit_wasm())
                         }
                         _ => {
                             return Err(anyhow!(
@@ -309,6 +288,11 @@ impl Exp {
                             let mut res = Vec::from(s1.as_slice());
                             res.extend_from_slice(s2);
                             IDLValue::Vec(res)
+                        }
+                        [IDLValue::Blob(b1), IDLValue::Blob(b2)] => {
+                            let mut res = Vec::from(b1.as_slice());
+                            res.extend_from_slice(b2);
+                            IDLValue::Blob(res)
                         }
                         [IDLValue::Text(s1), IDLValue::Text(s2)] => {
                             IDLValue::Text(String::from(s1) + s2)
@@ -395,6 +379,7 @@ impl Exp {
                     return Err(anyhow!("not a blob"));
                 }
                 let bytes: Vec<u8> = match blob {
+                    IDLValue::Blob(b) => b,
                     IDLValue::Vec(vs) => vs
                         .into_iter()
                         .map(|v| match v {
@@ -439,9 +424,7 @@ impl Exp {
                     args.to_bytes()?
                 };
                 match mode {
-                    CallMode::Encode => {
-                        IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect())
-                    }
+                    CallMode::Encode => IDLValue::Blob(bytes),
                     CallMode::Call => {
                         use crate::profiling::{get_cycles, ok_to_profile};
                         let method = method.unwrap(); // okay to unwrap from parser
@@ -494,10 +477,7 @@ impl Exp {
                                 })?
                                 .clone(),
                         );
-                        env.env.0.insert(
-                            "_msg".to_string(),
-                            IDLValue::Vec(bytes.into_iter().map(IDLValue::Nat8).collect()),
-                        );
+                        env.env.0.insert("_msg".to_string(), IDLValue::Blob(bytes));
                         let code = format!(
                             r#"
 let _ = call "{id}".wallet_call(
@@ -525,13 +505,13 @@ let _ = decode as "{canister}".{method} _.Ok.return;
             Exp::Bool(b) => IDLValue::Bool(b),
             Exp::Null => IDLValue::Null,
             Exp::Text(s) => IDLValue::Text(s),
-            Exp::Nat8(n) => IDLValue::Nat8(n),
             Exp::Number(n) => IDLValue::Number(n),
             Exp::Float64(f) => IDLValue::Float64(f),
             Exp::Principal(id) => IDLValue::Principal(id),
             Exp::Service(id) => IDLValue::Service(id),
             Exp::Func(id, meth) => IDLValue::Func(id, meth),
             Exp::Opt(v) => IDLValue::Opt(Box::new((*v).eval(helper)?)),
+            Exp::Blob(b) => IDLValue::Blob(b),
             Exp::Vec(vs) => {
                 let mut vec = Vec::with_capacity(vs.len());
                 for v in vs.into_iter() {
@@ -577,10 +557,9 @@ pub struct MethodInfo {
 impl Method {
     pub fn get_info(&self, helper: &MyHelper, is_encode: bool) -> Result<MethodInfo> {
         if is_encode && self.method == "__init_args" {
-            if let Some(IDLValue::Vec(vec)) = helper.env.0.get(&self.canister) {
+            if let Some(IDLValue::Blob(bytes)) = helper.env.0.get(&self.canister) {
                 use ic_wasm::{metadata::get_metadata, utils::parse_wasm};
-                let bytes = get_blob(vec);
-                let m = parse_wasm(&bytes, false)?;
+                let m = parse_wasm(bytes, false)?;
                 let args = get_metadata(&m, "candid:args");
                 let candid = get_metadata(&m, "candid:service");
                 let canister_id = Principal::anonymous();
@@ -598,8 +577,10 @@ impl Method {
                             .as_ref()
                             .map(|x| std::str::from_utf8(x).unwrap())
                             .unwrap_or("service : {}");
-                        let (env, ty) =
-                            candid::utils::merge_init_args(candid, std::str::from_utf8(&args)?)?;
+                        let (env, ty) = candid_parser::utils::merge_init_args(
+                            candid,
+                            std::str::from_utf8(&args)?,
+                        )?;
                         let init_args = find_init_args(&env, &ty).expect("invalid init arg types");
                         let signature = Some((
                             env,

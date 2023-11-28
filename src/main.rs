@@ -1,6 +1,6 @@
 use ansi_term::Color;
 use clap::Parser;
-use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport as V2Transport;
+use ic_agent::agent::http_transport::ReqwestTransport;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
@@ -56,7 +56,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     };
     println!("Ping {url}...");
     let agent = Agent::builder()
-        .with_transport(V2Transport::create(url)?)
+        .with_transport(ReqwestTransport::create(url)?)
         .build()?;
 
     println!("Canister REPL");
@@ -64,8 +64,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .build();
-    let mut h = MyHelper::new(agent, url.to_string(), offline);
-    h.use_new_metering = opts.use_new_metering;
+    let h = MyHelper::new(agent, url.to_string(), offline);
     if let Some(file) = opts.send {
         use crate::offline::{send_messages, Messages};
         let json = std::fs::read_to_string(file)?;
@@ -80,7 +79,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     }
     if let Some(file) = opts.config {
         let config = std::fs::read_to_string(file)?;
-        rl.helper_mut().unwrap().config = candid::parser::configs::Configs::from_dhall(&config)?;
+        rl.helper_mut().unwrap().config = candid_parser::configs::Configs::from_dhall(&config)?;
     }
 
     let enter_repl = opts.script.is_none() || opts.interactive;
@@ -150,9 +149,6 @@ struct Opts {
     #[clap(short, long, conflicts_with("script"), conflicts_with("offline"))]
     /// Send signed messages
     send: Option<String>,
-    #[clap(long)]
-    /// Use new metering with wasm_profiling. This option will be removed once the mainnet is using the new metering.
-    use_new_metering: bool,
 }
 
 fn main() -> anyhow::Result<()> {

@@ -8,7 +8,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      DFX_VERSION: 0.15.0
+      DFX_VERSION: 0.15.2-beta.1
     steps:
       - uses: actions/checkout@v2
       - name: Install stable Rust toolchain
