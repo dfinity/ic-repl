@@ -577,6 +577,19 @@ pub fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
     }
 }
 
+impl Env {
+    pub fn dump_principals(&self) -> BTreeMap<String, String> {
+        self.0
+            .iter()
+            .filter_map(|(name, value)| match value {
+                IDLValue::Principal(id) => Some((name, id)),
+                _ => None,
+            })
+            .map(|(name, id)| (name.clone(), id.to_text()))
+            .collect()
+    }
+}
+
 #[test]
 fn test_partial_parse() -> anyhow::Result<()> {
     use candid_parser::parse_idl_value;

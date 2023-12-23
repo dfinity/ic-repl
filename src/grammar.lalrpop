@@ -27,6 +27,7 @@ extern {
         "service" => Token::Service,
         "oneway" => Token::Oneway,
         "query" => Token::Query,
+        "composite_query" => Token::CompositeQuery,
         "blob" => Token::Blob,
         "type" => Token::Type,
         "import" => Token::Import,
@@ -96,9 +97,9 @@ pub Exp: Exp = {
   Arg => <>,
   Variable => <>,
   "fail" <Exp> => Exp::Fail(Box::new(<>)),
-  "call" <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Call},
-  "call" "as" <proxy:Name> <method:Method> <args:Exps> => Exp::Call{method:Some(method), args, mode: CallMode::Proxy(proxy)},  
-  "encode" <method:Method?> <args:Exps> => Exp::Call{method, args, mode: CallMode::Encode},
+  "call" <method:Method> <args:Exps?> => Exp::Call{method:Some(method), args, mode: CallMode::Call},
+  "call" "as" <proxy:Name> <method:Method> <args:Exps?> => Exp::Call{method:Some(method), args, mode: CallMode::Proxy(proxy)},
+  "encode" <method:Method?> <args:Exps?> => Exp::Call{method, args, mode: CallMode::Encode},
   "decode" <method:("as" <Method>)?> <blob:Exp> => Exp::Decode{method, blob:Box::new(blob)},
   <func:"id"> "(" <args:SepBy<Exp, ",">> ")" => Exp::Apply(func, args),
 }
@@ -329,6 +330,7 @@ MethTyp: Binding = {
 FuncMode: FuncMode = {
     "oneway" => FuncMode::Oneway,
     "query" => FuncMode::Query,
+    "composite_query" => FuncMode::CompositeQuery,
 }
 
 // Also allows trailing separator
