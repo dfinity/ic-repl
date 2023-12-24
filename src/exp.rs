@@ -423,14 +423,19 @@ impl Exp {
                     ..
                 }) = &opt_info
                 {
-                    use candid_parser::assist::{input_args, Context};
-                    let mut ctx = Context::new(env.clone());
-                    let principals = helper.env.dump_principals();
-                    let mut completion = BTreeMap::new();
-                    completion.insert("principal".to_string(), principals);
-                    ctx.set_completion(completion);
-                    let args = input_args(&ctx, &func.args)?;
-                    println!("Generated arguments: {}", args);
+                    let args = if let Some(args) = args {
+                        args
+                    } else {
+                        use candid_parser::assist::{input_args, Context};
+                        let mut ctx = Context::new(env.clone());
+                        let principals = helper.env.dump_principals();
+                        let mut completion = BTreeMap::new();
+                        completion.insert("principal".to_string(), principals);
+                        ctx.set_completion(completion);
+                        let args = input_args(&ctx, &func.args)?;
+                        println!("Generated arguments: {}", args);
+                        args
+                    };
                     args.to_bytes_with_types(env, &func.args)?
                 } else {
                     if args.is_none() {

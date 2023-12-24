@@ -1,7 +1,6 @@
 use crate::exp::Exp;
 use crate::token::{Token, Tokenizer};
 use crate::utils::{random_value, str_to_principal};
-use ansi_term::Color;
 use candid::{
     types::value::{IDLField, IDLValue, VariantValue},
     types::{Function, Label, Type, TypeInner},
@@ -448,7 +447,7 @@ impl Highlighter for MyHelper {
     }
 
     fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
-        let s = format!("{}", Color::White.dimmed().paint(hint));
+        let s = format!("{}", console::style(hint).black().bright());
         Owned(s)
     }
 

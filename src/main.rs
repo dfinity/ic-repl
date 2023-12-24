@@ -1,4 +1,3 @@
-use ansi_term::Color;
 use clap::Parser;
 use ic_agent::agent::http_transport::ReqwestTransport;
 use ic_agent::Agent;
@@ -93,7 +92,8 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         loop {
             let identity = &rl.helper().unwrap().current_identity;
             let p = format!("{identity}@{replica} {count}> ");
-            rl.helper_mut().unwrap().colored_prompt = format!("{}", Color::Green.bold().paint(&p));
+            rl.helper_mut().unwrap().colored_prompt =
+                format!("{}", console::style(&p).green().bold());
             let input = rl.readline(&p);
             match input {
                 Ok(line) => {

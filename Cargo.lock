@@ -92,15 +92,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ansi_term"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
-dependencies = [
- "winapi",
-]
-
-[[package]]
 name = "anstream"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1376,13 +1367,13 @@ dependencies = [
 name = "ic-repl"
 version = "0.6.2"
 dependencies = [
- "ansi_term",
  "anyhow",
  "base64",
  "candid",
  "candid_parser",
  "clap",
  "codespan-reporting",
+ "console",
  "crc32fast",
  "hex",
  "ic-agent",
@@ -1408,7 +1399,6 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "shellexpand",
- "terminal_size",
  "tokio",
 ]
 
@@ -2934,16 +2924,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "terminal_size"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21bebf2b7c9e0a515f6e0f8c51dc0f8e4696391e6f1ff30379559f8365fb0df7"
-dependencies = [
- "rustix",
- "windows-sys 0.48.0",
 ]
 
 [[package]]
