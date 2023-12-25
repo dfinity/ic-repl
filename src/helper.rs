@@ -89,7 +89,6 @@ pub struct MyHelper {
     pub env: Env,
     pub func_env: FuncEnv,
     pub base_path: std::path::PathBuf,
-    pub history: Vec<String>,
     pub messages: RefCell<Vec<crate::offline::IngressWithStatus>>,
 }
 
@@ -101,7 +100,6 @@ impl MyHelper {
             hinter: HistoryHinter {},
             colored_prompt: "".to_owned(),
             validator: MatchingBracketValidator::new(),
-            history: Vec::new(),
             config: Configs::from_dhall("{=}").unwrap(),
             canister_map: self.canister_map.clone(),
             identity_map: self.identity_map.clone(),
@@ -129,7 +127,6 @@ impl MyHelper {
             env: Env::default(),
             func_env: FuncEnv::default(),
             base_path: std::env::current_dir().unwrap(),
-            history: Vec::new(),
             messages: Vec::new().into(),
             agent,
             agent_url,

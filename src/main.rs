@@ -100,7 +100,6 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
                     rl.add_history_entry(&line)?;
                     unwrap(pretty_parse::<Command>("stdin", &line), |cmd| {
                         let helper = rl.helper_mut().unwrap();
-                        helper.history.push(line.clone());
                         unwrap(cmd.run(helper), |_| {});
                     });
                 }

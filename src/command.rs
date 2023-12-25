@@ -152,9 +152,7 @@ impl Command {
                 let path = resolve_path(&std::env::current_dir()?, &file);
                 let file = std::fs::File::create(path)?;
                 let mut writer = BufWriter::new(&file);
-                //for item in helper.history.iter() {
                 for (id, val) in helper.env.0.iter() {
-                    //writeln!(&mut writer, "{};", item)?;
                     writeln!(&mut writer, "let {id} = {val};")?;
                 }
             }

@@ -433,7 +433,13 @@ impl Exp {
                         completion.insert("principal".to_string(), principals);
                         ctx.set_completion(completion);
                         let args = input_args(&ctx, &func.args)?;
-                        println!("Generated arguments: {}", args);
+                        eprintln!("Generated arguments: {}", args);
+                        eprintln!("Do you want to send this message? [y/N]");
+                        let mut input = String::new();
+                        std::io::stdin().read_line(&mut input)?;
+                        if !["y", "yes"].contains(&input.to_lowercase().trim()) {
+                            return Err(anyhow!("Abort"));
+                        }
                         args
                     };
                     args.to_bytes_with_types(env, &func.args)?
