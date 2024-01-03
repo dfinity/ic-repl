@@ -10,7 +10,6 @@ use pretty_assertions::{assert_eq, assert_ne};
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::Instant;
-use terminal_size::{terminal_size, Width};
 
 #[derive(Debug, Clone)]
 pub struct Commands(pub Vec<(Command, Range<usize>)>);
@@ -95,11 +94,7 @@ impl Command {
                 let v = val.eval(helper)?;
                 let duration = time.elapsed();
                 bind_value(helper, "_".to_string(), v, is_call, true);
-                let width = if let Some((Width(w), _)) = terminal_size() {
-                    w as usize
-                } else {
-                    80
-                };
+                let width = console::Term::stdout().size().1 as usize;
                 println!("{:>width$}", format!("({duration:.2?})"), width = width);
             }
             Command::Identity(id, config) => {
@@ -157,9 +152,7 @@ impl Command {
                 let path = resolve_path(&std::env::current_dir()?, &file);
                 let file = std::fs::File::create(path)?;
                 let mut writer = BufWriter::new(&file);
-                //for item in helper.history.iter() {
                 for (id, val) in helper.env.0.iter() {
-                    //writeln!(&mut writer, "{};", item)?;
                     writeln!(&mut writer, "let {id} = {val};")?;
                 }
             }

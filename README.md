@@ -18,13 +18,13 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
  | identity <id> (<text> | record { slot_index = <nat>; key_id = <text> })?   // switch to identity <id>, with optional pem file or HSM config
  | function <id> ( <id>,* ) { <command>;* }  // define a function
 <exp> := 
- | <candid val>                                    // any candid value
- | <var> <transformer>*                            // variable with optional transformers
- | fail <exp>                                      // convert error message as text
- | call (as <name>)? <name> . <name> ( <exp>,* )   // call a canister method, and store the result as a single value
- | encode (<name> . <name>)? ( <exp>,* )           // encode candid arguments as a blob value. canister.__init_args represents init args
- | decode (as <name> . <name>)? <exp>              // decode blob as candid values
- | <id> ( <exp>,* )                                // function application
+ | <candid val>                                     // any candid value
+ | <var> <transformer>*                             // variable with optional transformers
+ | fail <exp>                                       // convert error message as text
+ | call (as <name>)? <name> . <name> (( <exp>,* ))? // call a canister method, and store the result as a single value
+ | encode (<name> . <name>)? (( <exp>,* ))?         // encode candid arguments as a blob value. canister.__init_args represents init args
+ | decode (as <name> . <name>)? <exp>               // decode blob as candid values
+ | <id> ( <exp>,* )                                 // function application
 <var> := 
  | <id>                  // variable name 
  | _                     // previous eval of exp is bind to `_`

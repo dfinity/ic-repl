@@ -21,7 +21,7 @@ pub enum Exp {
     AnnVal(Box<Exp>, Type),
     Call {
         method: Option<Method>,
-        args: Vec<Exp>,
+        args: Option<Vec<Exp>>,
         mode: CallMode,
     },
     Decode {
@@ -403,11 +403,15 @@ impl Exp {
                 args_to_value(args)
             }
             Exp::Call { method, args, mode } => {
-                let mut res = Vec::with_capacity(args.len());
-                for arg in args.into_iter() {
-                    res.push(arg.eval(helper)?);
-                }
-                let args = IDLArgs { args: res };
+                let args = if let Some(args) = args {
+                    let mut res = Vec::with_capacity(args.len());
+                    for arg in args.into_iter() {
+                        res.push(arg.eval(helper)?);
+                    }
+                    Some(IDLArgs { args: res })
+                } else {
+                    None
+                };
                 let opt_info = if let Some(method) = &method {
                     let is_encode = matches!(mode, CallMode::Encode);
                     Some(method.get_info(helper, is_encode)?)
@@ -419,9 +423,33 @@ impl Exp {
                     ..
                 }) = &opt_info
                 {
+                    let args = if let Some(args) = args {
+                        args
+                    } else {
+                        use candid_parser::assist::{input_args, Context};
+                        let mut ctx = Context::new(env.clone());
+                        let principals = helper.env.dump_principals();
+                        let mut completion = BTreeMap::new();
+                        completion.insert("principal".to_string(), principals);
+                        ctx.set_completion(completion);
+                        let args = input_args(&ctx, &func.args)?;
+                        // Ideally, we should store the args in helper and call editor.readline_with_initial to display
+                        // the full command in the editor. The tricky part is to know where to insert the args in text.
+                        eprintln!("Generated arguments: {}", args);
+                        eprintln!("Do you want to send this message? [y/N]");
+                        let mut input = String::new();
+                        std::io::stdin().read_line(&mut input)?;
+                        if !["y", "yes"].contains(&input.to_lowercase().trim()) {
+                            return Err(anyhow!("Abort"));
+                        }
+                        args
+                    };
                     args.to_bytes_with_types(env, &func.args)?
                 } else {
-                    args.to_bytes()?
+                    if args.is_none() {
+                        return Err(anyhow!("cannot get method type, please provide arguments"));
+                    }
+                    args.unwrap().to_bytes()?
                 };
                 match mode {
                     CallMode::Encode => IDLValue::Blob(bytes),

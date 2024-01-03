@@ -1,7 +1,6 @@
 use crate::exp::Exp;
 use crate::token::{Token, Tokenizer};
 use crate::utils::{random_value, str_to_principal};
-use ansi_term::Color;
 use candid::{
     types::value::{IDLField, IDLValue, VariantValue},
     types::{Function, Label, Type, TypeInner},
@@ -90,7 +89,6 @@ pub struct MyHelper {
     pub env: Env,
     pub func_env: FuncEnv,
     pub base_path: std::path::PathBuf,
-    pub history: Vec<String>,
     pub messages: RefCell<Vec<crate::offline::IngressWithStatus>>,
 }
 
@@ -102,7 +100,6 @@ impl MyHelper {
             hinter: HistoryHinter {},
             colored_prompt: "".to_owned(),
             validator: MatchingBracketValidator::new(),
-            history: Vec::new(),
             config: Configs::from_dhall("{=}").unwrap(),
             canister_map: self.canister_map.clone(),
             identity_map: self.identity_map.clone(),
@@ -130,7 +127,6 @@ impl MyHelper {
             env: Env::default(),
             func_env: FuncEnv::default(),
             base_path: std::env::current_dir().unwrap(),
-            history: Vec::new(),
             messages: Vec::new().into(),
             agent,
             agent_url,
@@ -448,7 +444,7 @@ impl Highlighter for MyHelper {
     }
 
     fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
-        let s = format!("{}", Color::White.dimmed().paint(hint));
+        let s = format!("{}", console::style(hint).black().bright());
         Owned(s)
     }
 
@@ -574,6 +570,19 @@ pub fn find_init_args(env: &TypeEnv, actor: &Type) -> Option<Vec<Type>> {
         TypeInner::Var(id) => find_init_args(env, env.find_type(id).ok()?),
         TypeInner::Class(init, _) => Some(init.to_vec()),
         _ => None,
+    }
+}
+
+impl Env {
+    pub fn dump_principals(&self) -> BTreeMap<String, String> {
+        self.0
+            .iter()
+            .filter_map(|(name, value)| match value {
+                IDLValue::Principal(id) => Some((name, id)),
+                _ => None,
+            })
+            .map(|(name, id)| (name.clone(), id.to_text()))
+            .collect()
     }
 }
 
