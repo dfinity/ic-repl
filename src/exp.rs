@@ -433,6 +433,8 @@ impl Exp {
                         completion.insert("principal".to_string(), principals);
                         ctx.set_completion(completion);
                         let args = input_args(&ctx, &func.args)?;
+                        // Ideally, we should store the args in helper and call editor.readline_with_initial to display
+                        // the full command in the editor. The tricky part is to know where to insert the args in text.
                         eprintln!("Generated arguments: {}", args);
                         eprintln!("Do you want to send this message? [y/N]");
                         let mut input = String::new();
