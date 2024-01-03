@@ -46,10 +46,3 @@ qrcode = "0.13"
 image = { version = "0.24", default-features = false, features = ["png"] }
 libflate = "2.0"
 base64 = "0.21"
-
-[patch.crates-io.candid]
-git = "https://github.com/dfinity/candid.git"
-branch = "assist"
-[patch.crates-io.candid_parser]
-git = "https://github.com/dfinity/candid.git"
-branch = "assist"
