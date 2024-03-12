@@ -1,10 +1,10 @@
 use super::error::pretty_parse;
-use super::helper::{fetch_metadata, find_init_args, MyHelper, OfflineOutput};
+use super::helper::{find_init_args, MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
-    args_to_value, as_u32, cast_type, get_effective_canister_id, get_field, resolve_path,
-    str_to_principal,
+    args_to_value, as_u32, cast_type, fetch_state_tree_path, get_effective_canister_id, get_field,
+    resolve_path, str_to_principal,
 };
 use anyhow::{anyhow, Context, Result};
 use candid::{
@@ -125,10 +125,19 @@ impl Exp {
                     },
                     "metadata" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Principal(id), IDLValue::Text(path)] => {
-                            let res = fetch_metadata(&helper.agent, *id, path)?;
-                            IDLValue::Blob(res)
+                            fetch_state_tree_path(&helper.agent, "canister", *id, path)?
                         }
                         _ => return Err(anyhow!("metadata expects (principal, path)")),
+                    },
+                    "read_state_tree" if helper.offline.is_none() => match args.as_slice() {
+                        [IDLValue::Text(prefix), IDLValue::Principal(id), IDLValue::Text(path)] => {
+                            fetch_state_tree_path(&helper.agent, prefix, *id, path)?
+                        }
+                        _ => {
+                            return Err(anyhow!(
+                                "state_tree_path expects (prefix, principal, path)"
+                            ))
+                        }
                     },
                     "file" => match args.as_slice() {
                         [IDLValue::Text(file)] => {

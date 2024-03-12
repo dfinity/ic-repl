@@ -6,6 +6,7 @@ use candid::types::{Label, Type, TypeInner};
 use candid::Principal;
 use candid::TypeEnv;
 use candid_parser::configs::Configs;
+use ic_agent::Agent;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
@@ -243,5 +244,94 @@ pub fn get_dfx_hsm_pin() -> Result<String, String> {
         rpassword::prompt_password("HSM PIN: ")
             .context("No DFX_HSM_PIN environment variable and cannot read HSM PIN from tty")
             .map_err(|e| e.to_string())
+    })
+}
+
+#[tokio::main]
+pub async fn fetch_state_tree_path(
+    agent: &Agent,
+    prefix: &str,
+    canister_id: Principal,
+    sub_paths: &str,
+) -> anyhow::Result<IDLValue> {
+    let res = fetch_state_tree_path_(agent, prefix, canister_id, sub_paths).await?;
+    state_tree_path_to_idl_value(prefix, sub_paths, res)
+}
+pub async fn fetch_state_tree_path_(
+    agent: &Agent,
+    prefix: &str,
+    id: Principal,
+    sub_paths: &str,
+) -> anyhow::Result<Vec<u8>> {
+    use ic_agent::{hash_tree::Label, lookup_value};
+    let mut path: Vec<Label<Vec<u8>>> = vec![prefix.as_bytes().into(), id.as_slice().into()];
+    path.extend(sub_paths.split('/').map(|str| str.as_bytes().into()));
+    let cert = agent.read_state_raw(vec![path.clone()], id).await?;
+    Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
+}
+fn state_tree_path_to_idl_value(
+    prefix: &str,
+    sub_paths: &str,
+    bytes: Vec<u8>,
+) -> anyhow::Result<IDLValue> {
+    Ok(match (prefix, sub_paths) {
+        (
+            "canister",
+            "metadata/candid:service" | "metadata/candid:args" | "metadata/motoko:stable-types",
+        ) => IDLValue::Text(std::str::from_utf8(&bytes)?.to_owned()),
+        ("canister", "controllers") => {
+            let res = serde_cbor::from_slice::<Vec<Principal>>(&bytes)?;
+            IDLValue::Vec(res.into_iter().map(IDLValue::Principal).collect())
+        }
+        ("api_boundary_nodes", "domain" | "ipv4_address" | "ipv6_address") => {
+            IDLValue::Text(std::str::from_utf8(&bytes)?.to_owned())
+        }
+        ("subnet", "canister_ranges") => {
+            let res = serde_cbor::from_slice::<Vec<(Principal, Principal)>>(&bytes)?;
+            IDLValue::Vec(
+                res.into_iter()
+                    .map(|(a, b)| {
+                        IDLValue::Record(vec![
+                            IDLField {
+                                id: Label::Id(0),
+                                val: IDLValue::Principal(a),
+                            },
+                            IDLField {
+                                id: Label::Id(1),
+                                val: IDLValue::Principal(b),
+                            },
+                        ])
+                    })
+                    .collect(),
+            )
+        }
+        ("subnet", "metrics") => {
+            let res = serde_cbor::from_slice::<ic_transport_types::SubnetMetrics>(&bytes)?;
+            let cycles = res.consumed_cycles_total as u64;
+            let cycles_deleted = (res.consumed_cycles_total >> 64) as u64;
+            IDLValue::Record(vec![
+                IDLField {
+                    id: Label::Named("num_canisters".to_string()),
+                    val: IDLValue::Nat64(res.num_canisters),
+                },
+                IDLField {
+                    id: Label::Named("canister_state_bytes".to_string()),
+                    val: IDLValue::Nat64(res.canister_state_bytes),
+                },
+                IDLField {
+                    id: Label::Named("consumed_cycles_total".to_string()),
+                    val: IDLValue::Nat64(cycles),
+                },
+                IDLField {
+                    id: Label::Named("consumed_cycles_total_deleted".to_string()),
+                    val: IDLValue::Nat64(cycles_deleted),
+                },
+                IDLField {
+                    id: Label::Named("update_transactions_total".to_string()),
+                    val: IDLValue::Nat64(res.update_transactions_total),
+                },
+            ])
+        }
+        (_, _) => IDLValue::Blob(bytes),
     })
 }
