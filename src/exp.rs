@@ -123,19 +123,28 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
                     },
-                    "metadata" if helper.offline.is_none() => match args.as_slice() {
-                        [IDLValue::Principal(id), IDLValue::Text(path)] => {
-                            fetch_state_tree_path(&helper.agent, "canister", *id, path)?
-                        }
-                        _ => return Err(anyhow!("metadata expects (principal, path)")),
-                    },
-                    "read_state_tree" if helper.offline.is_none() => match args.as_slice() {
+                    "read_state" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Text(prefix), IDLValue::Principal(id), IDLValue::Text(path)] => {
-                            fetch_state_tree_path(&helper.agent, prefix, *id, path)?
+                            let effective = if matches!(prefix.as_str(), "subnet") {
+                                // This is a hack. Should be removed after boundary nodes can route subnet ids
+                                Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?)
+                            } else {
+                                None
+                            };
+                            fetch_state_tree_path(&helper.agent, prefix, Some(*id), path, effective)?
+                        }
+                        [IDLValue::Principal(effective), IDLValue::Text(prefix), IDLValue::Principal(id), IDLValue::Text(path)] => {
+                            fetch_state_tree_path(&helper.agent, prefix, Some(*id), path, Some(*effective))?
+                        }
+                        [IDLValue::Principal(effective), IDLValue::Text(prefix)] => {
+                            fetch_state_tree_path(&helper.agent, prefix, None, "", Some(*effective))?
+                        }
+                        [IDLValue::Text(prefix)] => {
+                            fetch_state_tree_path(&helper.agent, prefix, None, "", Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?))?
                         }
                         _ => {
                             return Err(anyhow!(
-                                "state_tree_path expects (prefix, principal, path)"
+                                "state_tree_path expects ([effective_canister_id,] prefix, principal, path)"
                             ))
                         }
                     },

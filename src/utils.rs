@@ -3,8 +3,7 @@ use anyhow::{anyhow, Context, Result};
 use candid::pretty::candid::value::number_to_string;
 use candid::types::value::{IDLArgs, IDLField, IDLValue};
 use candid::types::{Label, Type, TypeInner};
-use candid::Principal;
-use candid::TypeEnv;
+use candid::{Principal, TypeEnv};
 use candid_parser::configs::Configs;
 use ic_agent::Agent;
 use std::borrow::Cow;
@@ -251,22 +250,66 @@ pub fn get_dfx_hsm_pin() -> Result<String, String> {
 pub async fn fetch_state_tree_path(
     agent: &Agent,
     prefix: &str,
-    canister_id: Principal,
+    id: Option<Principal>,
     sub_paths: &str,
+    effective_canister_id: Option<Principal>,
 ) -> anyhow::Result<IDLValue> {
-    let res = fetch_state_tree_path_(agent, prefix, canister_id, sub_paths).await?;
+    if id.is_none() && matches!(prefix, "subnet" | "api_boundary_nodes") {
+        return fetch_state_subtree(
+            agent,
+            prefix,
+            effective_canister_id.expect("effective canister id required"),
+        )
+        .await;
+    }
+    let res =
+        fetch_state_tree_path_raw(agent, prefix, id, sub_paths, effective_canister_id).await?;
     state_tree_path_to_idl_value(prefix, sub_paths, res)
 }
-pub async fn fetch_state_tree_path_(
+
+async fn fetch_state_subtree(
     agent: &Agent,
     prefix: &str,
-    id: Principal,
+    effective_canister_id: Principal,
+) -> anyhow::Result<IDLValue> {
+    use ic_agent::hash_tree::{Label, SubtreeLookupResult};
+    let path: Vec<Label<Vec<u8>>> = vec![prefix.as_bytes().into()];
+    let cert = agent
+        .read_state_raw(vec![path.clone()], effective_canister_id)
+        .await?;
+    let tree = match cert.tree.lookup_subtree(&path) {
+        SubtreeLookupResult::Found(t) => t,
+        SubtreeLookupResult::Absent => return Err(anyhow!("Subtree absent")),
+        SubtreeLookupResult::Unknown => return Err(anyhow!("Subtree unknown")),
+    };
+    let paths = tree.list_paths();
+    let ids: std::collections::HashSet<_> = paths
+        .iter()
+        .map(|p| Principal::from_slice(p[0].as_bytes()))
+        .collect();
+    Ok(IDLValue::Vec(
+        ids.into_iter().map(IDLValue::Principal).collect(),
+    ))
+}
+pub async fn fetch_state_tree_path_raw(
+    agent: &Agent,
+    prefix: &str,
+    id: Option<Principal>,
     sub_paths: &str,
+    effective_canister_id: Option<Principal>,
 ) -> anyhow::Result<Vec<u8>> {
     use ic_agent::{hash_tree::Label, lookup_value};
-    let mut path: Vec<Label<Vec<u8>>> = vec![prefix.as_bytes().into(), id.as_slice().into()];
-    path.extend(sub_paths.split('/').map(|str| str.as_bytes().into()));
-    let cert = agent.read_state_raw(vec![path.clone()], id).await?;
+    let effective_canister_id = effective_canister_id.unwrap_or_else(|| id.unwrap());
+    let mut path: Vec<Label<Vec<u8>>> = vec![prefix.as_bytes().into()];
+    if let Some(id) = id {
+        path.push(id.as_slice().into());
+    }
+    if !sub_paths.is_empty() {
+        path.extend(sub_paths.split('/').map(|str| str.as_bytes().into()));
+    }
+    let cert = agent
+        .read_state_raw(vec![path.clone()], effective_canister_id)
+        .await?;
     Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
 fn state_tree_path_to_idl_value(
@@ -331,6 +374,12 @@ fn state_tree_path_to_idl_value(
                     val: IDLValue::Nat64(res.update_transactions_total),
                 },
             ])
+        }
+        ("time", _) => {
+            use std::io::Cursor;
+            let mut reader = Cursor::new(bytes);
+            let n = candid::Nat::decode(&mut reader)?;
+            IDLValue::Nat(n)
         }
         (_, _) => IDLValue::Blob(bytes),
     })
