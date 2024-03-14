@@ -3,8 +3,8 @@ use super::helper::{find_init_args, MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
-    args_to_value, as_u32, cast_type, fetch_state_tree_path, get_effective_canister_id, get_field,
-    resolve_path, str_to_principal,
+    args_to_value, as_u32, cast_type, get_effective_canister_id, get_field, resolve_path,
+    str_to_principal,
 };
 use anyhow::{anyhow, Context, Result};
 use candid::{
@@ -123,31 +123,25 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
                     },
-                    "read_state" if helper.offline.is_none() => match args.as_slice() {
-                        [IDLValue::Text(prefix), IDLValue::Principal(id), IDLValue::Text(path)] => {
-                            let effective = if matches!(prefix.as_str(), "subnet") {
-                                // This is a hack. Should be removed after boundary nodes can route subnet ids
-                                Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?)
-                            } else {
-                                None
-                            };
-                            fetch_state_tree_path(&helper.agent, prefix, Some(*id), path, effective)?
+                    "read_state" if helper.offline.is_none() => {
+                        use crate::utils::{fetch_state_path, parse_state_path};
+                        match args.as_slice() {
+                            [IDLValue::Text(_), ..] => {
+                                let path = parse_state_path(args.as_slice())?;
+                                fetch_state_path(&helper.agent, path)?
+                            }
+                            [IDLValue::Principal(effective), IDLValue::Text(_), ..] => {
+                                let mut path = parse_state_path(&args[1..])?;
+                                path.effective_id = Some(*effective);
+                                fetch_state_path(&helper.agent, path)?
+                            }
+                            _ => {
+                                return Err(anyhow!(
+                                    "read_state expects ([effective_id,] prefix, principal, path)"
+                                ))
+                            }
                         }
-                        [IDLValue::Principal(effective), IDLValue::Text(prefix), IDLValue::Principal(id), IDLValue::Text(path)] => {
-                            fetch_state_tree_path(&helper.agent, prefix, Some(*id), path, Some(*effective))?
-                        }
-                        [IDLValue::Principal(effective), IDLValue::Text(prefix)] => {
-                            fetch_state_tree_path(&helper.agent, prefix, None, "", Some(*effective))?
-                        }
-                        [IDLValue::Text(prefix)] => {
-                            fetch_state_tree_path(&helper.agent, prefix, None, "", Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?))?
-                        }
-                        _ => {
-                            return Err(anyhow!(
-                                "state_tree_path expects ([effective_canister_id,] prefix, principal, path)"
-                            ))
-                        }
-                    },
+                    }
                     "file" => match args.as_slice() {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);

@@ -1,6 +1,6 @@
 use crate::exp::Exp;
 use crate::token::{Token, Tokenizer};
-use crate::utils::{fetch_state_tree_path_raw, random_value, str_to_principal};
+use crate::utils::{fetch_metadata, random_value, str_to_principal};
 use candid::{
     types::value::{IDLField, IDLValue, VariantValue},
     types::{Function, Label, Type, TypeInner},
@@ -472,20 +472,12 @@ impl Validator for MyHelper {
 
 #[tokio::main]
 async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<CanisterInfo> {
-    let response = fetch_state_tree_path_raw(
-        agent,
-        "canister",
-        Some(canister_id),
-        "metadata/candid:service",
-        None,
-    )
-    .await;
-    let profiling =
-        fetch_state_tree_path_raw(agent, "canister", Some(canister_id), "metadata/name", None)
-            .await
-            .ok()
-            .as_ref()
-            .and_then(|bytes| Decode!(bytes, BTreeMap<u16, String>).ok());
+    let response = fetch_metadata(agent, canister_id, "metadata/candid:service").await;
+    let profiling = fetch_metadata(agent, canister_id, "metadata/name")
+        .await
+        .ok()
+        .as_ref()
+        .and_then(|bytes| Decode!(bytes, BTreeMap<u16, String>).ok());
     let candid = match response {
         Ok(blob) => std::str::from_utf8(&blob)?.to_owned(),
         Err(_) => {

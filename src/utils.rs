@@ -247,140 +247,207 @@ pub fn get_dfx_hsm_pin() -> Result<String, String> {
 }
 
 #[tokio::main]
-pub async fn fetch_state_tree_path(
-    agent: &Agent,
-    prefix: &str,
-    id: Option<Principal>,
-    sub_paths: &str,
-    effective_canister_id: Option<Principal>,
-) -> anyhow::Result<IDLValue> {
-    if id.is_none() && matches!(prefix, "subnet" | "api_boundary_nodes") {
-        return fetch_state_subtree(
-            agent,
-            prefix,
-            effective_canister_id.expect("effective canister id required"),
-        )
-        .await;
-    }
-    let res =
-        fetch_state_tree_path_raw(agent, prefix, id, sub_paths, effective_canister_id).await?;
-    state_tree_path_to_idl_value(prefix, sub_paths, res)
+pub async fn fetch_state_path(agent: &Agent, path: StatePath) -> anyhow::Result<IDLValue> {
+    fetch_state_path_(agent, path).await
 }
-
-async fn fetch_state_subtree(
+pub async fn fetch_metadata(
     agent: &Agent,
-    prefix: &str,
-    effective_canister_id: Principal,
-) -> anyhow::Result<IDLValue> {
-    use ic_agent::hash_tree::{Label, SubtreeLookupResult};
-    let path: Vec<Label<Vec<u8>>> = vec![prefix.as_bytes().into()];
-    let cert = agent
-        .read_state_raw(vec![path.clone()], effective_canister_id)
-        .await?;
-    let tree = match cert.tree.lookup_subtree(&path) {
-        SubtreeLookupResult::Found(t) => t,
-        SubtreeLookupResult::Absent => return Err(anyhow!("Subtree absent")),
-        SubtreeLookupResult::Unknown => return Err(anyhow!("Subtree unknown")),
-    };
-    let paths = tree.list_paths();
-    let ids: std::collections::HashSet<_> = paths
-        .iter()
-        .map(|p| Principal::from_slice(p[0].as_bytes()))
-        .collect();
-    Ok(IDLValue::Vec(
-        ids.into_iter().map(IDLValue::Principal).collect(),
-    ))
-}
-pub async fn fetch_state_tree_path_raw(
-    agent: &Agent,
-    prefix: &str,
-    id: Option<Principal>,
+    id: Principal,
     sub_paths: &str,
-    effective_canister_id: Option<Principal>,
 ) -> anyhow::Result<Vec<u8>> {
-    use ic_agent::{hash_tree::Label, lookup_value};
-    let effective_canister_id = effective_canister_id.unwrap_or_else(|| id.unwrap());
-    let mut path: Vec<Label<Vec<u8>>> = vec![prefix.as_bytes().into()];
-    if let Some(id) = id {
-        path.push(id.as_slice().into());
+    let mut path: Vec<ic_agent::hash_tree::Label<Vec<u8>>> =
+        vec!["canister".as_bytes().into(), id.as_slice().into()];
+    path.extend(sub_paths.split('/').map(|s| s.as_bytes().into()));
+    let path = StatePath {
+        path: vec![sub_paths.as_bytes().into()],
+        effective_id: Some(id),
+        kind: StateKind::Canister,
+        result: StateType::Blob,
+    };
+    match fetch_state_path_(agent, path).await? {
+        IDLValue::Blob(b) => Ok(b),
+        _ => unreachable!(),
     }
-    if !sub_paths.is_empty() {
-        path.extend(sub_paths.split('/').map(|str| str.as_bytes().into()));
-    }
-    let cert = agent
-        .read_state_raw(vec![path.clone()], effective_canister_id)
-        .await?;
-    Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
-fn state_tree_path_to_idl_value(
-    prefix: &str,
-    sub_paths: &str,
-    bytes: Vec<u8>,
-) -> anyhow::Result<IDLValue> {
-    Ok(match (prefix, sub_paths) {
-        (
-            "canister",
-            "metadata/candid:service" | "metadata/candid:args" | "metadata/motoko:stable-types",
-        ) => IDLValue::Text(std::str::from_utf8(&bytes)?.to_owned()),
-        ("canister", "controllers") => {
-            let res = serde_cbor::from_slice::<Vec<Principal>>(&bytes)?;
-            IDLValue::Vec(res.into_iter().map(IDLValue::Principal).collect())
+async fn fetch_state_path_(agent: &Agent, path: StatePath) -> anyhow::Result<IDLValue> {
+    use ic_agent::{hash_tree::SubtreeLookupResult, lookup_value};
+    let effective_id = path.effective_id.unwrap_or_else(|| {
+        let id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
+        eprintln!("Using {} as effective canister/subnet id", id);
+        id
+    });
+    let cert = match path.kind {
+        StateKind::Subnet => {
+            agent
+                .read_subnet_state_raw(vec![path.path.clone()], effective_id)
+                .await?
         }
-        ("api_boundary_nodes", "domain" | "ipv4_address" | "ipv6_address") => {
-            IDLValue::Text(std::str::from_utf8(&bytes)?.to_owned())
+        StateKind::Canister => {
+            agent
+                .read_state_raw(vec![path.path.clone()], effective_id)
+                .await?
         }
-        ("subnet", "canister_ranges") => {
-            let res = serde_cbor::from_slice::<Vec<(Principal, Principal)>>(&bytes)?;
-            IDLValue::Vec(
-                res.into_iter()
-                    .map(|(a, b)| {
-                        IDLValue::Record(vec![
-                            IDLField {
-                                id: Label::Id(0),
-                                val: IDLValue::Principal(a),
-                            },
-                            IDLField {
-                                id: Label::Id(1),
-                                val: IDLValue::Principal(b),
-                            },
-                        ])
-                    })
-                    .collect(),
-            )
+    };
+    if matches!(path.result, StateType::Subtree) {
+        let tree = match cert.tree.lookup_subtree(&path.path) {
+            SubtreeLookupResult::Found(t) => t,
+            SubtreeLookupResult::Absent => return Err(anyhow!("Subtree absent")),
+            SubtreeLookupResult::Unknown => return Err(anyhow!("Subtree unknown")),
+        };
+        let paths = tree.list_paths();
+        let ids: std::collections::HashSet<_> = paths
+            .iter()
+            .map(|p| Principal::from_slice(p[0].as_bytes()))
+            .collect();
+        Ok(IDLValue::Vec(
+            ids.into_iter().map(IDLValue::Principal).collect(),
+        ))
+    } else {
+        let bytes = lookup_value(&cert, path.path).map(<[u8]>::to_vec)?;
+        Ok(match path.result {
+            StateType::Blob => IDLValue::Blob(bytes),
+            StateType::Text => IDLValue::Text(String::from_utf8(bytes)?),
+            StateType::Nat => {
+                let mut reader = std::io::Cursor::new(bytes);
+                let n = candid::Nat::decode(&mut reader)?;
+                IDLValue::Nat(n)
+            }
+            StateType::Controllers => {
+                let res = serde_cbor::from_slice::<Vec<Principal>>(&bytes)?;
+                IDLValue::Vec(res.into_iter().map(IDLValue::Principal).collect())
+            }
+            StateType::Ranges => {
+                let res = serde_cbor::from_slice::<Vec<(Principal, Principal)>>(&bytes)?;
+                IDLValue::Vec(
+                    res.into_iter()
+                        .map(|(a, b)| {
+                            IDLValue::Record(vec![
+                                IDLField {
+                                    id: Label::Id(0),
+                                    val: IDLValue::Principal(a),
+                                },
+                                IDLField {
+                                    id: Label::Id(1),
+                                    val: IDLValue::Principal(b),
+                                },
+                            ])
+                        })
+                        .collect(),
+                )
+            }
+            StateType::Metrics => {
+                let res = serde_cbor::from_slice::<ic_transport_types::SubnetMetrics>(&bytes)?;
+                let cycles = res.consumed_cycles_total as u64;
+                let cycles_deleted = (res.consumed_cycles_total >> 64) as u64;
+                IDLValue::Record(vec![
+                    IDLField {
+                        id: Label::Named("num_canisters".to_string()),
+                        val: IDLValue::Nat64(res.num_canisters),
+                    },
+                    IDLField {
+                        id: Label::Named("canister_state_bytes".to_string()),
+                        val: IDLValue::Nat64(res.canister_state_bytes),
+                    },
+                    IDLField {
+                        id: Label::Named("consumed_cycles_total".to_string()),
+                        val: IDLValue::Nat64(cycles),
+                    },
+                    IDLField {
+                        id: Label::Named("consumed_cycles_total_deleted".to_string()),
+                        val: IDLValue::Nat64(cycles_deleted),
+                    },
+                    IDLField {
+                        id: Label::Named("update_transactions_total".to_string()),
+                        val: IDLValue::Nat64(res.update_transactions_total),
+                    },
+                ])
+            }
+            StateType::Subtree => unreachable!(),
+        })
+    }
+}
+pub enum StateKind {
+    Subnet,
+    Canister,
+}
+pub enum StateType {
+    Blob,
+    Text,
+    Nat,
+    Controllers,
+    Ranges,
+    Metrics,
+    Subtree,
+}
+pub struct StatePath {
+    path: Vec<ic_agent::hash_tree::Label<Vec<u8>>>,
+    pub effective_id: Option<Principal>,
+    kind: StateKind,
+    result: StateType,
+}
+pub fn parse_state_path(paths: &[IDLValue]) -> anyhow::Result<StatePath> {
+    let mut res = Vec::new();
+    let mut prefix = String::new();
+    let mut effective_id = None;
+    let mut result = StateType::Blob;
+    if paths.len() > 5 || paths.is_empty() {
+        return Err(anyhow!("state path can only be 1-5 segments"));
+    }
+    for (i, v) in paths.iter().enumerate() {
+        match v {
+            IDLValue::Text(t) => {
+                match i {
+                    0 => prefix = t.clone(),
+                    1 => return Err(anyhow!("second path has to be a principal")),
+                    2 => {
+                        result = match (prefix.as_str(), t.as_str()) {
+                            ("canister", "controllers") => StateType::Controllers,
+                            (
+                                "canister",
+                                "metadata/candid:service"
+                                | "metadata/candid:args"
+                                | "metadata/motoko:stable-types",
+                            ) => StateType::Text,
+                            ("api_boundary_nodes", "domain" | "ipv4_address" | "ipv6_address") => {
+                                StateType::Text
+                            }
+                            ("subnet", "canister_ranges") => StateType::Ranges,
+                            ("subnet", "metrics") => StateType::Metrics,
+                            ("subnet", "node") => StateType::Subtree,
+                            _ => StateType::Blob,
+                        };
+                    }
+                    _ => (),
+                }
+                res.extend(t.split('/').map(|str| str.as_bytes().into()));
+            }
+            IDLValue::Principal(id) => {
+                match i {
+                    1 => effective_id = Some(*id),
+                    3 => result = StateType::Blob,
+                    _ => return Err(anyhow!("{i}th path cannot be a principal")),
+                }
+                res.push(id.as_slice().into())
+            }
+            _ => return Err(anyhow!("state path can only be either text or principal")),
         }
-        ("subnet", "metrics") => {
-            let res = serde_cbor::from_slice::<ic_transport_types::SubnetMetrics>(&bytes)?;
-            let cycles = res.consumed_cycles_total as u64;
-            let cycles_deleted = (res.consumed_cycles_total >> 64) as u64;
-            IDLValue::Record(vec![
-                IDLField {
-                    id: Label::Named("num_canisters".to_string()),
-                    val: IDLValue::Nat64(res.num_canisters),
-                },
-                IDLField {
-                    id: Label::Named("canister_state_bytes".to_string()),
-                    val: IDLValue::Nat64(res.canister_state_bytes),
-                },
-                IDLField {
-                    id: Label::Named("consumed_cycles_total".to_string()),
-                    val: IDLValue::Nat64(cycles),
-                },
-                IDLField {
-                    id: Label::Named("consumed_cycles_total_deleted".to_string()),
-                    val: IDLValue::Nat64(cycles_deleted),
-                },
-                IDLField {
-                    id: Label::Named("update_transactions_total".to_string()),
-                    val: IDLValue::Nat64(res.update_transactions_total),
-                },
-            ])
-        }
-        ("time", _) => {
-            use std::io::Cursor;
-            let mut reader = Cursor::new(bytes);
-            let n = candid::Nat::decode(&mut reader)?;
-            IDLValue::Nat(n)
-        }
-        (_, _) => IDLValue::Blob(bytes),
+    }
+    let kind = if prefix == "subnet" {
+        StateKind::Subnet
+    } else {
+        StateKind::Canister
+    };
+    if paths.len() == 1 {
+        result = match prefix.as_str() {
+            "time" => StateType::Nat,
+            "subnet" | "api_boundary_nodes" => StateType::Subtree,
+            _ => result,
+        };
+    }
+    Ok(StatePath {
+        path: res,
+        effective_id,
+        kind,
+        result,
     })
 }
