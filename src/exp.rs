@@ -135,9 +135,11 @@ impl Exp {
                                 path.effective_id = Some(*effective);
                                 fetch_state_path(&helper.agent, path)?
                             }
-                            _ => return Err(anyhow!(
+                            _ => {
+                                return Err(anyhow!(
                                 "read_state expects ([effective_id,] prefix, principal, path, ...)"
-                            )),
+                            ))
+                            }
                         }
                     }
                     "file" => match args.as_slice() {
