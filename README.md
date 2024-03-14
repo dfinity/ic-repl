@@ -57,10 +57,13 @@ We also provide some built-in functions:
 * `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer/float numbers. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
 
 The following functions are only available in non-offline mode:
-* `read_state([effective_id,] prefix, id, paths)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,
+* `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,
   + candid metadata: `read_state("canister", principal "canister_id", "metadata/candid:service")`
+  + canister controllers: `read_state("canister", principal "canister_id", "controllers")`
   + list all subnet ids: `read_state("subnet")`
-  + subnet ranges: `read_state("subnet", principal "subnet_id", "canister_ranges")`
+  + subnet metrics: `read_state("subnet", principal "subnet_id", "metrics")`
+  + list subnet nodes: `read_state(principal "effective_canister_id", "subnet", principal "subnet_id", "node")`
+  + node public key: `read_state(principal "effective_canister_id", "subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
 * `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
 
 

@@ -137,7 +137,7 @@ impl Exp {
                             }
                             _ => {
                                 return Err(anyhow!(
-                                    "read_state expects ([effective_id,] prefix, principal, path)"
+                                    "read_state expects ([effective_id,] prefix, principal, path, ...)"
                                 ))
                             }
                         }

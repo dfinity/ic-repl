@@ -272,8 +272,11 @@ pub async fn fetch_metadata(
 async fn fetch_state_path_(agent: &Agent, path: StatePath) -> anyhow::Result<IDLValue> {
     use ic_agent::{hash_tree::SubtreeLookupResult, lookup_value};
     let effective_id = path.effective_id.unwrap_or_else(|| {
-        let id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
-        eprintln!("Using {} as effective canister/subnet id", id);
+        let id = Principal::from_text(match path.kind {
+            StateKind::Canister => "ryjl3-tyaaa-aaaaa-aaaba-cai",
+            StateKind::Subnet => "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe",
+        }).unwrap();
+        eprintln!("Using {} as effective canister/subnet id. To change it, put the effective id as the first argument.", id);
         id
     });
     let cert = match path.kind {
@@ -388,6 +391,7 @@ pub struct StatePath {
 pub fn parse_state_path(paths: &[IDLValue]) -> anyhow::Result<StatePath> {
     let mut res = Vec::new();
     let mut prefix = String::new();
+    let mut kind = StateKind::Canister;
     let mut effective_id = None;
     let mut result = StateType::Blob;
     if paths.len() > 5 || paths.is_empty() {
@@ -397,7 +401,12 @@ pub fn parse_state_path(paths: &[IDLValue]) -> anyhow::Result<StatePath> {
         match v {
             IDLValue::Text(t) => {
                 match i {
-                    0 => prefix = t.clone(),
+                    0 => {
+                        prefix = t.clone();
+                        if prefix == "subnet" {
+                            kind = StateKind::Subnet;
+                        }
+                    }
                     1 => return Err(anyhow!("second path has to be a principal")),
                     2 => {
                         result = match (prefix.as_str(), t.as_str()) {
@@ -413,7 +422,12 @@ pub fn parse_state_path(paths: &[IDLValue]) -> anyhow::Result<StatePath> {
                             }
                             ("subnet", "canister_ranges") => StateType::Ranges,
                             ("subnet", "metrics") => StateType::Metrics,
-                            ("subnet", "node") => StateType::Subtree,
+                            ("subnet", "node") => {
+                                // For some reason, /subnet/.../node is only available on canister read_state
+                                effective_id = None;
+                                kind = StateKind::Canister;
+                                StateType::Subtree
+                            }
                             _ => StateType::Blob,
                         };
                     }
@@ -432,11 +446,6 @@ pub fn parse_state_path(paths: &[IDLValue]) -> anyhow::Result<StatePath> {
             _ => return Err(anyhow!("state path can only be either text or principal")),
         }
     }
-    let kind = if prefix == "subnet" {
-        StateKind::Subnet
-    } else {
-        StateKind::Canister
-    };
     if paths.len() == 1 {
         result = match prefix.as_str() {
             "time" => StateType::Nat,
