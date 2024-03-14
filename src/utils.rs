@@ -259,7 +259,7 @@ pub async fn fetch_metadata(
         vec!["canister".as_bytes().into(), id.as_slice().into()];
     path.extend(sub_paths.split('/').map(|s| s.as_bytes().into()));
     let path = StatePath {
-        path: vec![sub_paths.as_bytes().into()],
+        path,
         effective_id: Some(id),
         kind: StateKind::Canister,
         result: StateType::Blob,
