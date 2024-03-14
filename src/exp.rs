@@ -1,5 +1,5 @@
 use super::error::pretty_parse;
-use super::helper::{fetch_metadata, find_init_args, MyHelper, OfflineOutput};
+use super::helper::{find_init_args, MyHelper, OfflineOutput};
 use super::selector::{project, Selector};
 use super::token::{ParserError, Tokenizer};
 use super::utils::{
@@ -123,13 +123,25 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
                     },
-                    "metadata" if helper.offline.is_none() => match args.as_slice() {
-                        [IDLValue::Principal(id), IDLValue::Text(path)] => {
-                            let res = fetch_metadata(&helper.agent, *id, path)?;
-                            IDLValue::Blob(res)
+                    "read_state" if helper.offline.is_none() => {
+                        use crate::utils::{fetch_state_path, parse_state_path};
+                        match args.as_slice() {
+                            [IDLValue::Text(_), ..] => {
+                                let path = parse_state_path(args.as_slice())?;
+                                fetch_state_path(&helper.agent, path)?
+                            }
+                            [IDLValue::Principal(effective), IDLValue::Text(_), ..] => {
+                                let mut path = parse_state_path(&args[1..])?;
+                                path.effective_id = Some(*effective);
+                                fetch_state_path(&helper.agent, path)?
+                            }
+                            _ => {
+                                return Err(anyhow!(
+                                "read_state expects ([effective_id,] prefix, principal, path, ...)"
+                            ))
+                            }
                         }
-                        _ => return Err(anyhow!("metadata expects (principal, path)")),
-                    },
+                    }
                     "file" => match args.as_slice() {
                         [IDLValue::Text(file)] => {
                             let path = resolve_path(&helper.base_path, file);

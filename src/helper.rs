@@ -1,6 +1,6 @@
 use crate::exp::Exp;
 use crate::token::{Token, Tokenizer};
-use crate::utils::{random_value, str_to_principal};
+use crate::utils::{fetch_metadata, random_value, str_to_principal};
 use candid::{
     types::value::{IDLField, IDLValue, VariantValue},
     types::{Function, Label, Type, TypeInner},
@@ -472,8 +472,8 @@ impl Validator for MyHelper {
 
 #[tokio::main]
 async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<CanisterInfo> {
-    let response = fetch_metadata_(agent, canister_id, "metadata/candid:service").await;
-    let profiling = fetch_metadata_(agent, canister_id, "metadata/name")
+    let response = fetch_metadata(agent, canister_id, "metadata/candid:service").await;
+    let profiling = fetch_metadata(agent, canister_id, "metadata/name")
         .await
         .ok()
         .as_ref()
@@ -504,28 +504,6 @@ async fn fetch_actor(agent: &Agent, canister_id: Principal) -> anyhow::Result<Ca
         FileSource::Text(&candid),
         profiling,
     )
-}
-#[tokio::main]
-pub async fn fetch_metadata(
-    agent: &Agent,
-    canister_id: Principal,
-    sub_paths: &str,
-) -> anyhow::Result<Vec<u8>> {
-    fetch_metadata_(agent, canister_id, sub_paths).await
-}
-async fn fetch_metadata_(
-    agent: &Agent,
-    canister_id: Principal,
-    sub_paths: &str,
-) -> anyhow::Result<Vec<u8>> {
-    use ic_agent::{hash_tree::Label, lookup_value};
-    let mut path: Vec<Label<Vec<u8>>> =
-        vec!["canister".as_bytes().into(), canister_id.as_slice().into()];
-    path.extend(sub_paths.split('/').map(|str| str.as_bytes().into()));
-    let cert = agent
-        .read_state_raw(vec![path.clone()], canister_id)
-        .await?;
-    Ok(lookup_value(&cert, path).map(<[u8]>::to_vec)?)
 }
 
 pub enum FileSource<'a> {
