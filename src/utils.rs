@@ -247,7 +247,24 @@ pub fn get_dfx_hsm_pin() -> Result<String, String> {
 }
 
 #[tokio::main]
-pub async fn fetch_state_path(agent: &Agent, path: StatePath) -> anyhow::Result<IDLValue> {
+pub async fn fetch_state_path(agent: &Agent, mut path: StatePath) -> anyhow::Result<IDLValue> {
+    if path.effective_id.is_none() {
+        let id = if path.path.len() >= 3
+            && path.path[0] == "subnet".into()
+            && matches!(path.kind, StateKind::Canister)
+        {
+            get_canister_id_from_subnet(agent, path.path[1].clone()).await.ok_or_else(|| anyhow!("Cannot find any canister on this subnet id. Put the effective canister id as the first argument"))?
+        } else {
+            Principal::from_text(match path.kind {
+                StateKind::Canister => "ryjl3-tyaaa-aaaaa-aaaba-cai",
+                StateKind::Subnet => {
+                    "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe"
+                }
+            })?
+        };
+        path.effective_id = Some(id);
+        eprintln!("Using {} as effective canister/subnet id. To change it, put the effective id as the first argument.", id);
+    }
     fetch_state_path_(agent, path).await
 }
 pub async fn fetch_metadata(
@@ -269,16 +286,27 @@ pub async fn fetch_metadata(
         _ => unreachable!(),
     }
 }
+async fn get_canister_id_from_subnet(
+    agent: &Agent,
+    subnet_id: ic_agent::hash_tree::Label<Vec<u8>>,
+) -> Option<Principal> {
+    let effective_id = Principal::from_slice(subnet_id.as_bytes());
+    let path = StatePath {
+        path: vec!["subnet".into(), subnet_id, "canister_ranges".into()],
+        effective_id: Some(effective_id),
+        kind: StateKind::Subnet,
+        result: StateType::Blob,
+    };
+    let bytes = match fetch_state_path_(agent, path).await.ok()? {
+        IDLValue::Blob(b) => b,
+        _ => unreachable!(),
+    };
+    let res = serde_cbor::from_slice::<Vec<(Principal, Principal)>>(&bytes).ok()?;
+    res.first().map(|(a, _)| *a)
+}
 async fn fetch_state_path_(agent: &Agent, path: StatePath) -> anyhow::Result<IDLValue> {
     use ic_agent::{hash_tree::SubtreeLookupResult, lookup_value};
-    let effective_id = path.effective_id.unwrap_or_else(|| {
-        let id = Principal::from_text(match path.kind {
-            StateKind::Canister => "ryjl3-tyaaa-aaaaa-aaaba-cai",
-            StateKind::Subnet => "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe",
-        }).unwrap();
-        eprintln!("Using {} as effective canister/subnet id. To change it, put the effective id as the first argument.", id);
-        id
-    });
+    let effective_id = path.effective_id.unwrap();
     let cert = match path.kind {
         StateKind::Subnet => {
             agent

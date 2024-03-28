@@ -24,10 +24,10 @@ codespan-reporting = "0.11"
 pretty = "0.12"
 pem = "3.0"
 shellexpand = "3.1"
-ic-agent = "0.33"
-ic-identity-hsm = "0.33"
-ic-transport-types = "0.33"
-ic-wasm = { version = "0.7", default-features = false }
+ic-agent = "0.34"
+ic-identity-hsm = "0.34"
+ic-transport-types = "0.34"
+ic-wasm = { version = "0.7", default-features = false, git = "https://github.com/dfinity/ic-wasm.git", branch = "bump" }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
 tokio = { version = "1.35", features = ["full"] }
 anyhow = "1.0"
@@ -35,7 +35,7 @@ rand = "0.8"
 logos = "0.13"
 lalrpop-util = "0.20"
 clap = { version = "4.4", features = ["derive"] }
-ring = "0.16"
+ring = "0.17"
 rpassword = "7.2"
 serde = "1.0"
 serde_json = "1.0"

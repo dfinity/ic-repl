@@ -62,8 +62,8 @@ The following functions are only available in non-offline mode:
   + canister controllers: `read_state("canister", principal "canister_id", "controllers")`
   + list all subnet ids: `read_state("subnet")`
   + subnet metrics: `read_state("subnet", principal "subnet_id", "metrics")`
-  + list subnet nodes: `read_state(principal "effective_canister_id", "subnet", principal "subnet_id", "node")`
-  + node public key: `read_state(principal "effective_canister_id", "subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
+  + list subnet nodes: `read_state("subnet", principal "subnet_id", "node")`
+  + node public key: `read_state("subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
 * `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
 
 
