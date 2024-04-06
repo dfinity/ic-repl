@@ -318,7 +318,39 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("concat expects two vec, record or text")),
                     },
-                    "add" | "sub" | "mul" | "div" => match args.as_slice() {
+                    "eq" | "neq" => match args.as_slice() {
+                        [v1, v2] => {
+                            if v1.value_ty() != v2.value_ty() {
+                                return Err(anyhow!(
+                                    "{} expects two values of the same type",
+                                    func
+                                ));
+                            }
+                            IDLValue::Bool(match func.as_str() {
+                                "eq" => v1 == v2,
+                                "neq" => v1 != v2,
+                                _ => unreachable!(),
+                            })
+                        }
+                        _ => return Err(anyhow!("{func} expects two values")),
+                    },
+                    "and" | "or" => match args.as_slice() {
+                        [IDLValue::Bool(v1), IDLValue::Bool(v2)] => {
+                            IDLValue::Bool(match func.as_str() {
+                                "and" => *v1 && *v2,
+                                "or" => *v1 || *v2,
+                                _ => unreachable!(),
+                            })
+                        }
+                        _ => return Err(anyhow!("{func} expects bool values")),
+                    },
+                    "not" => match args.as_slice() {
+                        [IDLValue::Bool(v)] => IDLValue::Bool(!v),
+                        _ => return Err(anyhow!("not expects a bool value")),
+                    },
+                    "lt" | "lte" | "gt" | "gte" | "add" | "sub" | "mul" | "div" => match args
+                        .as_slice()
+                    {
                         [IDLValue::Float32(_) | IDLValue::Float64(_), _]
                         | [_, IDLValue::Float32(_) | IDLValue::Float64(_)] => {
                             let IDLValue::Float64(v1) =
@@ -331,13 +363,17 @@ impl Exp {
                             else {
                                 panic!()
                             };
-                            IDLValue::Float64(match func.as_str() {
-                                "add" => v1 + v2,
-                                "sub" => v1 - v2,
-                                "mul" => v1 * v2,
-                                "div" => v1 / v2,
+                            match func.as_str() {
+                                "add" => IDLValue::Float64(v1 + v2),
+                                "sub" => IDLValue::Float64(v1 - v2),
+                                "mul" => IDLValue::Float64(v1 * v2),
+                                "div" => IDLValue::Float64(v1 / v2),
+                                "lt" => IDLValue::Bool(v1 < v2),
+                                "lte" => IDLValue::Bool(v1 <= v2),
+                                "gt" => IDLValue::Bool(v1 > v2),
+                                "gte" => IDLValue::Bool(v1 >= v2),
                                 _ => unreachable!(),
-                            })
+                            }
                         }
                         [v1, v2] => {
                             let IDLValue::Int(v1) = cast_type(v1.clone(), &TypeInner::Int.into())?
@@ -348,18 +384,19 @@ impl Exp {
                             else {
                                 panic!()
                             };
-                            IDLValue::Number(
-                                match func.as_str() {
-                                    "add" => v1 + v2,
-                                    "sub" => v1 - v2,
-                                    "mul" => v1 * v2,
-                                    "div" => v1 / v2,
-                                    _ => unreachable!(),
-                                }
-                                .to_string(),
-                            )
+                            match func.as_str() {
+                                "add" => IDLValue::Number((v1 + v2).to_string()),
+                                "sub" => IDLValue::Number((v1 - v2).to_string()),
+                                "mul" => IDLValue::Number((v1 * v2).to_string()),
+                                "div" => IDLValue::Number((v1 / v2).to_string()),
+                                "lt" => IDLValue::Bool(v1 < v2),
+                                "lte" => IDLValue::Bool(v1 <= v2),
+                                "gt" => IDLValue::Bool(v1 > v2),
+                                "gte" => IDLValue::Bool(v1 >= v2),
+                                _ => unreachable!(),
+                            }
                         }
-                        _ => return Err(anyhow!("add expects two numbers")),
+                        _ => return Err(anyhow!("{func} expects two numbers")),
                     },
                     func => match helper.func_env.0.get(func) {
                         None => return Err(anyhow!("Unknown function {}", func)),

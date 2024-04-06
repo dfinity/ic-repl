@@ -31,6 +31,13 @@ assert s.map(f8).size() == (12 : nat);
 assert div(1, 2) == 0;
 assert div(1, 2.0) == 0.5;
 assert div((mul(div(((1:nat8):float32), (3:float64)), 1000) : nat), 100.0) == 3.33;
+assert eq("text", "text") == true;
+assert not(eq("text", "text")) == false;
+assert eq(div(1,2), sub(2,2)) == true;
+assert gt(div(1, 2.0), 1) == false;
+assert eq(div(1, 2.0), 0.5) == true;
+assert and(lte(div(1, 2), 0), gte(div(1, 2), 0)) == true;
+assert or(lt(div(1, 2), 0), gt(div(1, 2), 0)) == false;
 
 assert (service "aaaaa-aa" : principal) == principal "aaaaa-aa";
 assert (func "aaaaa-aa".test : service {}) == service "aaaaa-aa";

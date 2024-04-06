@@ -54,7 +54,10 @@ We also provide some built-in functions:
 * `wasm_profiling(path)/wasm_profiling(path, record { trace_only_funcs = <vec text>; start_page = <nat>; page_limit = <nat> })`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument is optional, and all fields in the record are also optional. If provided, `trace_only_funcs` will only count and trace the provided set of functions; `start_page` writes the logs to a preallocated pages in stable memory; `page_limit` specifies the number of the preallocated pages, default to 4096 if omitted. See [ic-wasm's doc](https://github.com/dfinity/ic-wasm#working-with-upgrades-and-stable-memory) for more details.
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.
-* `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer/float numbers. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
+* `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integers/floats. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
+* `lt/lte/gt/gte(e1, e2)`: check if integer/float `e1` is less than/less than or equal to/greater than/greater than or equal to `e2`.
+* `eq/neq(e1, e2)`: check if `e1` and `e2` are equal or not. `e1` and `e2` must have the same type.
+* `and/or(e1, e2)/not(e)`: logical and/or/not.
 
 The following functions are only available in non-offline mode:
 * `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,
