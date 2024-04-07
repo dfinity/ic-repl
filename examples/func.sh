@@ -40,8 +40,18 @@ assert and(lte(div(1, 2), 0), gte(div(1, 2), 0)) == true;
 assert or(lt(div(1, 2), 0), gt(div(1, 2), 0)) == false;
 
 assert (service "aaaaa-aa" : principal) == principal "aaaaa-aa";
+assert eq((service "aaaaa-aa" : principal), principal "aaaaa-aa") == true;
 assert (func "aaaaa-aa".test : service {}) == service "aaaaa-aa";
 assert (principal "aaaaa-aa" : service {}) == service "aaaaa-aa";
 
 assert ("this is a text" : blob) == blob "this is a text";
 assert (blob "this is a blob" : text) == "this is a blob";
+
+function fac(n) {
+  let _ = ite(eq(n, 0), 1, mul(n, fac(sub(n, 1))))
+};
+function fib(n) {
+  let _ = ite(lt(n, 2), 1, add(fib(sub(n, 1)), fib(sub(n, 2))))
+};
+assert fac(5) == 120;
+assert fib(10) == 89;

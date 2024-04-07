@@ -42,7 +42,6 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
 ## Functions
 
 Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
-You cannot define recursive functions, as there is no control flow in the language.
 
 We also provide some built-in functions:
 * `account(principal)`: convert principal to account id.
@@ -58,6 +57,7 @@ We also provide some built-in functions:
 * `lt/lte/gt/gte(e1, e2)`: check if integer/float `e1` is less than/less than or equal to/greater than/greater than or equal to `e2`.
 * `eq/neq(e1, e2)`: check if `e1` and `e2` are equal or not. `e1` and `e2` must have the same type.
 * `and/or(e1, e2)/not(e)`: logical and/or/not.
+* `ite(cond, e1, e2)`: if-then-else function: if `cond` is true, return `e1`; if `cond` is false, return `e2`. We don't check type types of `e1` and `e2`, but please be nice to yourself to ensure that `e1` and `e2` have the same type.
 
 The following functions are only available in non-offline mode:
 * `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,

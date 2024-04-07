@@ -93,6 +93,19 @@ impl Exp {
             Exp::Apply(func, exps) => {
                 use crate::account_identifier::*;
 
+                if func.as_str() == "ite" {
+                    if exps.len() != 3 {
+                        return Err(anyhow!("ite expects a bool, true branch and false branch"));
+                    }
+                    return Ok(match exps[0].clone().eval(helper)? {
+                        IDLValue::Bool(true) => exps[1].clone().eval(helper)?,
+                        IDLValue::Bool(false) => exps[2].clone().eval(helper)?,
+                        _ => {
+                            return Err(anyhow!("ite expects a bool, true branch and false branch"))
+                        }
+                    });
+                }
+
                 let mut args = Vec::new();
                 for e in exps.into_iter() {
                     args.push(e.eval(helper)?);
