@@ -194,7 +194,7 @@ pub fn as_u32(v: &IDLValue) -> Result<u32> {
             Ok(n)
         }
         IDLValue::Nat32(n) => Ok(*n),
-        _ => Err(anyhow!("not a number")),
+        _ => Err(anyhow!("{v} is not a number")),
     }
 }
 
