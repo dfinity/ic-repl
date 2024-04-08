@@ -83,6 +83,12 @@ pub enum Token {
     Load,
     #[token("function")]
     Function,
+    #[token("while")]
+    While,
+    #[token("if")]
+    If,
+    #[token("else")]
+    Else,
     #[token("==")]
     TestEqual,
     #[token("~=")]

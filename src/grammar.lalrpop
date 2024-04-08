@@ -44,6 +44,9 @@ extern {
         "fail" => Token::Fail,
         "identity" => Token::Identity,
         "function" => Token::Function,
+        "while" => Token::While,
+        "if" => Token::If,
+        "else" => Token::Else,
         "sign" => Token::Sign(<char>),
         "=" => Token::Equals,
         "==" => Token::TestEqual,
@@ -91,6 +94,8 @@ pub Command: Command = {
       })
     },
     "function" <name:"id"> "(" <args:SepBy<"id", ",">> ")" "{" <body:SepBy<Command, ";">> "}" => Command::Func {name,args,body},
+    "while" <cond:Exp> "{" <body:SepBy<Command, ";">> "}" => Command::While {cond, body},
+    "if" <cond:Exp> "{" <then:SepBy<Command, ";">> "}" "else" "{" <else_:SepBy<Command, ";">> "}" => Command::If{cond, then, else_},
 }
 
 pub Exp: Exp = {
