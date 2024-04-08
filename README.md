@@ -59,7 +59,7 @@ We also provide some built-in functions:
 * `lt/lte/gt/gte(e1, e2)`: check if integer/float `e1` is less than/less than or equal to/greater than/greater than or equal to `e2`.
 * `eq/neq(e1, e2)`: check if `e1` and `e2` are equal or not. `e1` and `e2` must have the same type.
 * `and/or(e1, e2)/not(e)`: logical and/or/not.
-* `ite(cond, e1, e2)`: expression version of conditional branch: if `cond` is true, return `e1`; if `cond` is false, return `e2`. We don't check the types of `e1` and `e2`, but please be nice to yourself to ensure that `e1` and `e2` have the same type.
+* `ite(cond, e1, e2)`: expression version of conditional branch. For example, `ite(res.ok, "success", "error")`.
 
 The following functions are only available in non-offline mode:
 * `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,
@@ -70,7 +70,6 @@ The following functions are only available in non-offline mode:
   + list subnet nodes: `read_state("subnet", principal "subnet_id", "node")`
   + node public key: `read_state("subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
 * `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
-
 
 ## Object methods
 
@@ -91,6 +90,12 @@ Type annotations in `ic-repl` is more permissible (not following the subtyping r
 * `(service "aaaaa-aa" : principal)` becomes `principal "aaaaa-aa"`. You can convert among `service`, `principal` and `func`.
 * `((((1.99 : nat8) : int) : float32) : nat32)` becomes `(1 : nat32)`. When converting from float to integer, we only return the integer part of the float.
 * Type annotations for `record`, `variant` is left unimplemented. With candid interface embedded in the canister metadata, annotating composite types is almost never needed.
+
+## Control flow
+
+The condition predicates, i.e., `while <cond>`, `if <cond>`, `ite(<cond>,)` and `filter(<cond>)`, do not require to be boolean. `<cond>` is false when it evaluates to `false` or an error; `<cond>` is true when it evaluates to `true` or other non-error values. This helps when checking the existence of data. For example, `if result.ok` or `while vector[10]`.
+
+For `if/ite`, we do not check the types of the branches, but please be nice to yourself to ensure that both branches have the same type.
 
 ## Examples
 
@@ -212,6 +217,33 @@ output(file, stringify("[", __cost__, "](get.svg)|"));
 let put = call cid.batch_put(50);
 flamegraph(cid, "hashmap.put(50)", "put.svg");
 output(file, stringify("[", __cost_put, "](put.svg)|\n"));
+```
+
+### recursion.sh
+```
+function fib(n) {
+  let _ = ite(lt(n, 2), 1, add(fib(sub(n, 1)), fib(sub(n, 2))))
+};
+function fib2(n) {
+  let a = 1;
+  let b = 1;
+  while gt(n, 0) {
+      let b = add(a, b);
+      let a = sub(b, a);
+      let n = sub(n, 1);
+  };
+  let _ = a;
+};
+function fib3(n) {
+  if lt(n, 2) {
+      let _ = 1;
+  } else {
+      let _ = add(fib3(sub(n, 1)), fib3(sub(n, 2)));
+  }
+};
+assert fib(10) == 89;
+assert fib2(10) == 89;
+assert fib3(10) == 89;
 ```
 
 ## Relative paths
