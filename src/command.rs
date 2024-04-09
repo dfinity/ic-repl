@@ -184,10 +184,8 @@ impl Command {
                 helper.base_path = old_base;
             }
             Command::If { cond, then, else_ } => {
-                let cond = match cond.eval(helper) {
-                    Ok(IDLValue::Bool(b)) => b,
-                    Ok(_) => true,
-                    Err(_) => false,
+                let IDLValue::Bool(cond) = cond.eval(helper)? else {
+                    return Err(anyhow!("if condition is not a boolean expression"));
                 };
                 if cond {
                     for cmd in then.into_iter() {
@@ -200,10 +198,8 @@ impl Command {
                 }
             }
             Command::While { cond, body } => loop {
-                let cond = match cond.clone().eval(helper) {
-                    Ok(IDLValue::Bool(b)) => b,
-                    Ok(_) => true,
-                    Err(_) => false,
+                let IDLValue::Bool(cond) = cond.clone().eval(helper)? else {
+                    return Err(anyhow!("while condition is not a boolean expression"));
                 };
                 if !cond {
                     break;

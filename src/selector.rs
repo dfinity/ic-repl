@@ -227,10 +227,10 @@ fn filter(helper: &MyHelper, vs: Vec<IDLValue>, func: &str) -> Result<Vec<IDLVal
         new_helper.env.0.insert(String::new(), v.clone());
         let arg = Exp::Path(String::new(), Vec::new());
         let exp = Exp::Apply(func.to_string(), vec![arg]);
-        match exp.eval(&new_helper) {
-            Ok(IDLValue::Bool(false)) => (),
-            Ok(_) => res.push(v),
-            Err(_) => (),
+        match exp.eval(&new_helper)? {
+            IDLValue::Bool(false) => (),
+            IDLValue::Bool(true) => res.push(v),
+            _ => return Err(anyhow!("filter function needs to return bool")),
         }
     }
     Ok(res)

@@ -59,7 +59,8 @@ We also provide some built-in functions:
 * `lt/lte/gt/gte(e1, e2)`: check if integer/float `e1` is less than/less than or equal to/greater than/greater than or equal to `e2`.
 * `eq/neq(e1, e2)`: check if `e1` and `e2` are equal or not. `e1` and `e2` must have the same type.
 * `and/or(e1, e2)/not(e)`: logical and/or/not.
-* `ite(cond, e1, e2)`: expression version of conditional branch. For example, `ite(res.ok, "success", "error")`.
+* `exist(e)`: check if `e` can be evaluated without errors. This is useful to check the existence of data, e.g., `exist(res[10])`.
+* `ite(cond, e1, e2)`: expression version of conditional branch. For example, `ite(exist(res.ok), "success", "error")`.
 
 The following functions are only available in non-offline mode:
 * `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,
@@ -90,12 +91,6 @@ Type annotations in `ic-repl` is more permissible (not following the subtyping r
 * `(service "aaaaa-aa" : principal)` becomes `principal "aaaaa-aa"`. You can convert among `service`, `principal` and `func`.
 * `((((1.99 : nat8) : int) : float32) : nat32)` becomes `(1 : nat32)`. When converting from float to integer, we only return the integer part of the float.
 * Type annotations for `record`, `variant` is left unimplemented. With candid interface embedded in the canister metadata, annotating composite types is almost never needed.
-
-## Control flow
-
-The condition predicates, i.e., `while <cond>`, `if <cond>`, `ite(<cond>,)` and `filter(<cond>)`, do not require to be boolean. `<cond>` is false when it evaluates to `false` or an error; `<cond>` is true when it evaluates to `true` or other non-error values. This helps when checking the existence of data. For example, `if result.ok` or `while vector[10]`.
-
-For `if/ite`, we do not check the types of the branches, but please be nice to yourself to ensure that both branches have the same type.
 
 ## Examples
 
