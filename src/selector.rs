@@ -1,5 +1,6 @@
 use super::exp::Exp;
 use super::helper::MyHelper;
+use super::utils::as_u32;
 use anyhow::{anyhow, Result};
 use candid::{
     types::value::{IDLField, IDLValue, VariantValue},
@@ -9,7 +10,7 @@ use candid::{
 
 #[derive(Debug, Clone)]
 pub enum Selector {
-    Index(u64),
+    Index(Exp),
     Field(String),
     Option,
     Map(String),
@@ -18,12 +19,15 @@ pub enum Selector {
     Size, // Size is not required, but it is faster than using fold
 }
 impl Selector {
-    fn to_label(&self) -> Label {
-        match self {
-            Selector::Index(idx) => Label::Id(*idx as u32),
+    fn to_label(&self, helper: &MyHelper) -> Result<Label> {
+        Ok(match self {
+            Selector::Index(e) => {
+                let idx = as_u32(&e.clone().eval(helper)?)?;
+                Label::Id(idx)
+            }
             Selector::Field(name) => Label::Named(name.to_string()),
             _ => unreachable!(),
-        }
+        })
     }
 }
 pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Result<IDLValue> {
@@ -31,18 +35,27 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
     for head in path.into_iter() {
         match (result, head) {
             (IDLValue::Opt(opt), Selector::Option) => result = *opt,
-            (IDLValue::Blob(b), Selector::Index(idx)) => {
+            (IDLValue::Blob(b), Selector::Index(e)) => {
+                let idx = as_u32(&e.eval(helper)?)?;
                 result = IDLValue::Nat8(
                     *b.get(idx as usize)
                         .ok_or_else(|| anyhow!("idx out of bound"))?,
                 )
             }
-            (IDLValue::Vec(mut vs), Selector::Index(idx)) => {
-                let idx = idx as usize;
+            (IDLValue::Vec(mut vs), Selector::Index(e)) => {
+                let idx = as_u32(&e.eval(helper)?)? as usize;
                 if idx < vs.len() {
                     result = vs.swap_remove(idx);
                 } else {
                     return Err(anyhow!("{} out of bound {}", idx, vs.len()));
+                }
+            }
+            (IDLValue::Text(s), Selector::Index(e)) => {
+                let idx = as_u32(&e.eval(helper)?)? as usize;
+                if idx < s.len() {
+                    result = IDLValue::Text(s.chars().nth(idx).unwrap().to_string());
+                } else {
+                    return Err(anyhow!("{} out of bound {}", idx, s.len()));
                 }
             }
             (IDLValue::Blob(b), Selector::Map(func)) => {
@@ -107,7 +120,7 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
                 result = IDLValue::Nat(s.len().into());
             }
             (IDLValue::Record(fs), field @ (Selector::Index(_) | Selector::Field(_))) => {
-                let id = field.to_label();
+                let id = field.to_label(helper)?;
                 if let Some(v) = fs.into_iter().find(|f| f.id == id) {
                     result = v.val;
                 } else {
@@ -118,7 +131,7 @@ pub fn project(helper: &MyHelper, value: IDLValue, path: Vec<Selector>) -> Resul
                 IDLValue::Variant(VariantValue(f, _)),
                 field @ (Selector::Index(_) | Selector::Field(_)),
             ) => {
-                if field.to_label() == f.id {
+                if field.to_label(helper)? == f.id {
                     result = f.val;
                 } else {
                     return Err(anyhow!("variant field {:?} not found", field));
@@ -214,10 +227,10 @@ fn filter(helper: &MyHelper, vs: Vec<IDLValue>, func: &str) -> Result<Vec<IDLVal
         new_helper.env.0.insert(String::new(), v.clone());
         let arg = Exp::Path(String::new(), Vec::new());
         let exp = Exp::Apply(func.to_string(), vec![arg]);
-        match exp.eval(&new_helper) {
-            Ok(IDLValue::Bool(false)) => (),
-            Ok(_) => res.push(v),
-            Err(_) => (),
+        match exp.eval(&new_helper)? {
+            IDLValue::Bool(false) => (),
+            IDLValue::Bool(true) => res.push(v),
+            _ => return Err(anyhow!("filter function needs to return bool")),
         }
     }
     Ok(res)

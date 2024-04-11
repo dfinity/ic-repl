@@ -8,15 +8,17 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
 
 ```
 <command> := 
- | import <id> = <text> (as <text>)?         // bind canister URI to <id>, with optional did file
- | export <text>                             // export current environment variables
- | load <text>                               // load and run a script file
- | config <text>                             // set config for random value generator in dhall format
- | let <id> = <exp>                          // bind <exp> to a variable <id>
- | <exp>                                     // show the value of <exp>
- | assert <exp> <binop> <exp>                // assertion
+ | import <id> = <text> (as <text>)?                // bind canister URI to <id>, with optional did file
+ | export <text>                                    // export current environment variables
+ | load <text>                                      // load and run a script file
+ | config <text>                                    // set config for random value generator in dhall format
+ | let <id> = <exp>                                 // bind <exp> to a variable <id>
+ | <exp>                                            // show the value of <exp>
+ | assert <exp> <binop> <exp>                       // assertion
  | identity <id> (<text> | record { slot_index = <nat>; key_id = <text> })?   // switch to identity <id>, with optional pem file or HSM config
- | function <id> ( <id>,* ) { <command>;* }  // define a function
+ | function <id> ( <id>,* ) { <command>;* }         // define a function
+ | if <exp> { <command>;* } else { <command>;* }    // conditional branch
+ | while <exp> { <command>;* }                      // while loop
 <exp> := 
  | <candid val>                                     // any candid value
  | <var> <transformer>*                             // variable with optional transformers
@@ -31,7 +33,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
 <transformer> :=
  | ?                     // select opt value
  | . <name>              // select field name from record or variant value
- | [ <nat> ]             // select index from vec, record, or variant value
+ | [ <exp> ]             // select index from vec, text, record, or variant value
  | . <id> ( <exp>,* )    // transform (map, filter, fold) a collection value
 <binop> := 
  | ==                    // structural equality
@@ -42,7 +44,6 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
 ## Functions
 
 Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
-You cannot define recursive functions, as there is no control flow in the language.
 
 We also provide some built-in functions:
 * `account(principal)`: convert principal to account id.
@@ -54,7 +55,12 @@ We also provide some built-in functions:
 * `wasm_profiling(path)/wasm_profiling(path, record { trace_only_funcs = <vec text>; start_page = <nat>; page_limit = <nat> })`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument is optional, and all fields in the record are also optional. If provided, `trace_only_funcs` will only count and trace the provided set of functions; `start_page` writes the logs to a preallocated pages in stable memory; `page_limit` specifies the number of the preallocated pages, default to 4096 if omitted. See [ic-wasm's doc](https://github.com/dfinity/ic-wasm#working-with-upgrades-and-stable-memory) for more details.
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.
-* `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integer/float numbers. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
+* `add/sub/mul/div(e1, e2)`: addition/subtraction/multiplication/division of two integers/floats. If one of the arguments is float32/float64, the result is float64; otherwise, the result is integer. You can use type annotation to get the integer part of the float number. For example `div((mul(div(1, 3.0), 1000) : nat), 100.0)` returns `3.33`.
+* `lt/lte/gt/gte(e1, e2)`: check if integer/float `e1` is less than/less than or equal to/greater than/greater than or equal to `e2`.
+* `eq/neq(e1, e2)`: check if `e1` and `e2` are equal or not. `e1` and `e2` must have the same type.
+* `and/or(e1, e2)/not(e)`: logical and/or/not.
+* `exist(e)`: check if `e` can be evaluated without errors. This is useful to check the existence of data, e.g., `exist(res[10])`.
+* `ite(cond, e1, e2)`: expression version of conditional branch. For example, `ite(exist(res.ok), "success", "error")`.
 
 The following functions are only available in non-offline mode:
 * `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,
@@ -62,10 +68,9 @@ The following functions are only available in non-offline mode:
   + canister controllers: `read_state("canister", principal "canister_id", "controllers")`
   + list all subnet ids: `read_state("subnet")`
   + subnet metrics: `read_state("subnet", principal "subnet_id", "metrics")`
-  + list subnet nodes: `read_state(principal "effective_canister_id", "subnet", principal "subnet_id", "node")`
-  + node public key: `read_state(principal "effective_canister_id", "subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
+  + list subnet nodes: `read_state("subnet", principal "subnet_id", "node")`
+  + node public key: `read_state("subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
 * `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
-
 
 ## Object methods
 
@@ -207,6 +212,33 @@ output(file, stringify("[", __cost__, "](get.svg)|"));
 let put = call cid.batch_put(50);
 flamegraph(cid, "hashmap.put(50)", "put.svg");
 output(file, stringify("[", __cost_put, "](put.svg)|\n"));
+```
+
+### recursion.sh
+```
+function fib(n) {
+  let _ = ite(lt(n, 2), 1, add(fib(sub(n, 1)), fib(sub(n, 2))))
+};
+function fib2(n) {
+  let a = 1;
+  let b = 1;
+  while gt(n, 0) {
+      let b = add(a, b);
+      let a = sub(b, a);
+      let n = sub(n, 1);
+  };
+  let _ = a;
+};
+function fib3(n) {
+  if lt(n, 2) {
+      let _ = 1;
+  } else {
+      let _ = add(fib3(sub(n, 1)), fib3(sub(n, 2)));
+  }
+};
+assert fib(10) == 89;
+assert fib2(10) == 89;
+assert fib3(10) == 89;
 ```
 
 ## Relative paths

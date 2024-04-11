@@ -44,6 +44,9 @@ extern {
         "fail" => Token::Fail,
         "identity" => Token::Identity,
         "function" => Token::Function,
+        "while" => Token::While,
+        "if" => Token::If,
+        "else" => Token::Else,
         "sign" => Token::Sign(<char>),
         "=" => Token::Equals,
         "==" => Token::TestEqual,
@@ -91,6 +94,8 @@ pub Command: Command = {
       })
     },
     "function" <name:"id"> "(" <args:SepBy<"id", ",">> ")" "{" <body:SepBy<Command, ";">> "}" => Command::Func {name,args,body},
+    "while" <cond:Exp> "{" <body:SepBy<Command, ";">> "}" => Command::While {cond, body},
+    "if" <cond:Exp> "{" <then:SepBy<Command, ";">> "}" "else" "{" <else_:SepBy<Command, ";">> "}" => Command::If{cond, then, else_},
 }
 
 pub Exp: Exp = {
@@ -107,10 +112,7 @@ Variable: Exp = <v:"id"> <path:(<Selector>)*> => Exp::Path(v, path);
 Selector: Selector = {
      "?" => Selector::Option,
      "." <Name> => Selector::Field(<>),
-     "[" <Sp<"decimal">> "]" =>? {
-       let idx = <>.0.parse::<u64>().map_err(|_| error2("index out of u64 range", <>.1))?;
-       Ok(Selector::Index(idx))
-     },
+     "[" <Exp> "]" => Selector::Index(<>),
      "." <method:Sp<"id">> "(" <args:SepBy<Exp, ",">> ")" =>? {
        match (method.0.as_str(), args.as_slice()) {
          ("map", [Exp::Path(func, _x)]) if _x.is_empty() => Ok(Selector::Map(func.to_string())),

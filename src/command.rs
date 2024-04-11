@@ -28,6 +28,15 @@ pub enum Command {
         args: Vec<String>,
         body: Vec<Command>,
     },
+    While {
+        cond: Exp,
+        body: Vec<Command>,
+    },
+    If {
+        cond: Exp,
+        then: Vec<Command>,
+        else_: Vec<Command>,
+    },
 }
 #[derive(Debug, Clone)]
 pub enum IdentityConfig {
@@ -174,6 +183,31 @@ impl Command {
                 }
                 helper.base_path = old_base;
             }
+            Command::If { cond, then, else_ } => {
+                let IDLValue::Bool(cond) = cond.eval(helper)? else {
+                    return Err(anyhow!("if condition is not a boolean expression"));
+                };
+                if cond {
+                    for cmd in then.into_iter() {
+                        cmd.run(helper)?;
+                    }
+                } else {
+                    for cmd in else_.into_iter() {
+                        cmd.run(helper)?;
+                    }
+                }
+            }
+            Command::While { cond, body } => loop {
+                let IDLValue::Bool(cond) = cond.clone().eval(helper)? else {
+                    return Err(anyhow!("while condition is not a boolean expression"));
+                };
+                if !cond {
+                    break;
+                }
+                for cmd in body.iter() {
+                    cmd.clone().run(helper)?;
+                }
+            },
         }
         Ok(())
     }
