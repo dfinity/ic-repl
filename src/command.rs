@@ -96,7 +96,15 @@ impl Command {
                     BinOp::NotEqual => assert_ne!(left, right),
                 }
             }
-            Command::Config(conf) => helper.config = Configs::from_dhall(&conf)?,
+            Command::Config(conf) => {
+                if conf.ends_with(".toml") {
+                    let path = resolve_path(&helper.base_path, &conf);
+                    let conf = std::fs::read_to_string(path)?;
+                    helper.config = conf.parse::<Configs>()?;
+                } else {
+                    helper.config = conf.parse::<Configs>()?;
+                }
+            }
             Command::Show(val) => {
                 let is_call = val.is_call();
                 let time = Instant::now();

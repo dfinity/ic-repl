@@ -100,7 +100,7 @@ impl MyHelper {
             hinter: HistoryHinter {},
             colored_prompt: "".to_owned(),
             validator: MatchingBracketValidator::new(),
-            config: Configs::from_dhall("{=}").unwrap(),
+            config: "".parse::<Configs>().unwrap(),
             canister_map: self.canister_map.clone(),
             identity_map: self.identity_map.clone(),
             current_identity: self.current_identity.clone(),
@@ -123,7 +123,7 @@ impl MyHelper {
             canister_map: RefCell::new(CanisterMap::default()),
             identity_map: IdentityMap::default(),
             current_identity: "anonymous".to_owned(),
-            config: Configs::from_dhall("{=}").unwrap(),
+            config: "".parse::<Configs>().unwrap(),
             env: Env::default(),
             func_env: FuncEnv::default(),
             base_path: std::env::current_dir().unwrap(),
@@ -399,11 +399,20 @@ fn find_lastest_call(line: &str, helper: &MyHelper) -> Option<(usize, usize, Par
     Some((pos, given_args, call))
 }
 fn hint_method(line: &str, pos: usize, helper: &MyHelper) -> Option<String> {
+    use candid_parser::configs::{Scope, ScopePos};
     let (_, given_args, call) = find_lastest_call(line, helper)?;
     let mut map = helper.canister_map.borrow_mut();
     let (env, args) = call.get_func_type(&helper.agent, &mut map)?;
+    let method = match &call {
+        Partial::Call(_, method) => Some(method),
+        _ => None,
+    }?;
     let ty = &args[given_args];
-    let mut value = random_value(env, ty, &helper.config).ok()?;
+    let scope = Scope {
+        method,
+        position: Some(ScopePos::Arg),
+    };
+    let mut value = random_value(env, ty, helper.config.clone(), scope).ok()?;
     if given_args == args.len() - 1 {
         value.push(')');
     }
@@ -413,6 +422,7 @@ fn hint_method(line: &str, pos: usize, helper: &MyHelper) -> Option<String> {
         .or_else(|| line[..pos].rfind('('))
         .map(|start| line[start + 1..pos].trim_start())
     {
+        #[allow(clippy::assigning_clones)]
         if value.starts_with(prefix) {
             value = value[prefix.len()..].trim().to_owned();
         }

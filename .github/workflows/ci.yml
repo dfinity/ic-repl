@@ -8,9 +8,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      DFX_VERSION: 0.15.2
+      DFX_VERSION: 0.19.0
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install stable Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -19,7 +19,7 @@ jobs:
           override: true
           components: rustfmt, clippy
       - name: Cache cargo build
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
