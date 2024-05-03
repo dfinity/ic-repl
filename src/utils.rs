@@ -221,11 +221,16 @@ pub fn args_to_value(mut args: IDLArgs) -> IDLValue {
     }
 }
 
-pub fn random_value(env: &TypeEnv, ty: &Type, config: &Configs) -> candid_parser::Result<String> {
+pub fn random_value(
+    env: &TypeEnv,
+    ty: &Type,
+    config: Configs,
+    scope: candid_parser::configs::Scope,
+) -> candid_parser::Result<String> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
-    let result = candid_parser::random::any(&seed, config, env, &[ty.clone()])?;
+    let result = candid_parser::random::any(&seed, config, env, &[ty.clone()], &Some(scope))?;
     Ok(result.args[0].to_string())
 }
 
@@ -430,7 +435,7 @@ pub fn parse_state_path(paths: &[IDLValue]) -> anyhow::Result<StatePath> {
             IDLValue::Text(t) => {
                 match i {
                     0 => {
-                        prefix = t.clone();
+                        prefix.clone_from(t);
                         if prefix == "subnet" {
                             kind = StateKind::Subnet;
                         }

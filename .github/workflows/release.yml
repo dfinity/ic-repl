@@ -15,7 +15,7 @@ jobs:
             name: linux64
             artifact_name: target/release/ic-repl
             asset_name: ic-repl-linux64
-          - os: macos-latest
+          - os: macos-12
             name: macos
             artifact_name: target/release/ic-repl
             asset_name: ic-repl-macos
@@ -24,7 +24,7 @@ jobs:
             artifact_name: target/arm-unknown-linux-gnueabihf/release/ic-repl
             asset_name: ic-repl-arm32
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install stable toolchain
         if: matrix.name != 'arm'
         uses: actions-rs/toolchain@v1
