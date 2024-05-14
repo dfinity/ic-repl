@@ -183,6 +183,8 @@ impl Command {
                     let line_end = script.find('\n').unwrap_or(0);
                     script.drain(..line_end);
                 }
+                let script =
+                    shellexpand::env(&script).map_err(|e| crate::token::error2(e, 0..0))?;
                 let cmds = pretty_parse::<Commands>(&file, &script)?;
                 helper.base_path = path.parent().unwrap().to_path_buf();
                 for (cmd, pos) in cmds.0.into_iter() {
