@@ -170,7 +170,9 @@ pub fn get_effective_canister_id(
                 "{} can only be called via inter-canister call.",
                 method
             )),
-            "provisional_create_canister_with_cycles" => Ok(canister_id),
+            "provisional_create_canister_with_cycles" => {
+                Ok(Principal::from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 1, 1]))
+            }
             _ => {
                 #[derive(CandidType, Deserialize)]
                 struct Arg {
