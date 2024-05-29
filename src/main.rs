@@ -56,6 +56,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     println!("Ping {url}...");
     let agent = Agent::builder()
         .with_transport(ReqwestTransport::create(url)?)
+        .with_ingress_expiry(Some(std::time::Duration::from_secs(3600)))
         .build()?;
 
     println!("Canister REPL");
