@@ -86,6 +86,13 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         let cmd = Command::Load(file);
         let helper = rl.helper_mut().unwrap();
         cmd.run(helper)?;
+        if helper.func_env.0.contains_key("__main") {
+            let mut args = Vec::new();
+            for arg in opts.extra_args {
+                args.push(candid_parser::parse_idl_value(&arg)?);
+            }
+            exp::apply_func(helper, "__main", args)?;
+        }
     }
     if enter_repl {
         let mut count = 1;
@@ -148,6 +155,9 @@ struct Opts {
     #[clap(short, long, conflicts_with("script"), conflicts_with("offline"))]
     /// Send signed messages
     send: Option<String>,
+    #[clap(last = true)]
+    /// Extra arguments passed to __main function when running a script
+    extra_args: Vec<String>,
 }
 
 fn main() -> anyhow::Result<()> {

@@ -89,9 +89,11 @@ function fib3(n) {
       let _ = add(fib3(sub(n, 1)), fib3(sub(n, 2)));
   }
 };
+function __main() {
 assert fac(5) == 120;
 assert fac2(5) == 120;
 assert fac3(5) == 120;
 assert fib(10) == 89;
 assert fib2(10) == 89;
 assert fib3(10) == 89;
+}
