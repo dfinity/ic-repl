@@ -9,8 +9,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
 ```
 <command> := 
  | import <id> = <text> (as <text>)?                // bind canister URI to <id>, with optional did file
- | export <text>                                    // export current environment variables
- | load <text>                                      // load and run a script file
+ | load <text>                                      // load and run a script file. Do not error out if <text> ends with '?'
  | config <text>                                    // set config in TOML format
  | let <id> = <exp>                                 // bind <exp> to a variable <id>
  | <exp>                                            // show the value of <exp>
@@ -52,6 +51,7 @@ We also provide some built-in functions:
 * `gzip(blob)`: gzip a blob value.
 * `stringify(exp1, exp2, exp3, ...)`: convert all expressions to string and concat. Only supports primitive types.
 * `output(path, content)`: append text content to file path.
+* `export(path, var1, var2, ...)`: overwrite variable bindings to file path. The file can be used by the `load` command.
 * `wasm_profiling(path)/wasm_profiling(path, record { trace_only_funcs = <vec text>; start_page = <nat>; page_limit = <nat> })`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument is optional, and all fields in the record are also optional. If provided, `trace_only_funcs` will only count and trace the provided set of functions; `start_page` writes the logs to a preallocated pages in stable memory; `page_limit` specifies the number of the preallocated pages, default to 4096 if omitted. See [ic-wasm's doc](https://github.com/dfinity/ic-wasm#working-with-upgrades-and-stable-memory) for more details.
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.

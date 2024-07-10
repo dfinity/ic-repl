@@ -31,7 +31,6 @@ extern {
         "blob" => Token::Blob,
         "type" => Token::Type,
         "import" => Token::Import,
-        "export" => Token::Export,
         "load" => Token::Load,
         "principal" => Token::Principal,
         "call" => Token::Call,
@@ -75,7 +74,6 @@ pub Command: Command = {
     Exp => Command::Show(<>),
     "assert" <left:Exp> <op:BinOp> <right:Exp> => Command::Assert(op, left, right),
     "let" <id:"id"> "=" <val:Exp> => Command::Let(id, val),
-    "export" <Text> => Command::Export(<>),
     "load" <Text> => Command::Load(<>),
     "import" <id:"id"> "=" <uri:Sp<Text>> <did:("as" <Text>)?> =>? {
          let principal = Principal::from_text(&uri.0).map_err(|e| error2(e, uri.1))?;

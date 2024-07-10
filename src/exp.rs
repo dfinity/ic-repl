@@ -120,6 +120,27 @@ impl Exp {
                             Err(_) => IDLValue::Bool(false),
                         });
                     }
+                    "export" => {
+                        use std::io::{BufWriter, Write};
+                        if exps.len() <= 1 {
+                            return Err(anyhow!("export expects at least two argument"));
+                        }
+                        let path = exps[0].clone().eval(helper)?;
+                        let IDLValue::Text(path) = path else {
+                            return Err(anyhow!("export expects first argument to be a file path"));
+                        };
+                        let path = resolve_path(&std::env::current_dir()?, &path);
+                        let file = std::fs::File::create(path)?;
+                        let mut writer = BufWriter::new(file);
+                        for arg in exps.iter().skip(1) {
+                            let Exp::Path(id, _) = arg else {
+                                return Err(anyhow!("export expects variables"));
+                            };
+                            let val = arg.clone().eval(helper)?;
+                            writeln!(&mut writer, "let {id} = {val};")?;
+                        }
+                        return Ok(IDLValue::Null);
+                    }
                     _ => (),
                 }
 
