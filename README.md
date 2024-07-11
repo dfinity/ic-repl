@@ -61,7 +61,7 @@ We also provide some built-in functions:
 * `and/or(e1, e2)/not(e)`: logical and/or/not.
 * `exist(e)`: check if `e` can be evaluated without errors. This is useful to check the existence of data, e.g., `exist(res[10])`.
 * `ite(cond, e1, e2)`: expression version of conditional branch. For example, `ite(exist(res.ok), "success", "error")`.
-* `exec(cmd, arg1, arg2, ...)`: execute a bash command. The arguments are all text types. The last line from stdout is parsed by the Candid value parser as the result of the `exec` function. If parsing fails, returns `null`. There are security risks in running arbitrary bash command. Be careful about what command you execute.
+* `exec(cmd, arg1, arg2, ...)`: execute a bash command. The arguments are all text types. The last line from stdout is parsed by the Candid value parser as the result of the `exec` function. If parsing fails, returns that line as a text value. There are security risks in running arbitrary bash command. Be careful about what command you execute.
 
 The following functions are only available in non-offline mode:
 * `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,

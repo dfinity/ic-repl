@@ -261,7 +261,8 @@ impl Exp {
                                 ));
                             }
                             let stdout = final_stdout.lock().unwrap();
-                            candid_parser::parse_idl_value(&stdout).unwrap_or(IDLValue::Null)
+                            candid_parser::parse_idl_value(&stdout)
+                                .unwrap_or(IDLValue::Text(stdout.clone()))
                         }
                         _ => return Err(anyhow!("exec expects (text command, ...text args)")),
                     },
