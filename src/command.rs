@@ -110,8 +110,10 @@ impl Command {
                 let v = val.eval(helper)?;
                 let duration = time.elapsed();
                 bind_value(helper, "_".to_string(), v, is_call, true);
-                let width = console::Term::stdout().size().1 as usize;
-                println!("{:>width$}", format!("({duration:.2?})"), width = width);
+                if helper.verbose {
+                    let width = console::Term::stdout().size().1 as usize;
+                    println!("{:>width$}", format!("({duration:.2?})"), width = width);
+                }
             }
             Command::Identity(id, config) => {
                 use ic_agent::identity::{BasicIdentity, Identity, Secp256k1Identity};
@@ -190,7 +192,9 @@ impl Command {
                 let cmds = pretty_parse::<Commands>(file, &script)?;
                 helper.base_path = path.parent().unwrap().to_path_buf();
                 for (cmd, pos) in cmds.0.into_iter() {
-                    println!("> {}", &script[pos]);
+                    if helper.verbose {
+                        println!("> {}", &script[pos]);
+                    }
                     cmd.run(helper)?;
                 }
                 helper.base_path = old_base;
@@ -241,20 +245,21 @@ impl std::str::FromStr for Commands {
 }
 
 fn bind_value(helper: &mut MyHelper, id: String, v: IDLValue, is_call: bool, display: bool) {
+    if display {
+        if helper.verbose {
+            println!("{v}");
+        } else if let IDLValue::Text(v) = &v {
+            println!("{v}");
+        }
+    }
     if is_call {
         let (v, cost) = crate::profiling::may_extract_profiling(v);
         if let Some(cost) = cost {
             let cost_id = format!("__cost_{id}");
             helper.env.0.insert(cost_id, IDLValue::Int64(cost));
         }
-        if display {
-            println!("{v}");
-        }
         helper.env.0.insert(id, v);
     } else {
-        if display {
-            println!("{v}");
-        }
         helper.env.0.insert(id, v);
     }
 }

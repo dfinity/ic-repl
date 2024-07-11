@@ -214,11 +214,12 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("gzip expects blob")),
                     },
-                    "exec" => match args.as_slice() {
+                    "exec" | "exec_silence" => match args.as_slice() {
                         [IDLValue::Text(cmd), ..] => {
                             use std::io::{BufRead, BufReader};
                             use std::process::{Command, Stdio};
                             use std::sync::{Arc, Mutex};
+                            let is_silence = func == "exec_silence";
                             let mut cmd = Command::new(cmd);
                             cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
                             for arg in args.iter().skip(1) {
@@ -239,20 +240,24 @@ impl Exp {
                                 let reader = BufReader::new(stdout);
                                 reader.lines().for_each(|line| {
                                     if let Ok(line) = line {
-                                        println!("{line}");
+                                        if !is_silence {
+                                            println!("{line}");
+                                        }
                                         let mut final_stdout = final_stdout_clone.lock().unwrap();
                                         *final_stdout = line;
                                     }
                                 });
                             });
-                            std::thread::spawn(move || {
-                                let reader = BufReader::new(stderr);
-                                reader.lines().for_each(|line| {
-                                    if let Ok(line) = line {
-                                        eprintln!("{line}");
-                                    }
+                            if !is_silence {
+                                std::thread::spawn(move || {
+                                    let reader = BufReader::new(stderr);
+                                    reader.lines().for_each(|line| {
+                                        if let Ok(line) = line {
+                                            eprintln!("{line}");
+                                        }
+                                    });
                                 });
-                            });
+                            }
                             let status = child.wait()?;
                             if !status.success() {
                                 return Err(anyhow!(
@@ -623,6 +628,7 @@ impl Exp {
                             helper.agent.clone(),
                             helper.agent_url.clone(),
                             helper.offline.clone(),
+                            helper.verbose,
                         );
                         env.canister_map.borrow_mut().0.insert(
                             proxy_id,

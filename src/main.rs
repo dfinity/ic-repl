@@ -60,7 +60,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .build();
-    let h = MyHelper::new(agent, url.to_string(), offline);
+    let h = MyHelper::new(agent, url.to_string(), offline, opts.verbose);
     if let Some(file) = opts.send {
         use crate::offline::{send_messages, Messages};
         let json = std::fs::read_to_string(file)?;
@@ -154,7 +154,7 @@ struct Opts {
     /// Send signed messages
     send: Option<String>,
     #[clap(short, long)]
-    /// Run script in verbose mode
+    /// Run script in verbose mode. Non-verbose mode will only output text values.
     verbose: bool,
     #[clap(last = true)]
     /// Extra arguments passed to __main function when running a script
