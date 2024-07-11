@@ -165,6 +165,7 @@ impl Command {
             }
             Command::Load(e) => {
                 // TODO check for infinite loop
+                // Note that it's a bit tricky to make load as a built-in function, as it requires mutable access to helper.
                 let IDLValue::Text(file) = e.eval(helper)? else {
                     return Err(anyhow!("load needs to be a file path"));
                 };

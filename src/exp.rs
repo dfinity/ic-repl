@@ -214,6 +214,57 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("gzip expects blob")),
                     },
+                    "exec" => match args.as_slice() {
+                        [IDLValue::Text(cmd), ..] => {
+                            use std::io::{BufRead, BufReader};
+                            use std::process::{Command, Stdio};
+                            use std::sync::{Arc, Mutex};
+                            let mut cmd = Command::new(cmd);
+                            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+                            for arg in args.iter().skip(1) {
+                                match arg {
+                                    IDLValue::Text(arg) => {
+                                        cmd.arg(arg);
+                                    }
+                                    _ => return Err(anyhow!("exec expects string arguments")),
+                                }
+                            }
+                            let mut child = cmd.spawn()?;
+                            let stdout = child.stdout.take().unwrap();
+                            let stderr = child.stderr.take().unwrap();
+                            let final_stdout = Arc::new(Mutex::new(String::new()));
+                            let final_stdout_clone = Arc::clone(&final_stdout);
+
+                            std::thread::spawn(move || {
+                                let reader = BufReader::new(stdout);
+                                reader.lines().for_each(|line| {
+                                    if let Ok(line) = line {
+                                        println!("{line}");
+                                        let mut final_stdout = final_stdout_clone.lock().unwrap();
+                                        *final_stdout = line;
+                                    }
+                                });
+                            });
+                            std::thread::spawn(move || {
+                                let reader = BufReader::new(stderr);
+                                reader.lines().for_each(|line| {
+                                    if let Ok(line) = line {
+                                        eprintln!("{line}");
+                                    }
+                                });
+                            });
+                            let status = child.wait()?;
+                            if !status.success() {
+                                return Err(anyhow!(
+                                    "exec failed with status {}",
+                                    status.code().unwrap_or(-1)
+                                ));
+                            }
+                            let stdout = final_stdout.lock().unwrap();
+                            candid_parser::parse_idl_value(&stdout).unwrap_or(IDLValue::Null)
+                        }
+                        _ => return Err(anyhow!("exec expects (text command, ...text args)")),
+                    },
                     "send" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Blob(blob)] => {
                             use crate::offline::{send, send_messages};

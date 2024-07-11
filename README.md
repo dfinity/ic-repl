@@ -61,6 +61,7 @@ We also provide some built-in functions:
 * `and/or(e1, e2)/not(e)`: logical and/or/not.
 * `exist(e)`: check if `e` can be evaluated without errors. This is useful to check the existence of data, e.g., `exist(res[10])`.
 * `ite(cond, e1, e2)`: expression version of conditional branch. For example, `ite(exist(res.ok), "success", "error")`.
+* `exec(cmd, arg1, arg2, ...)`: execute a bash command. The arguments are all text types. The last line from stdout is parsed by the Candid value parser as the result of the `exec` function. If parsing fails, returns `null`. There are security risks in running arbitrary bash command. Be careful about what command you execute.
 
 The following functions are only available in non-offline mode:
 * `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,
@@ -72,7 +73,7 @@ The following functions are only available in non-offline mode:
   + node public key: `read_state("subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
 * `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
 
-There is a special `__main` function you can define in the script, which gets executed when loading from CLI. `__main` can take arguments provided from CLI. For example, the following code can be called with `ic-repl main.sh -- test 42` and outputs "test43".
+There is a special `__main` function you can define in the script, which gets executed when loading from CLI. `__main` can take arguments provided from CLI. The CLI arguments gets parsed by the Candid value parser first. If parsing fails, it is stored as a text value. For example, the following code can be called with `ic-repl main.sh -- test 42` and outputs "test43".
 
 ### main.sh
 ```
