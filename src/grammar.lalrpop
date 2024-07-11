@@ -74,7 +74,7 @@ pub Command: Command = {
     Exp => Command::Show(<>),
     "assert" <left:Exp> <op:BinOp> <right:Exp> => Command::Assert(op, left, right),
     "let" <id:"id"> "=" <val:Exp> => Command::Let(id, val),
-    "load" <Text> => Command::Load(<>),
+    "load" <Exp> => Command::Load(<>),
     "import" <id:"id"> "=" <uri:Sp<Text>> <did:("as" <Text>)?> =>? {
          let principal = Principal::from_text(&uri.0).map_err(|e| error2(e, uri.1))?;
          Ok(Command::Import(id, principal, did))

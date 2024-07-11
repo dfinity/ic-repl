@@ -20,7 +20,7 @@ pub enum Command {
     Let(String, Exp),
     Assert(BinOp, Exp, Exp),
     Import(String, Principal, Option<String>),
-    Load(String),
+    Load(Exp),
     Identity(String, IdentityConfig),
     Func {
         name: String,
@@ -163,8 +163,11 @@ impl Command {
                 helper.current_identity = id.to_string();
                 helper.env.0.insert(id, IDLValue::Principal(sender));
             }
-            Command::Load(file) => {
+            Command::Load(e) => {
                 // TODO check for infinite loop
+                let IDLValue::Text(file) = e.eval(helper)? else {
+                    return Err(anyhow!("load needs to be a file path"));
+                };
                 let (file, fail_safe) = if file.ends_with('?') {
                     (file.trim_end_matches('?'), true)
                 } else {

@@ -83,13 +83,14 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
 
     let enter_repl = opts.script.is_none() || opts.interactive;
     if let Some(file) = opts.script {
-        let cmd = Command::Load(file);
+        let cmd = Command::Load(exp::Exp::Text(file));
         let helper = rl.helper_mut().unwrap();
         cmd.run(helper)?;
         if helper.func_env.0.contains_key("__main") {
             let mut args = Vec::new();
             for arg in opts.extra_args {
-                args.push(candid_parser::parse_idl_value(&arg)?);
+                let v = candid_parser::parse_idl_value(&arg).unwrap_or(candid::IDLValue::Text(arg));
+                args.push(v);
             }
             exp::apply_func(helper, "__main", args)?;
         }

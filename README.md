@@ -9,7 +9,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
 ```
 <command> := 
  | import <id> = <text> (as <text>)?                // bind canister URI to <id>, with optional did file
- | load <text>                                      // load and run a script file. Do not error out if <text> ends with '?'
+ | load <exp>                                       // load and run a script file. Do not error out if <exp> ends with '?'
  | config <text>                                    // set config in TOML format
  | let <id> = <exp>                                 // bind <exp> to a variable <id>
  | <exp>                                            // show the value of <exp>
@@ -71,6 +71,15 @@ The following functions are only available in non-offline mode:
   + list subnet nodes: `read_state("subnet", principal "subnet_id", "node")`
   + node public key: `read_state("subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
 * `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
+
+There is a special `__main` function you can define in the script, which gets executed when loading from CLI. `__main` can take arguments provided from CLI. For example, the following code can be called with `ic-repl main.sh -- test 42` and outputs "test43".
+
+### main.sh
+```
+function __main(name, n) {
+  stringify(name, add(n, 1))
+}
+```
 
 ## Object methods
 
