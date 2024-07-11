@@ -1,5 +1,4 @@
 use clap::Parser;
-use ic_agent::agent::http_transport::ReqwestTransport;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
@@ -54,9 +53,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         url => url,
     };
     println!("Ping {url}...");
-    let agent = Agent::builder()
-        .with_transport(ReqwestTransport::create(url)?)
-        .build()?;
+    let agent = Agent::builder().with_url(url).build()?;
 
     println!("Canister REPL");
     let config = rustyline::Config::builder()
@@ -156,6 +153,9 @@ struct Opts {
     #[clap(short, long, conflicts_with("script"), conflicts_with("offline"))]
     /// Send signed messages
     send: Option<String>,
+    #[clap(short, long)]
+    /// Run script in verbose mode
+    verbose: bool,
     #[clap(last = true)]
     /// Extra arguments passed to __main function when running a script
     extra_args: Vec<String>,
