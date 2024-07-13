@@ -214,21 +214,42 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("gzip expects blob")),
                     },
-                    "exec" | "exec_silence" => match args.as_slice() {
+                    "exec" => match args.as_slice() {
                         [IDLValue::Text(cmd), ..] => {
                             use std::io::{BufRead, BufReader};
                             use std::process::{Command, Stdio};
                             use std::sync::{Arc, Mutex};
-                            let is_silence = func == "exec_silence";
                             let mut cmd = Command::new(cmd);
                             cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-                            for arg in args.iter().skip(1) {
+                            let mut is_silence = false;
+                            let mut cwd = None;
+                            let n = args.len();
+                            for (i, arg) in args.iter().skip(1).enumerate() {
                                 match arg {
                                     IDLValue::Text(arg) => {
                                         cmd.arg(arg);
                                     }
+                                    IDLValue::Record(fs) if i == n - 2 => {
+                                        if let Some(v) = get_field(fs, "cwd") {
+                                            if let IDLValue::Text(path) = v {
+                                                cwd = Some(resolve_path(&helper.base_path, path));
+                                            } else {
+                                                return Err(anyhow!("cwd expects a string"));
+                                            }
+                                        }
+                                        if let Some(v) = get_field(fs, "silence") {
+                                            if let IDLValue::Bool(silence) = v {
+                                                is_silence = *silence;
+                                            } else {
+                                                return Err(anyhow!("silence expects a boolean"));
+                                            }
+                                        }
+                                    }
                                     _ => return Err(anyhow!("exec expects string arguments")),
                                 }
+                            }
+                            if let Some(cwd) = cwd {
+                                cmd.current_dir(cwd);
                             }
                             let mut child = cmd.spawn()?;
                             let stdout = child.stdout.take().unwrap();
