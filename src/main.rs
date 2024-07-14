@@ -70,9 +70,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     }
     let mut rl = rustyline::Editor::with_config(config)?;
     rl.set_helper(Some(h));
-    if rl.load_history("./.history").is_err() {
-        eprintln!("No history found");
-    }
+    let _ = rl.load_history("./.history");
     if let Some(file) = opts.config {
         let config = std::fs::read_to_string(file)?;
         rl.helper_mut().unwrap().config = config.parse::<candid_parser::configs::Configs>()?;

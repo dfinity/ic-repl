@@ -171,6 +171,11 @@ impl MyHelper {
                 Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?,
                 self.offline.as_ref().map(|_| include_str!("ledger.did")),
             )?;
+            self.preload_canister(
+                "cycles".to_string(),
+                Principal::from_text("um5iw-rqaaa-aaaaq-qaaba-cai")?,
+                None,
+            )?;
         }
         Ok(())
     }
