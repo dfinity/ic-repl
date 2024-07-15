@@ -91,6 +91,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         }
     }
     if enter_repl {
+        rl.helper_mut().unwrap().verbose = true;
         let mut count = 1;
         loop {
             let identity = &rl.helper().unwrap().current_identity;

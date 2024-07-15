@@ -172,7 +172,12 @@ impl MyHelper {
                 self.offline.as_ref().map(|_| include_str!("ledger.did")),
             )?;
             self.preload_canister(
-                "cycles".to_string(),
+                "registry".to_string(),
+                Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai")?,
+                None,
+            )?;
+            self.preload_canister(
+                "cycles_ledger".to_string(),
                 Principal::from_text("um5iw-rqaaa-aaaaq-qaaba-cai")?,
                 None,
             )?;

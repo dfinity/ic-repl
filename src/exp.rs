@@ -174,6 +174,10 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
                     },
+                    "replica_url" => match args.as_slice() {
+                        [] => IDLValue::Text(helper.agent_url.clone()),
+                        _ => return Err(anyhow!("replica_url expects no argument")),
+                    },
                     "read_state" if helper.offline.is_none() => {
                         use crate::utils::{fetch_state_path, parse_state_path};
                         match args.as_slice() {
