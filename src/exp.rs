@@ -261,7 +261,7 @@ impl Exp {
                             let final_stdout = Arc::new(Mutex::new(String::new()));
                             let final_stdout_clone = Arc::clone(&final_stdout);
 
-                            std::thread::spawn(move || {
+                            let stdout_thread = std::thread::spawn(move || {
                                 let reader = BufReader::new(stdout);
                                 reader.lines().for_each(|line| {
                                     if let Ok(line) = line {
@@ -273,17 +273,22 @@ impl Exp {
                                     }
                                 });
                             });
+                            let mut stderr_thread = None;
                             if !is_silence {
-                                std::thread::spawn(move || {
+                                stderr_thread = Some(std::thread::spawn(move || {
                                     let reader = BufReader::new(stderr);
                                     reader.lines().for_each(|line| {
                                         if let Ok(line) = line {
                                             eprintln!("{line}");
                                         }
                                     });
-                                });
+                                }));
                             }
                             let status = child.wait()?;
+                            stdout_thread.join().unwrap();
+                            if let Some(thread) = stderr_thread {
+                                thread.join().unwrap();
+                            }
                             if !status.success() {
                                 return Err(anyhow!(
                                     "exec failed with status {}",
