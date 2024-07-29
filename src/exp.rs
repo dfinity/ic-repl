@@ -123,7 +123,7 @@ impl Exp {
                     "export" => {
                         use std::io::{BufWriter, Write};
                         if exps.len() <= 1 {
-                            return Err(anyhow!("export expects at least two argument"));
+                            return Err(anyhow!("export expects at least two arguments"));
                         }
                         let path = exps[0].clone().eval(helper)?;
                         let IDLValue::Text(path) = path else {
@@ -176,7 +176,7 @@ impl Exp {
                     },
                     "replica_url" => match args.as_slice() {
                         [] => IDLValue::Text(helper.agent_url.clone()),
-                        _ => return Err(anyhow!("replica_url expects no argument")),
+                        _ => return Err(anyhow!("replica_url expects no arguments")),
                     },
                     "read_state" if helper.offline.is_none() => {
                         use crate::utils::{fetch_state_path, parse_state_path};
