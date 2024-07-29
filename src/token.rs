@@ -77,8 +77,6 @@ pub enum Token {
     Assert,
     #[token("identity")]
     Identity,
-    #[token("export")]
-    Export,
     #[token("load")]
     Load,
     #[token("function")]

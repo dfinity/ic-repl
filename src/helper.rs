@@ -90,6 +90,7 @@ pub struct MyHelper {
     pub func_env: FuncEnv,
     pub base_path: std::path::PathBuf,
     pub messages: RefCell<Vec<crate::offline::IngressWithStatus>>,
+    pub verbose: bool,
 }
 
 impl MyHelper {
@@ -111,9 +112,15 @@ impl MyHelper {
             agent_url: self.agent_url.clone(),
             offline: self.offline.clone(),
             messages: self.messages.clone(),
+            verbose: self.verbose,
         }
     }
-    pub fn new(agent: Agent, agent_url: String, offline: Option<OfflineOutput>) -> Self {
+    pub fn new(
+        agent: Agent,
+        agent_url: String,
+        offline: Option<OfflineOutput>,
+        verbose: bool,
+    ) -> Self {
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
@@ -131,6 +138,7 @@ impl MyHelper {
             agent,
             agent_url,
             offline,
+            verbose,
         };
         res.fetch_root_key_if_needed().unwrap();
         res.load_prelude().unwrap();
@@ -162,6 +170,16 @@ impl MyHelper {
                 "ledger".to_string(),
                 Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?,
                 self.offline.as_ref().map(|_| include_str!("ledger.did")),
+            )?;
+            self.preload_canister(
+                "registry".to_string(),
+                Principal::from_text("rwlgt-iiaaa-aaaaa-aaaaa-cai")?,
+                None,
+            )?;
+            self.preload_canister(
+                "cycles_ledger".to_string(),
+                Principal::from_text("um5iw-rqaaa-aaaaq-qaaba-cai")?,
+                None,
             )?;
         }
         Ok(())
@@ -578,12 +596,8 @@ impl Env {
 fn test_partial_parse() -> anyhow::Result<()> {
     use candid_parser::parse_idl_value;
     let url = "https://icp0.io".to_string();
-    let agent = Agent::builder()
-        .with_transport(ic_agent::agent::http_transport::ReqwestTransport::create(
-            url.clone(),
-        )?)
-        .build()?;
-    let mut helper = MyHelper::new(agent, url, None);
+    let agent = Agent::builder().with_url(url.clone()).build()?;
+    let mut helper = MyHelper::new(agent, url, None, false);
     helper.env.0.insert(
         "a".to_string(),
         parse_idl_value("opt record { variant {b=vec{1;2;3}}; 42; f1=42;42=35;a1=30}")?,

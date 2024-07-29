@@ -1,5 +1,4 @@
 use clap::Parser;
-use ic_agent::agent::http_transport::ReqwestTransport;
 use ic_agent::Agent;
 use rustyline::error::ReadlineError;
 use rustyline::CompletionType;
@@ -54,16 +53,14 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         url => url,
     };
     println!("Ping {url}...");
-    let agent = Agent::builder()
-        .with_transport(ReqwestTransport::create(url)?)
-        .build()?;
+    let agent = Agent::builder().with_url(url).build()?;
 
     println!("Canister REPL");
     let config = rustyline::Config::builder()
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .build();
-    let h = MyHelper::new(agent, url.to_string(), offline);
+    let h = MyHelper::new(agent, url.to_string(), offline, opts.verbose);
     if let Some(file) = opts.send {
         use crate::offline::{send_messages, Messages};
         let json = std::fs::read_to_string(file)?;
@@ -73,9 +70,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
     }
     let mut rl = rustyline::Editor::with_config(config)?;
     rl.set_helper(Some(h));
-    if rl.load_history("./.history").is_err() {
-        eprintln!("No history found");
-    }
+    let _ = rl.load_history("./.history");
     if let Some(file) = opts.config {
         let config = std::fs::read_to_string(file)?;
         rl.helper_mut().unwrap().config = config.parse::<candid_parser::configs::Configs>()?;
@@ -83,11 +78,20 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
 
     let enter_repl = opts.script.is_none() || opts.interactive;
     if let Some(file) = opts.script {
-        let cmd = Command::Load(file);
+        let cmd = Command::Load(exp::Exp::Text(file));
         let helper = rl.helper_mut().unwrap();
         cmd.run(helper)?;
+        if helper.func_env.0.contains_key("__main") {
+            let mut args = Vec::new();
+            for arg in opts.extra_args {
+                let v = candid_parser::parse_idl_value(&arg).unwrap_or(candid::IDLValue::Text(arg));
+                args.push(v);
+            }
+            exp::apply_func(helper, "__main", args)?;
+        }
     }
     if enter_repl {
+        rl.helper_mut().unwrap().verbose = true;
         let mut count = 1;
         loop {
             let identity = &rl.helper().unwrap().current_identity;
@@ -148,6 +152,12 @@ struct Opts {
     #[clap(short, long, conflicts_with("script"), conflicts_with("offline"))]
     /// Send signed messages
     send: Option<String>,
+    #[clap(short, long)]
+    /// Run script in verbose mode. Non-verbose mode will only output text values.
+    verbose: bool,
+    #[clap(last = true)]
+    /// Extra arguments passed to __main function when running a script
+    extra_args: Vec<String>,
 }
 
 fn main() -> anyhow::Result<()> {

@@ -120,6 +120,27 @@ impl Exp {
                             Err(_) => IDLValue::Bool(false),
                         });
                     }
+                    "export" => {
+                        use std::io::{BufWriter, Write};
+                        if exps.len() <= 1 {
+                            return Err(anyhow!("export expects at least two arguments"));
+                        }
+                        let path = exps[0].clone().eval(helper)?;
+                        let IDLValue::Text(path) = path else {
+                            return Err(anyhow!("export expects first argument to be a file path"));
+                        };
+                        let path = resolve_path(&std::env::current_dir()?, &path);
+                        let file = std::fs::File::create(path)?;
+                        let mut writer = BufWriter::new(file);
+                        for arg in exps.iter().skip(1) {
+                            let Exp::Path(id, _) = arg else {
+                                return Err(anyhow!("export expects variables"));
+                            };
+                            let val = arg.clone().eval(helper)?;
+                            writeln!(&mut writer, "let {id} = {val};")?;
+                        }
+                        return Ok(IDLValue::Null);
+                    }
                     _ => (),
                 }
 
@@ -152,6 +173,10 @@ impl Exp {
                             IDLValue::Blob(account.to_vec())
                         }
                         _ => return Err(anyhow!("neuron_account expects (principal, nonce)")),
+                    },
+                    "replica_url" => match args.as_slice() {
+                        [] => IDLValue::Text(helper.agent_url.clone()),
+                        _ => return Err(anyhow!("replica_url expects no arguments")),
                     },
                     "read_state" if helper.offline.is_none() => {
                         use crate::utils::{fetch_state_path, parse_state_path};
@@ -192,6 +217,89 @@ impl Exp {
                             IDLValue::Blob(result)
                         }
                         _ => return Err(anyhow!("gzip expects blob")),
+                    },
+                    "exec" => match args.as_slice() {
+                        [IDLValue::Text(cmd), ..] => {
+                            use std::io::{BufRead, BufReader};
+                            use std::process::{Command, Stdio};
+                            use std::sync::{Arc, Mutex};
+                            let mut cmd = Command::new(cmd);
+                            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+                            let mut is_silence = false;
+                            let mut cwd = None;
+                            let n = args.len();
+                            for (i, arg) in args.iter().skip(1).enumerate() {
+                                match arg {
+                                    IDLValue::Text(arg) => {
+                                        cmd.arg(arg);
+                                    }
+                                    IDLValue::Record(fs) if i == n - 2 => {
+                                        if let Some(v) = get_field(fs, "cwd") {
+                                            if let IDLValue::Text(path) = v {
+                                                cwd = Some(resolve_path(&helper.base_path, path));
+                                            } else {
+                                                return Err(anyhow!("cwd expects a string"));
+                                            }
+                                        }
+                                        if let Some(v) = get_field(fs, "silence") {
+                                            if let IDLValue::Bool(silence) = v {
+                                                is_silence = *silence;
+                                            } else {
+                                                return Err(anyhow!("silence expects a boolean"));
+                                            }
+                                        }
+                                    }
+                                    _ => return Err(anyhow!("exec expects string arguments")),
+                                }
+                            }
+                            if let Some(cwd) = cwd {
+                                cmd.current_dir(cwd);
+                            }
+                            let mut child = cmd.spawn()?;
+                            let stdout = child.stdout.take().unwrap();
+                            let stderr = child.stderr.take().unwrap();
+                            let final_stdout = Arc::new(Mutex::new(String::new()));
+                            let final_stdout_clone = Arc::clone(&final_stdout);
+
+                            let stdout_thread = std::thread::spawn(move || {
+                                let reader = BufReader::new(stdout);
+                                reader.lines().for_each(|line| {
+                                    if let Ok(line) = line {
+                                        if !is_silence {
+                                            println!("{line}");
+                                        }
+                                        let mut final_stdout = final_stdout_clone.lock().unwrap();
+                                        *final_stdout = line;
+                                    }
+                                });
+                            });
+                            let mut stderr_thread = None;
+                            if !is_silence {
+                                stderr_thread = Some(std::thread::spawn(move || {
+                                    let reader = BufReader::new(stderr);
+                                    reader.lines().for_each(|line| {
+                                        if let Ok(line) = line {
+                                            eprintln!("{line}");
+                                        }
+                                    });
+                                }));
+                            }
+                            let status = child.wait()?;
+                            stdout_thread.join().unwrap();
+                            if let Some(thread) = stderr_thread {
+                                thread.join().unwrap();
+                            }
+                            if !status.success() {
+                                return Err(anyhow!(
+                                    "exec failed with status {}",
+                                    status.code().unwrap_or(-1)
+                                ));
+                            }
+                            let stdout = final_stdout.lock().unwrap();
+                            candid_parser::parse_idl_value(&stdout)
+                                .unwrap_or(IDLValue::Text(stdout.clone()))
+                        }
+                        _ => return Err(anyhow!("exec expects (text command, ...text args)")),
                     },
                     "send" if helper.offline.is_none() => match args.as_slice() {
                         [IDLValue::Blob(blob)] => {
@@ -428,28 +536,7 @@ impl Exp {
                         }
                         _ => return Err(anyhow!("{func} expects two numbers")),
                     },
-                    func => match helper.func_env.0.get(func) {
-                        None => return Err(anyhow!("Unknown function {}", func)),
-                        Some((formal_args, body)) => {
-                            if formal_args.len() != args.len() {
-                                return Err(anyhow!(
-                                    "{} expects {} arguments, but {} is provided",
-                                    func,
-                                    formal_args.len(),
-                                    args.len()
-                                ));
-                            }
-                            let mut helper = helper.spawn();
-                            for (id, v) in formal_args.iter().zip(args.into_iter()) {
-                                helper.env.0.insert(id.to_string(), v);
-                            }
-                            for cmd in body.iter() {
-                                cmd.clone().run(&mut helper)?;
-                            }
-                            let res = helper.env.0.get("_").unwrap_or(&IDLValue::Null).clone();
-                            res
-                        }
-                    },
+                    func => apply_func(helper, func, args)?,
                 }
             }
             Exp::Decode { method, blob } => {
@@ -571,6 +658,7 @@ impl Exp {
                             helper.agent.clone(),
                             helper.agent_url.clone(),
                             helper.offline.clone(),
+                            helper.verbose,
                         );
                         env.canister_map.borrow_mut().0.insert(
                             proxy_id,
@@ -754,6 +842,30 @@ impl Method {
     }
 }
 
+pub fn apply_func(helper: &MyHelper, func: &str, args: Vec<IDLValue>) -> Result<IDLValue> {
+    match helper.func_env.0.get(func) {
+        None => Err(anyhow!("Unknown function {}", func)),
+        Some((formal_args, body)) => {
+            if formal_args.len() != args.len() {
+                return Err(anyhow!(
+                    "{} expects {} arguments, but {} is provided",
+                    func,
+                    formal_args.len(),
+                    args.len()
+                ));
+            }
+            let mut helper = helper.spawn();
+            for (id, v) in formal_args.iter().zip(args.into_iter()) {
+                helper.env.0.insert(id.to_string(), v);
+            }
+            for cmd in body.iter() {
+                cmd.clone().run(&mut helper)?;
+            }
+            let res = helper.env.0.get("_").unwrap_or(&IDLValue::Null).clone();
+            Ok(res)
+        }
+    }
+}
 #[tokio::main]
 async fn call(
     helper: &MyHelper,

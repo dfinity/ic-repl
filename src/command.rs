@@ -19,9 +19,8 @@ pub enum Command {
     Show(Exp),
     Let(String, Exp),
     Assert(BinOp, Exp, Exp),
-    Export(String),
     Import(String, Principal, Option<String>),
-    Load(String),
+    Load(Exp),
     Identity(String, IdentityConfig),
     Func {
         name: String,
@@ -111,8 +110,10 @@ impl Command {
                 let v = val.eval(helper)?;
                 let duration = time.elapsed();
                 bind_value(helper, "_".to_string(), v, is_call, true);
-                let width = console::Term::stdout().size().1 as usize;
-                println!("{:>width$}", format!("({duration:.2?})"), width = width);
+                if helper.verbose {
+                    let width = console::Term::stdout().size().1 as usize;
+                    println!("{:>width$}", format!("({duration:.2?})"), width = width);
+                }
             }
             Command::Identity(id, config) => {
                 use ic_agent::identity::{BasicIdentity, Identity, Secp256k1Identity};
@@ -164,31 +165,36 @@ impl Command {
                 helper.current_identity = id.to_string();
                 helper.env.0.insert(id, IDLValue::Principal(sender));
             }
-            Command::Export(file) => {
-                use std::io::{BufWriter, Write};
-                let path = resolve_path(&std::env::current_dir()?, &file);
-                let file = std::fs::File::create(path)?;
-                let mut writer = BufWriter::new(&file);
-                for (id, val) in helper.env.0.iter() {
-                    writeln!(&mut writer, "let {id} = {val};")?;
-                }
-            }
-            Command::Load(file) => {
+            Command::Load(e) => {
                 // TODO check for infinite loop
+                // Note that it's a bit tricky to make load as a built-in function, as it requires mutable access to helper.
+                let IDLValue::Text(file) = e.eval(helper)? else {
+                    return Err(anyhow!("load needs to be a file path"));
+                };
+                let (file, fail_safe) = if file.ends_with('?') {
+                    (file.trim_end_matches('?'), true)
+                } else {
+                    (file.as_str(), false)
+                };
                 let old_base = helper.base_path.clone();
-                let path = resolve_path(&old_base, &file);
-                let mut script = std::fs::read_to_string(&path)
-                    .with_context(|| format!("Cannot read {path:?}"))?;
+                let path = resolve_path(&old_base, file);
+                let read_result = std::fs::read_to_string(&path);
+                if read_result.is_err() && fail_safe {
+                    return Ok(());
+                }
+                let mut script = read_result.with_context(|| format!("Cannot read {path:?}"))?;
                 if script.starts_with("#!") {
                     let line_end = script.find('\n').unwrap_or(0);
                     script.drain(..line_end);
                 }
                 let script =
                     shellexpand::env(&script).map_err(|e| crate::token::error2(e, 0..0))?;
-                let cmds = pretty_parse::<Commands>(&file, &script)?;
+                let cmds = pretty_parse::<Commands>(file, &script)?;
                 helper.base_path = path.parent().unwrap().to_path_buf();
                 for (cmd, pos) in cmds.0.into_iter() {
-                    println!("> {}", &script[pos]);
+                    if helper.verbose {
+                        println!("> {}", &script[pos]);
+                    }
                     cmd.run(helper)?;
                 }
                 helper.base_path = old_base;
@@ -239,20 +245,21 @@ impl std::str::FromStr for Commands {
 }
 
 fn bind_value(helper: &mut MyHelper, id: String, v: IDLValue, is_call: bool, display: bool) {
+    if display {
+        if helper.verbose {
+            println!("{v}");
+        } else if let IDLValue::Text(v) = &v {
+            println!("{v}");
+        }
+    }
     if is_call {
         let (v, cost) = crate::profiling::may_extract_profiling(v);
         if let Some(cost) = cost {
             let cost_id = format!("__cost_{id}");
             helper.env.0.insert(cost_id, IDLValue::Int64(cost));
         }
-        if display {
-            println!("{v}");
-        }
         helper.env.0.insert(id, v);
     } else {
-        if display {
-            println!("{v}");
-        }
         helper.env.0.insert(id, v);
     }
 }

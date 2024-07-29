@@ -1,7 +1,7 @@
 # Canister REPL
 
 ```
-ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --config <toml config> [script file]
+ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --config <toml config> [script file] --verbose
 ```
 
 ## Commands
@@ -9,8 +9,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
 ```
 <command> := 
  | import <id> = <text> (as <text>)?                // bind canister URI to <id>, with optional did file
- | export <text>                                    // export current environment variables
- | load <text>                                      // load and run a script file
+ | load <exp>                                       // load and run a script file. Do not error out if <exp> ends with '?'
  | config <text>                                    // set config in TOML format
  | let <id> = <exp>                                 // bind <exp> to a variable <id>
  | <exp>                                            // show the value of <exp>
@@ -50,8 +49,10 @@ We also provide some built-in functions:
 * `neuron_account(principal, nonce)`: convert (principal, nonce) to account in the governance canister.
 * `file(path)`: load external file as a blob value.
 * `gzip(blob)`: gzip a blob value.
+* `replica_url()`: returns the replica URL ic-repl connects to.
 * `stringify(exp1, exp2, exp3, ...)`: convert all expressions to string and concat. Only supports primitive types.
 * `output(path, content)`: append text content to file path.
+* `export(path, var1, var2, ...)`: overwrite variable bindings to file path. The file can be used by the `load` command.
 * `wasm_profiling(path)/wasm_profiling(path, record { trace_only_funcs = <vec text>; start_page = <nat>; page_limit = <nat> })`: load Wasm module, instrument the code and store as a blob value. Calling profiled canister binds the cost to variable `__cost_{id}` or `__cost__`. The second argument is optional, and all fields in the record are also optional. If provided, `trace_only_funcs` will only count and trace the provided set of functions; `start_page` writes the logs to a preallocated pages in stable memory; `page_limit` specifies the number of the preallocated pages, default to 4096 if omitted. See [ic-wasm's doc](https://github.com/dfinity/ic-wasm#working-with-upgrades-and-stable-memory) for more details.
 * `flamegraph(canister_id, title, filename)`: generate flamegraph for the last update call to canister_id, with title and write to `{filename}.svg`. The cost of the update call is returned.
 * `concat(e1, e2)`: concatenate two vec/record/text together.
@@ -61,6 +62,7 @@ We also provide some built-in functions:
 * `and/or(e1, e2)/not(e)`: logical and/or/not.
 * `exist(e)`: check if `e` can be evaluated without errors. This is useful to check the existence of data, e.g., `exist(res[10])`.
 * `ite(cond, e1, e2)`: expression version of conditional branch. For example, `ite(exist(res.ok), "success", "error")`.
+* `exec(cmd, arg1, arg2, ...)/exec(cmd, arg1, arg2, ..., record { silence = <bool>; cwd = <text> })`: execute a bash command. The arguments are all text types. The last line from stdout is parsed by the Candid value parser as the result of the `exec` function. If parsing fails, returns that line as a text value. You can specify an optional record argument at the end. All fields in the record are optional. If provided, `silence = true` hides the stdout and stderr output; `cwd` specifies the current working directory of the command. There are security risks in running arbitrary bash command. Be careful about what command you execute.
 
 The following functions are only available in non-offline mode:
 * `read_state([effective_id,] prefix, id, paths, ...)`: fetch the state tree path of `<prefix>/<id>/<paths>`. Some useful examples,
@@ -71,6 +73,15 @@ The following functions are only available in non-offline mode:
   + list subnet nodes: `read_state("subnet", principal "subnet_id", "node")`
   + node public key: `read_state("subnet", principal "subnet_id", "node", principal "node_id", "public_key")`
 * `send(blob)`: send signed JSON messages generated from offline mode. The function can take a single message or an array of messages. Most likely use is `send(file("messages.json"))`. The return result is the return results of all calls. Alternatively, you can use `ic-repl -s messages.json -r ic`.
+
+There is a special `__main` function you can define in the script, which gets executed when loading from CLI. `__main` can take arguments provided from CLI. The CLI arguments gets parsed by the Candid value parser first. If parsing fails, it is stored as a text value. For example, the following code can be called with `ic-repl main.sh -- test 42` and outputs "test43".
+
+### main.sh
+```
+function __main(name, n) {
+  stringify(name, add(n, 1))
+}
+```
 
 ## Object methods
 

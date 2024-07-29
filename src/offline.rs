@@ -3,7 +3,7 @@ use crate::utils::args_to_value;
 use anyhow::{anyhow, Context, Result};
 use candid::Principal;
 use candid::{types::Function, IDLArgs, TypeEnv};
-use ic_agent::{agent::RequestStatusResponse, Agent};
+use ic_agent::{agent::CallResponse, Agent};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -160,34 +160,24 @@ async fn send_internal(
     let response = match message.ingress.call_type.as_str() {
         "query" => agent.query_signed(canister_id, content).await?,
         "update" => {
-            let request_id = agent.update_signed(canister_id, content).await?;
-            println!("Request ID: 0x{}", String::from(request_id));
-            let status = message
-                .request_status
-                .as_ref()
-                .ok_or_else(|| anyhow!("Cannot get request status for update call"))?;
-            if !(status.canister_id == canister_id && status.request_id == String::from(request_id))
-            {
-                return Err(anyhow!("request_id does match, cannot request status"));
-            }
-            let status = hex::decode(&status.content)?;
-            async {
-                loop {
-                    match agent
-                        .request_status_signed(&request_id, canister_id, status.clone())
-                        .await?
+            let call_response = agent.update_signed(canister_id, content).await?;
+            match call_response {
+                CallResponse::Response(blob) => blob,
+                CallResponse::Poll(request_id) => {
+                    println!("Request ID: 0x{}", String::from(request_id));
+                    let status = message
+                        .request_status
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("Cannot get request status for update call"))?;
+                    if !(status.canister_id == canister_id
+                        && status.request_id == String::from(request_id))
                     {
-                        RequestStatusResponse::Replied(reply) => return Ok(reply.arg),
-                        RequestStatusResponse::Rejected(response) => {
-                            return Err(anyhow!("{:?}", response))
-                        }
-                        RequestStatusResponse::Done => return Err(anyhow!("No response")),
-                        _ => println!("The request is being processed..."),
-                    };
-                    std::thread::sleep(std::time::Duration::from_millis(500));
+                        return Err(anyhow!("request_id doesn't match, cannot request status"));
+                    }
+                    let status = hex::decode(&status.content)?;
+                    agent.wait_signed(&request_id, canister_id, status).await?
                 }
             }
-            .await?
         }
         _ => unreachable!(),
     };
