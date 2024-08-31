@@ -47,4 +47,5 @@ qrcode = "0.13"
 image = { version = "0.24", default-features = false, features = ["png"] }
 libflate = "2.0"
 base64 = "0.21"
+futures = "0.3.30"
 
