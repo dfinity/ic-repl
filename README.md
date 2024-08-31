@@ -23,6 +23,7 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
  | <var> <transformer>*                             // variable with optional transformers
  | fail <exp>                                       // convert error message as text
  | call (as <name>)? <name> . <name> (( <exp>,* ))? // call a canister method, and store the result as a single value
+ | par_call [ (<name> . <name> (( <exp>,* ))),* ]   // make concurrent canister calls, and store the result as a tuple record
  | encode (<name> . <name>)? (( <exp>,* ))?         // encode candid arguments as a blob value. canister.__init_args represents init args
  | decode (as <name> . <name>)? <exp>               // decode blob as candid values
  | <id> ( <exp>,* )                                 // function application
@@ -166,11 +167,12 @@ function deploy(wasm) {
 
 identity alice;
 let id = deploy(file("greet.wasm"));
-let status = call ic.canister_status(id);
+let canister = id.canister_id;
+let res = par_call [ic.canister_status(id), canister.greet("test")];
+let status = res[0];
 assert status.settings ~= record { controllers = vec { alice } };
 assert status.module_hash? == blob "...";
-let canister = id.canister_id;
-call canister.greet("test");
+assert res[1] == "Hello, test!";
 ```
 
 ### wallet.sh
