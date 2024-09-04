@@ -13,6 +13,7 @@ use candid::{
     utils::check_unique,
     Principal, TypeEnv,
 };
+use futures::future::try_join_all;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -23,6 +24,9 @@ pub enum Exp {
         method: Option<Method>,
         args: Option<Vec<Exp>>,
         mode: CallMode,
+    },
+    ParCall {
+        calls: Vec<FuncCall>,
     },
     Decode {
         method: Option<Method>,
@@ -57,12 +61,18 @@ pub enum CallMode {
     Proxy(String),
 }
 #[derive(Debug, Clone)]
+pub struct FuncCall {
+    pub method: Method,
+    pub args: Vec<Exp>,
+}
+#[derive(Debug, Clone)]
 pub struct Field {
     pub id: Label,
     pub val: Exp,
 }
 impl Exp {
     pub fn is_call(&self) -> bool {
+        // Used to decide if we want to report profiling numbers. Ignore par_call for now
         matches!(
             self,
             Exp::Call {
@@ -568,6 +578,42 @@ impl Exp {
                 };
                 args_to_value(args)
             }
+            Exp::ParCall { calls } => {
+                let mut futures = Vec::with_capacity(calls.len());
+                for call in calls {
+                    let mut args = Vec::with_capacity(call.args.len());
+                    for arg in call.args.into_iter() {
+                        args.push(arg.eval(helper)?);
+                    }
+                    let args = IDLArgs { args };
+                    let info = call.method.get_info(helper, false)?;
+                    let bytes = if let Some((env, func)) = &info.signature {
+                        args.to_bytes_with_types(env, &func.args)?
+                    } else {
+                        args.to_bytes()?
+                    };
+                    let method = &call.method.method;
+                    let effective_id = get_effective_canister_id(info.canister_id, method, &bytes)?;
+                    let mut builder = helper.agent.update(&info.canister_id, method);
+                    builder = builder
+                        .with_arg(bytes)
+                        .with_effective_canister_id(effective_id);
+                    let call_future = async move {
+                        let res = builder.call_and_wait().await?;
+                        if let Some((env, func)) = &info.signature {
+                            Ok(IDLArgs::from_bytes_with_types(&res, env, &func.rets)?)
+                        } else {
+                            Ok(IDLArgs::from_bytes(&res)?)
+                        }
+                    };
+                    futures.push(call_future);
+                }
+                let res = parallel_calls(futures)?;
+                let res = IDLArgs {
+                    args: res.into_iter().map(args_to_value).collect(),
+                };
+                args_to_value(res)
+            }
             Exp::Call { method, args, mode } => {
                 let args = if let Some(args) = args {
                     let mut res = Vec::with_capacity(args.len());
@@ -865,6 +911,13 @@ pub fn apply_func(helper: &MyHelper, func: &str, args: Vec<IDLValue>) -> Result<
             Ok(res)
         }
     }
+}
+#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
+async fn parallel_calls(
+    futures: Vec<impl std::future::Future<Output = anyhow::Result<IDLArgs>>>,
+) -> anyhow::Result<Vec<IDLArgs>> {
+    let res = try_join_all(futures).await?;
+    Ok(res)
 }
 #[tokio::main]
 async fn call(

@@ -16,11 +16,11 @@ function deploy(wasm) {
 
 identity alice;
 let id = deploy(file("greet.wasm"));
-let status = call ic.canister_status(id);
+let canister = id.canister_id;
+let res = par_call [ic.canister_status(id), canister.greet("test")];
+let status = res[0];
 assert status.settings ~= record { controllers = vec { alice } };
 assert status.module_hash? == blob "\ab\a7h\8cH\e0]\e7W]\8b\07\92\ac\9fH\95\7f\f4\97\d0\efX\c4~\0d\83\91\01<\da\1d";
-let canister = id.canister_id;
-call canister.greet("test");
-assert _ == "Hello, test!";
+assert res[1] == "Hello, test!";
 call ic.stop_canister(id);
 call ic.delete_canister(id);

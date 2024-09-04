@@ -63,6 +63,8 @@ pub enum Token {
     Fail,
     #[token("call")]
     Call,
+    #[token("par_call")]
+    ParCall,
     #[token("encode")]
     Encode,
     #[token("decode")]
