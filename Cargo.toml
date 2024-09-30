@@ -24,9 +24,9 @@ codespan-reporting = "0.11"
 pretty = "0.12"
 pem = "3.0"
 shellexpand = "3.1"
-ic-agent = "0.37"
-ic-identity-hsm = "0.37"
-ic-transport-types = "0.37"
+ic-agent = "0.38"
+ic-identity-hsm = "0.38"
+ic-transport-types = "0.38"
 ic-wasm = { version = "0.8", default-features = false }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
 tokio = { version = "1.35", features = ["full"] }
@@ -48,4 +48,10 @@ image = { version = "0.24", default-features = false, features = ["png"] }
 libflate = "2.0"
 base64 = "0.21"
 futures = "0.3.30"
+
+[patch.crates-io]
+ic-agent = { git = "https://github.com/chenyan-dfinity/agent-rs.git", branch = "yan/elapsed-time" }
+ic-identity-hsm = { git = "https://github.com/chenyan-dfinity/agent-rs.git", branch = "yan/elapsed-time" }
+ic-transport-types = { git = "https://github.com/chenyan-dfinity/agent-rs.git", branch = "yan/elapsed-time" }
+
 

@@ -53,7 +53,7 @@ fn repl(opts: Opts) -> anyhow::Result<()> {
         url => url,
     };
     println!("Ping {url}...");
-    let agent = Agent::builder().with_url(url).build()?;
+    let agent = Agent::builder().with_url(url).with_max_tcp_error_retries(2).build()?;
 
     println!("Canister REPL");
     let config = rustyline::Config::builder()
