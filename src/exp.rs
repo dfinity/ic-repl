@@ -374,7 +374,8 @@ impl Exp {
                                     };
                                     Config {
                                         trace_only_funcs,
-                                        start_address: start_page.map(|page| page * 65536),
+                                        start_address: start_page
+                                            .map(|page| i64::from(page) * 65536),
                                         page_limit,
                                     }
                                 }

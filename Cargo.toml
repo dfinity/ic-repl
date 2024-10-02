@@ -27,7 +27,7 @@ shellexpand = "3.1"
 ic-agent = "0.38"
 ic-identity-hsm = "0.38"
 ic-transport-types = "0.38"
-ic-wasm = { version = "0.8", default-features = false }
+ic-wasm = { version = "0.9", default-features = false }
 inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
 tokio = { version = "1.35", features = ["full"] }
 anyhow = "1.0"
@@ -50,8 +50,8 @@ base64 = "0.21"
 futures = "0.3.30"
 
 [patch.crates-io]
-ic-agent = { git = "https://github.com/chenyan-dfinity/agent-rs.git", branch = "yan/elapsed-time" }
-ic-identity-hsm = { git = "https://github.com/chenyan-dfinity/agent-rs.git", branch = "yan/elapsed-time" }
-ic-transport-types = { git = "https://github.com/chenyan-dfinity/agent-rs.git", branch = "yan/elapsed-time" }
+ic-agent = { git = "https://github.com/dfinity/agent-rs.git", rev = "a56ccd471d7ca3c9ef5d63b57cc3c05afdcf89da" }
+ic-identity-hsm = { git = "https://github.com/dfinity/agent-rs.git", rev = "a56ccd471d7ca3c9ef5d63b57cc3c05afdcf89da" }
+ic-transport-types = { git = "https://github.com/dfinity/agent-rs.git", rev = "a56ccd471d7ca3c9ef5d63b57cc3c05afdcf89da" }
 
 
