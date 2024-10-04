@@ -47,11 +47,10 @@ where
     T: std::str::FromStr<Err = ParserError>,
 {
     let str = shellexpand::env(str).map_err(|e| error2(e, 0..0))?;
-    str.parse::<T>().map_err(|e| {
+    str.parse::<T>().inspect_err(|e| {
         let writer = StandardStream::stderr(term::termcolor::ColorChoice::Auto);
         let config = term::Config::default();
         let file = SimpleFile::new(name, str);
-        term::emit(&mut writer.lock(), &config, &file, &report(&e)).unwrap();
-        e
+        term::emit(&mut writer.lock(), &config, &file, &report(e)).unwrap();
     })
 }
