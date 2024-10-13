@@ -41,7 +41,7 @@ jobs:
       - name: Run e2e tests against replica
         run: |
           echo '{}' > dfx.json
-          dfx start --background
+          dfx start --background --clean
           set -ex
           target/debug/ic-repl examples/install.sh
           target/debug/ic-repl examples/func.sh
@@ -49,7 +49,7 @@ jobs:
       - name: Run e2e tests against PocketIC
         run: |
           echo '{}' > dfx.json
-          dfx start --background --pocketic
+          dfx start --background --clean --pocketic
           set -ex
           target/debug/ic-repl examples/install.sh
           target/debug/ic-repl examples/func.sh
