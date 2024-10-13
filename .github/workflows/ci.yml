@@ -45,6 +45,7 @@ jobs:
           set -ex
           target/debug/ic-repl examples/install.sh
           target/debug/ic-repl examples/func.sh
+          dfx stop
       - name: Run e2e tests against PocketIC
         run: |
           echo '{}' > dfx.json
@@ -52,3 +53,4 @@ jobs:
           set -ex
           target/debug/ic-repl examples/install.sh
           target/debug/ic-repl examples/func.sh
+          dfx stop
