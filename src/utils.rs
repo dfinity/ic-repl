@@ -162,7 +162,7 @@ pub fn get_effective_canister_id(
     canister_id: Principal,
     method: &str,
     args: &[u8],
-) -> anyhow::Result<Principal> {
+) -> anyhow::Result<Option<Principal>> {
     use candid::{CandidType, Decode, Deserialize};
     if canister_id == Principal::management_canister() {
         match method {
@@ -170,7 +170,7 @@ pub fn get_effective_canister_id(
                 "{} can only be called via inter-canister call.",
                 method
             )),
-            "provisional_create_canister_with_cycles" => Ok(canister_id),
+            "provisional_create_canister_with_cycles" => Ok(None),
             _ => {
                 #[derive(CandidType, Deserialize)]
                 struct Arg {
@@ -179,11 +179,11 @@ pub fn get_effective_canister_id(
                 let args = Decode!(args, Arg).map_err(|_| {
                     anyhow!("{} can only be called via inter-canister call.", method)
                 })?;
-                Ok(args.canister_id)
+                Ok(Some(args.canister_id))
             }
         }
     } else {
-        Ok(canister_id)
+        Ok(Some(canister_id))
     }
 }
 
