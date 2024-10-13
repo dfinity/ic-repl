@@ -137,12 +137,12 @@ impl MyHelper {
                     .await?
                     .json()
                     .await?;
-                let subnet = topology.get_app_subnets().into_iter().next().unwrap_or(
+                let subnet = topology.get_app_subnets().into_iter().next().unwrap_or_else(||
                     topology
                         .get_verified_app_subnets()
                         .into_iter()
                         .next()
-                        .unwrap_or(topology.get_system_subnets().into_iter().next().unwrap_or_else(|| panic!("PocketIC topology contains no application, verified application, and system subnet."))),
+                        .unwrap_or_else(|| topology.get_system_subnets().into_iter().next().unwrap_or_else(|| panic!("PocketIC topology contains no application, verified application, and system subnet."))),
                 );
                 Ok::<_, reqwest::Error>(Principal::from_slice(
                     &topology.0.get(&subnet).unwrap().canister_ranges[0]
