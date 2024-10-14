@@ -49,7 +49,6 @@ libflate = "2.0"
 base64 = "0.21"
 futures = "0.3.30"
 pocket-ic = { git = "https://github.com/dfinity/ic.git", rev = "71161800e87f1659998f2b3d480e12532f7580cc" }
-reqwest = "0.12.8"
 
 [patch.crates-io]
 ic-agent = { git = "https://github.com/dfinity/agent-rs.git", rev = "a56ccd471d7ca3c9ef5d63b57cc3c05afdcf89da" }
