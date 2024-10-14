@@ -125,31 +125,9 @@ impl MyHelper {
     ) -> Self {
         let runtime = Runtime::new().expect("Unable to create a runtime");
         let default_effective_canister_id = runtime
-            .block_on(async {
-                let client = reqwest::Client::new();
-                let topology: pocket_ic::common::rest::Topology = client
-                    .get(format!(
-                        "{}{}",
-                        agent_url.trim_end_matches('/'),
-                        "/_/topology"
-                    ))
-                    .send()
-                    .await?
-                    .json()
-                    .await?;
-                let subnet = topology.get_app_subnets().into_iter().next().unwrap_or_else(||
-                    topology
-                        .get_verified_app_subnets()
-                        .into_iter()
-                        .next()
-                        .unwrap_or_else(|| topology.get_system_subnets().into_iter().next().unwrap_or_else(|| panic!("PocketIC topology contains no application, verified application, and system subnet."))),
-                );
-                Ok::<_, reqwest::Error>(Principal::from_slice(
-                    &topology.0.get(&subnet).unwrap().canister_ranges[0]
-                        .start
-                        .canister_id,
-                ))
-            })
+            .block_on(pocket_ic::nonblocking::get_default_effective_canister_id(
+                agent_url.clone(),
+            ))
             .unwrap_or(Principal::management_canister());
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
