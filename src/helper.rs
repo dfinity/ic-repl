@@ -91,6 +91,7 @@ pub struct MyHelper {
     pub base_path: std::path::PathBuf,
     pub messages: RefCell<Vec<crate::offline::IngressWithStatus>>,
     pub verbose: bool,
+    pub default_effective_canister_id: Principal,
 }
 
 impl MyHelper {
@@ -113,6 +114,7 @@ impl MyHelper {
             offline: self.offline.clone(),
             messages: self.messages.clone(),
             verbose: self.verbose,
+            default_effective_canister_id: self.default_effective_canister_id,
         }
     }
     pub fn new(
@@ -121,6 +123,12 @@ impl MyHelper {
         offline: Option<OfflineOutput>,
         verbose: bool,
     ) -> Self {
+        let runtime = Runtime::new().expect("Unable to create a runtime");
+        let default_effective_canister_id = runtime
+            .block_on(pocket_ic::nonblocking::get_default_effective_canister_id(
+                agent_url.clone(),
+            ))
+            .unwrap_or(Principal::management_canister());
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
@@ -139,6 +147,7 @@ impl MyHelper {
             agent_url,
             offline,
             verbose,
+            default_effective_canister_id,
         };
         res.fetch_root_key_if_needed().unwrap();
         res.load_prelude().unwrap();
