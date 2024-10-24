@@ -117,7 +117,6 @@ impl Command {
             }
             Command::Identity(id, config) => {
                 use ic_agent::identity::{BasicIdentity, Identity, Secp256k1Identity};
-                use ring::signature::Ed25519KeyPair;
                 let identity: Arc<dyn Identity> = match &config {
                     IdentityConfig::Hsm { slot_index, key_id } => {
                         #[cfg(target_os = "macos")]
@@ -145,13 +144,9 @@ impl Command {
                     }
                     IdentityConfig::Empty => match helper.identity_map.0.get(&id) {
                         Some(identity) => identity.clone(),
-                        None => {
-                            let rng = ring::rand::SystemRandom::new();
-                            let pkcs8_bytes =
-                                Ed25519KeyPair::generate_pkcs8(&rng)?.as_ref().to_vec();
-                            let keypair = Ed25519KeyPair::from_pkcs8(&pkcs8_bytes)?;
-                            Arc::from(BasicIdentity::from_key_pair(keypair))
-                        }
+                        None => Arc::from(BasicIdentity::from_signing_key(
+                            ed25519_consensus::SigningKey::new(rand::thread_rng()),
+                        )),
                     },
                 };
                 helper

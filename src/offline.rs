@@ -175,7 +175,7 @@ async fn send_internal(
                         return Err(anyhow!("request_id doesn't match, cannot request status"));
                     }
                     let status = hex::decode(&status.content)?;
-                    agent.wait_signed(&request_id, canister_id, status).await?
+                    agent.wait_signed(&request_id, canister_id, status).await?.0
                 }
             }
         }
