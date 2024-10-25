@@ -171,6 +171,16 @@ pub fn get_effective_canister_id(
                 method
             )),
             "provisional_create_canister_with_cycles" => Ok(None),
+            "install_chunked_code" => {
+                #[derive(CandidType, Deserialize)]
+                struct Arg {
+                    target_canister: Principal,
+                }
+                let args = Decode!(args, Arg).map_err(|_| {
+                    anyhow!("{} can only be called via inter-canister call.", method)
+                })?;
+                Ok(Some(args.target_canister))
+            }
             _ => {
                 #[derive(CandidType, Deserialize)]
                 struct Arg {
