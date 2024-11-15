@@ -48,5 +48,4 @@ image = { version = "0.24", default-features = false, features = ["png"] }
 libflate = "2.0"
 base64 = "0.21"
 futures = "0.3.30"
-pocket-ic = { git = "https://github.com/dfinity/ic.git", rev = "3c76b9142f67da01393d9280c705f88b6e522a93" }
-
+pocket-ic = "6.0.0"
