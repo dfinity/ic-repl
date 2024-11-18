@@ -8,7 +8,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      DFX_VERSION: 0.24.0
+      DFX_VERSION: 0.24.2
     steps:
       - uses: actions/checkout@v4
       - name: Install stable Rust toolchain
@@ -38,12 +38,19 @@ jobs:
         uses: dfinity/setup-dfx@main
         with:
           dfx-version: "${{ env.DFX_VERSION }}"
-      - name: Start replica using dfx
+      - name: Run e2e tests against replica
         run: |
           echo '{}' > dfx.json
-          dfx start --background
-      - name: e2e tests
-        run: |
+          dfx start --background --clean
           set -ex
           target/debug/ic-repl examples/install.sh
           target/debug/ic-repl examples/func.sh
+          dfx stop
+      - name: Run e2e tests against PocketIC
+        run: |
+          echo '{}' > dfx.json
+          dfx start --background --clean --pocketic
+          set -ex
+          target/debug/ic-repl examples/install.sh
+          target/debug/ic-repl examples/func.sh
+          dfx stop
