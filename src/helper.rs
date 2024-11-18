@@ -137,7 +137,7 @@ impl MyHelper {
                 struct Topology {
                     pub default_effective_canister_id: RawCanisterId,
                 }
-                let resp = reqwest::get(format!("{}/_/topology", agent_url))
+                let resp = reqwest::get(format!("{}/_/topology", agent_url.trim_end_matches('/')))
                     .await
                     .ok()?;
                 if resp.status().is_success() {
