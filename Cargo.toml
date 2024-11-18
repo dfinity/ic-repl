@@ -50,4 +50,3 @@ base64 = "0.21"
 futures = "0.3.30"
 reqwest = "0.12.9"
 serde_with = { version = "3.11.0", features = ["base64"] }
-
