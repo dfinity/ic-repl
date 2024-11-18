@@ -594,7 +594,8 @@ impl Exp {
                         args.to_bytes()?
                     };
                     let method = &call.method.method;
-                    let effective_id = get_effective_canister_id(info.canister_id, method, &bytes)?;
+                    let effective_id = get_effective_canister_id(info.canister_id, method, &bytes)?
+                        .unwrap_or(helper.default_effective_canister_id);
                     let mut builder = helper.agent.update(&info.canister_id, method);
                     builder = builder
                         .with_arg(bytes)
@@ -931,7 +932,8 @@ async fn call(
 ) -> anyhow::Result<IDLArgs> {
     use crate::offline::*;
     let agent = &helper.agent;
-    let effective_id = get_effective_canister_id(*canister_id, method, args)?;
+    let effective_id = get_effective_canister_id(*canister_id, method, args)?
+        .unwrap_or(helper.default_effective_canister_id);
     let is_query = opt_func
         .as_ref()
         .map(|(_, f)| f.is_query())

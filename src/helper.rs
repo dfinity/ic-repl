@@ -91,6 +91,7 @@ pub struct MyHelper {
     pub base_path: std::path::PathBuf,
     pub messages: RefCell<Vec<crate::offline::IngressWithStatus>>,
     pub verbose: bool,
+    pub default_effective_canister_id: Principal,
 }
 
 impl MyHelper {
@@ -113,6 +114,7 @@ impl MyHelper {
             offline: self.offline.clone(),
             messages: self.messages.clone(),
             verbose: self.verbose,
+            default_effective_canister_id: self.default_effective_canister_id,
         }
     }
     pub fn new(
@@ -121,6 +123,32 @@ impl MyHelper {
         offline: Option<OfflineOutput>,
         verbose: bool,
     ) -> Self {
+        let runtime = Runtime::new().expect("Unable to create a runtime");
+        let default_effective_canister_id = runtime
+            .block_on(async {
+                use serde_with::base64::Base64;
+                #[serde_with::serde_as]
+                #[derive(serde::Deserialize)]
+                pub struct RawCanisterId {
+                    #[serde_as(as = "Base64")]
+                    pub canister_id: Vec<u8>,
+                }
+                #[derive(serde::Deserialize)]
+                struct Topology {
+                    pub default_effective_canister_id: RawCanisterId,
+                }
+                let resp = reqwest::get(format!("{}/_/topology", agent_url.trim_end_matches('/')))
+                    .await
+                    .ok()?;
+                if resp.status().is_success() {
+                    resp.json::<Topology>().await.ok().map(|topology| {
+                        Principal::from_slice(&topology.default_effective_canister_id.canister_id)
+                    })
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(Principal::management_canister());
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
@@ -139,6 +167,7 @@ impl MyHelper {
             agent_url,
             offline,
             verbose,
+            default_effective_canister_id,
         };
         res.fetch_root_key_if_needed().unwrap();
         res.load_prelude().unwrap();
