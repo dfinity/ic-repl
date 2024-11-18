@@ -48,4 +48,5 @@ image = { version = "0.24", default-features = false, features = ["png"] }
 libflate = "2.0"
 base64 = "0.21"
 futures = "0.3.30"
-pocket-ic = "6.0.0"
+reqwest = "0.12.9"
+serde_with = { version = "3.11.0", features = ["base64"] }

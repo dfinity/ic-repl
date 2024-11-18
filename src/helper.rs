@@ -125,9 +125,29 @@ impl MyHelper {
     ) -> Self {
         let runtime = Runtime::new().expect("Unable to create a runtime");
         let default_effective_canister_id = runtime
-            .block_on(pocket_ic::nonblocking::get_default_effective_canister_id(
-                agent_url.clone(),
-            ))
+            .block_on(async {
+                use serde_with::base64::Base64;
+                #[serde_with::serde_as]
+                #[derive(serde::Deserialize)]
+                pub struct RawCanisterId {
+                    #[serde_as(as = "Base64")]
+                    pub canister_id: Vec<u8>,
+                }
+                #[derive(serde::Deserialize)]
+                struct Topology {
+                    pub default_effective_canister_id: RawCanisterId,
+                }
+                let resp = reqwest::get(format!("{}/_/topology", agent_url.trim_end_matches('/')))
+                    .await
+                    .ok()?;
+                if resp.status().is_success() {
+                    resp.json::<Topology>().await.ok().map(|topology| {
+                        Principal::from_slice(&topology.default_effective_canister_id.canister_id)
+                    })
+                } else {
+                    None
+                }
+            })
             .unwrap_or(Principal::management_canister());
         let mut res = MyHelper {
             completer: FilenameCompleter::new(),
