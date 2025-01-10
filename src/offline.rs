@@ -58,6 +58,8 @@ impl Ingress {
         Err(anyhow!("Invalid cbor content"))
     }
 }
+
+#[allow(static_mut_refs)]
 pub fn output_message(json: String, format: &OfflineOutput) -> Result<()> {
     match format {
         OfflineOutput::Json => println!("{json}"),
