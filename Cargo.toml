@@ -28,7 +28,10 @@ ic-agent = "0.39"
 ic-identity-hsm = "0.39"
 ic-transport-types = "0.39"
 ic-wasm = { version = "0.9", default-features = false }
-inferno = { version = "0.11", default-features = false, features = ["multithreaded", "nameattr"] }
+inferno = { version = "0.11", default-features = false, features = [
+    "multithreaded",
+    "nameattr",
+] }
 tokio = { version = "1.35", features = ["full"] }
 anyhow = "1.0"
 rand = "0.8"
@@ -50,3 +53,7 @@ base64 = "0.21"
 futures = "0.3.30"
 reqwest = "0.12.9"
 serde_with = { version = "3.11.0", features = ["base64"] }
+
+# When cross-compiling for ARM, we need to use a vendored version of OpenSSL
+[target.arm-unknown-linux-gnueabihf.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
