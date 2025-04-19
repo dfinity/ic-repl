@@ -48,6 +48,11 @@ assert eq((service "aaaaa-aa" : principal), principal "aaaaa-aa") == true;
 assert (func "aaaaa-aa".test : service {}) == service "aaaaa-aa";
 assert (principal "aaaaa-aa" : service {}) == service "aaaaa-aa";
 
+assert account(principal "aaaaa-aa") == blob "\2d\0e\89\7f\7e\86\2d\2b\57\d9\bc\9e\a5\c6\5f\9a\24\ac\6c\07\45\75\f4\78\98\31\4b\8d\6c\b0\92\9d";
+assert subaccount(principal "aaaaa-aa") == blob "\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00";
+assert account(principal "aaaaa-aa", subaccount(principal "aaaaa-aa")) == blob "\2d\0e\89\7f\7e\86\2d\2b\57\d9\bc\9e\a5\c6\5f\9a\24\ac\6c\07\45\75\f4\78\98\31\4b\8d\6c\b0\92\9d";
+assert account(principal "aaaaa-aa", subaccount(principal "2vxsx-fae")) == blob "\ad\2f\2a\2f\19\a4\ef\fd\a2\af\d4\44\66\12\37\cf\77\4f\44\95\df\68\bd\67\1f\b4\16\0a\ca\5b\13\41";
+
 assert ("this is a text" : blob) == blob "this is a text";
 assert (blob "this is a blob" : text) == "this is a blob";
 
