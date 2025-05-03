@@ -46,7 +46,9 @@ ic-repl [--replica [local|ic|url] | --offline [--format [json|ascii|png]]] --con
 Similar to most shell languages, functions in ic-repl is dynamically scoped and untyped.
 
 We also provide some built-in functions:
-* `account(principal)`: convert principal to account id.
+* `account(principal)`: convert principal to account id (blob).
+* `account(principal, blob)`: convert principal and subaccount (blob) to account id (blob).
+* `subaccount(principal)`: convert principal to subaccount (blob).
 * `neuron_account(principal, nonce)`: convert (principal, nonce) to account in the governance canister.
 * `file(path)`: load external file as a blob value.
 * `gzip(blob)`: gzip a blob value.

@@ -164,6 +164,18 @@ impl Exp {
                             let account = AccountIdentifier::new(*principal, None);
                             IDLValue::Blob(account.to_vec())
                         }
+                        [IDLValue::Principal(principal), IDLValue::Blob(subaccount)] => {
+                            let subaccount = Subaccount::try_from(subaccount.as_slice())?;
+                            let account = AccountIdentifier::new(*principal, Some(subaccount));
+                            IDLValue::Blob(account.to_vec())
+                        }
+                        _ => return Err(anyhow!("account expects principal")),
+                    },
+                    "subaccount" => match args.as_slice() {
+                        [IDLValue::Principal(principal)] => {
+                            let subaccount = Subaccount::from(principal);
+                            IDLValue::Blob(subaccount.to_vec())
+                        }
                         _ => return Err(anyhow!("account expects principal")),
                     },
                     "neuron_account" => match args.as_slice() {
