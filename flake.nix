@@ -23,8 +23,8 @@
       ];
 
       nativeBuildInputs = [
-        pkgs.clang_19
-        pkgs.cmake
+        #pkgs.clang_19
+        #pkgs.cmake
       ];
 
       CXXFLAGS_aarch64_apple_darwin = "--target=aarch64-apple-darwin";
@@ -36,11 +36,6 @@
       inherit (manifest) version;
       cargoLock.lockFile = ./Cargo.lock;
       src = pkgs.lib.cleanSource ./.;
-      cargoLock = {
-        outputHashes = {
-        };
-      };
     };
   };
 }
-
