@@ -14,12 +14,12 @@
       inherit system;
       overlays = [rust-overlay.overlays.default];
     };
-    toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+    #toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
     manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
   in {
     devShells.${system}.default = pkgs.mkShell {
       packages = [
-        toolchain
+        #toolchain
       ];
 
       nativeBuildInputs = [
