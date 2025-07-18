@@ -41,17 +41,17 @@ pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<str>> {
 
 fn num_cast_helper(v: IDLValue, truncate_float: bool) -> Result<String> {
     Ok(match v {
-        IDLValue::Number(n) => n,
+        IDLValue::Number(n) => n.replace('_', ""),
         IDLValue::Int64(n) => n.to_string(),
         IDLValue::Int32(n) => n.to_string(),
         IDLValue::Int16(n) => n.to_string(),
         IDLValue::Int8(n) => n.to_string(),
-        IDLValue::Int(n) => n.to_string(),
+        IDLValue::Int(n) => n.to_string().replace('_', ""),
         IDLValue::Nat64(n) => n.to_string(),
         IDLValue::Nat32(n) => n.to_string(),
         IDLValue::Nat16(n) => n.to_string(),
         IDLValue::Nat8(n) => n.to_string(),
-        IDLValue::Nat(n) => n.to_string(),
+        IDLValue::Nat(n) => n.to_string().replace('_', ""),
         IDLValue::Float32(f) => if truncate_float { f.trunc() } else { f }.to_string(),
         IDLValue::Float64(f) => if truncate_float { f.trunc() } else { f }.to_string(),
         _ => return Err(anyhow!("{v} is not a number")),
@@ -502,4 +502,47 @@ pub fn parse_state_path(paths: &[IDLValue]) -> anyhow::Result<StatePath> {
         kind,
         result,
     })
+}
+
+#[test]
+fn test_cast_type_big_num() {
+    use candid::{Int, Nat};
+
+    // cast to Nat64
+    assert!(
+        matches!(cast_type(IDLValue::Number("1_000_000".to_string()), &TypeInner::Nat64.into()),
+               Ok(v) if v == IDLValue::Nat64(1_000_000u64))
+    );
+    assert!(
+        matches!(cast_type(IDLValue::Nat(Nat::from(1_000_000u64)), &TypeInner::Nat64.into()),
+               Ok(v) if v == IDLValue::Nat64(1_000_000u64))
+    );
+    assert!(
+        matches!(cast_type(IDLValue::Int(Int::from(1_000_000i64)), &TypeInner::Nat64.into()),
+               Ok(v) if v == IDLValue::Nat64(1_000_000u64))
+    );
+
+    fn pow<T: std::ops::MulAssign + From<u32> + Clone>(base: T, n: i32) -> T {
+        let mut num = T::from(1u32);
+        for _ in 0..n {
+            num *= base.clone();
+        }
+        num
+    }
+
+    // cast to Float64
+    for n in [0i32, 1, 10, 55] {
+        assert!(
+            matches!(cast_type(IDLValue::Number(pow(Nat::from(10u64), n).to_string()), &TypeInner::Float64.into()),
+               Ok(v) if v == IDLValue::Float64(10f64.powi(n)))
+        );
+        assert!(
+            matches!(cast_type(IDLValue::Nat(pow(Nat::from(10u64), n)), &TypeInner::Float64.into()),
+               Ok(v) if v == IDLValue::Float64(10f64.powi(n)))
+        );
+        assert!(
+            matches!(cast_type(IDLValue::Int(pow(Int::from(-10i64), n)), &TypeInner::Float64.into()),
+               Ok(v) if v == IDLValue::Float64((-10f64).powi(n)))
+        );
+    }
 }
