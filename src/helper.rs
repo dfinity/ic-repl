@@ -417,7 +417,7 @@ fn match_type(line: &str, helper: &MyHelper) -> Option<(usize, Vec<Pair>)> {
     for (var, value) in helper.env.0.iter() {
         let ty = value.value_ty();
         if candid::types::subtype::subtype(&mut gamma, env, &ty, expect_ty).is_ok() {
-            let value = format!("{:?}", value);
+            let value = format!("{value:?}");
             // TODO use floor_char_boundary when available.
             let value = &value[..20.min(value.len())];
             res.push(Pair {

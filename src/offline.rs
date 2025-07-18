@@ -142,7 +142,7 @@ pub fn send(helper: &MyHelper, msg: &IngressWithStatus) -> Result<IDLArgs> {
         IDLArgs::from_bytes(&bytes)?
     };
     println!("Sending {} call as {}:", message.call_type, sender);
-    println!("  call \"{}\".{}{};", canister_id, method_name, args);
+    println!("  call \"{canister_id}\".{method_name}{args};");
     println!("Do you want to send this message? [y/N]");
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
@@ -188,6 +188,6 @@ async fn send_internal(
     } else {
         IDLArgs::from_bytes(&response)?
     };
-    println!("{}", res);
+    println!("{res}");
     Ok(res)
 }

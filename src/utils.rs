@@ -278,7 +278,7 @@ pub async fn fetch_state_path(agent: &Agent, mut path: StatePath) -> anyhow::Res
             })?
         };
         path.effective_id = Some(id);
-        eprintln!("Using {} as effective canister/subnet id. To change it, put the effective id as the first argument.", id);
+        eprintln!("Using {id} as effective canister/subnet id. To change it, put the effective id as the first argument.");
     }
     fetch_state_path_(agent, path).await
 }
