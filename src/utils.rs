@@ -8,8 +8,9 @@ use candid_parser::configs::Configs;
 use ic_agent::Agent;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::slice;
 
-pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<str>> {
+pub fn stringify(v: &IDLValue) -> anyhow::Result<Cow<'_, str>> {
     Ok(match v {
         IDLValue::Text(str) => Cow::Borrowed(str),
         IDLValue::Number(_)
@@ -240,7 +241,7 @@ pub fn random_value(
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let seed: Vec<_> = (0..2048).map(|_| rng.gen::<u8>()).collect();
-    let result = candid_parser::random::any(&seed, config, env, &[ty.clone()], &Some(scope))?;
+    let result = candid_parser::random::any(&seed, config, env, slice::from_ref(ty), &Some(scope))?;
     Ok(result.args[0].to_string())
 }
 
