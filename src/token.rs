@@ -166,11 +166,6 @@ impl<'input> Tokenizer<'input> {
 
 pub type Span = std::ops::Range<usize>;
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Spanned<T> {
-    pub span: Span,
-    pub value: T,
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LexicalError {
     pub err: String,
     pub span: Span,
