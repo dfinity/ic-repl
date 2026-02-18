@@ -69,7 +69,7 @@ pub fn output_message(json: String, format: &OfflineOutput) -> Result<()> {
                 Engine,
             };
             use libflate::gzip;
-            use qrcode::{render::unicode, QrCode};
+            use qrcode::{render::unicode, types::QrError, EcLevel, QrCode};
             use std::io::Write;
             eprintln!("json length: {}", json.len());
             let mut encoder = gzip::Encoder::new(Vec::new())?;
@@ -86,7 +86,14 @@ pub fn output_message(json: String, format: &OfflineOutput) -> Result<()> {
                 OfflineOutput::Ascii(url) | OfflineOutput::Png(url) => url.to_owned() + &base64,
                 _ => base64,
             };
-            let code = QrCode::new(msg)?;
+            let code = QrCode::new(&msg).or_else(|e| {
+                // Try to lower the error correction level to make the data fit.
+                if let QrError::DataTooLong = e {
+                    QrCode::with_error_correction_level(&msg, EcLevel::L)
+                } else {
+                    Err(e)
+                }
+            })?;
             match format {
                 OfflineOutput::Ascii(_) | OfflineOutput::AsciiNoUrl => {
                     let img = code.render::<unicode::Dense1x2>().build();
