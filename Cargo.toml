@@ -34,7 +34,7 @@ inferno = { version = "0.11", default-features = false, features = [
 ] }
 tokio = { version = "1.43", features = ["full"] }
 anyhow = "1.0"
-rand = "0.8"
+rand = "0.9"
 logos = "0.14"
 lalrpop-util = "0.20"
 clap = { version = "4.4", features = ["derive"] }
