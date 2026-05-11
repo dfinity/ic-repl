@@ -39,7 +39,7 @@ logos = "0.14"
 lalrpop-util = "0.20"
 clap = { version = "4.4", features = ["derive"] }
 ed25519-consensus = "2.1.0"
-rpassword = "7.2"
+rpassword = "7.5"
 serde = "1.0"
 serde_json = "1.0"
 serde_cbor = "0.11"
