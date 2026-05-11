@@ -915,7 +915,7 @@ pub fn apply_func(helper: &MyHelper, func: &str, args: Vec<IDLValue>) -> Result<
                 ));
             }
             let mut helper = helper.spawn();
-            for (id, v) in formal_args.iter().zip(args.into_iter()) {
+            for (id, v) in formal_args.iter().zip(args) {
                 helper.env.0.insert(id.to_string(), v);
             }
             for cmd in body.iter() {
