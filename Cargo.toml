@@ -4,6 +4,7 @@ version = "0.7.8"
 authors = ["DFINITY Team"]
 edition = "2021"
 default-run = "ic-repl"
+repository = "https://github.com/dfinity/ic-repl"
 
 [[bin]]
 name = "ic-repl"
@@ -57,3 +58,8 @@ serde_with = { version = "3.11.0", features = ["base64"] }
 # When cross-compiling for ARM, we need to use a vendored version of OpenSSL
 [target.arm-unknown-linux-gnueabihf.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
